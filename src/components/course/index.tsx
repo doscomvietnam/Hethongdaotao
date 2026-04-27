@@ -17,30 +17,35 @@ import { Card, Badge, Button, Progress, cn } from '../ui';
 
 // ─── Video Progress Tracker Helpers ─────────────────────────────────────────
 
-const VIDEO_PROGRESS_KEY = 'lms_video_progress';
+function getVideoProgressKey(userId: string) {
+  return `lms_video_progress_${userId}`;
+}
 
-function getVideoProgress(courseId: string): number {
+function getVideoProgress(courseId: string, userId: string): number {
   try {
-    const data = JSON.parse(localStorage.getItem(VIDEO_PROGRESS_KEY) || '{}');
+    const data = JSON.parse(localStorage.getItem(getVideoProgressKey(userId)) || '{}');
     return data[courseId] || 0;
   } catch { return 0; }
 }
 
-function setVideoProgress(courseId: string, progress: number) {
+function setVideoProgress(courseId: string, progress: number, userId: string) {
   try {
-    const data = JSON.parse(localStorage.getItem(VIDEO_PROGRESS_KEY) || '{}');
+    const key = getVideoProgressKey(userId);
+    const data = JSON.parse(localStorage.getItem(key) || '{}');
     data[courseId] = Math.min(100, Math.max(data[courseId] || 0, progress));
-    localStorage.setItem(VIDEO_PROGRESS_KEY, JSON.stringify(data));
+    localStorage.setItem(key, JSON.stringify(data));
   } catch {}
 }
 
 // ─── Quiz Attempts Helpers ──────────────────────────────────────────────────
 
-const QUIZ_ATTEMPTS_KEY = 'lms_quiz_attempts';
+function getQuizAttemptsKey(userId: string) {
+  return `lms_quiz_attempts_${userId}`;
+}
 
-function getQuizAttempts(courseId: string): number {
+function getQuizAttempts(courseId: string, userId: string): number {
   try {
-    const data = JSON.parse(localStorage.getItem(QUIZ_ATTEMPTS_KEY) || '{}');
+    const data = JSON.parse(localStorage.getItem(getQuizAttemptsKey(userId)) || '{}');
     return data[courseId] || 0;
   } catch { return 0; }
 }
@@ -49,10 +54,11 @@ function getQuizAttempts(courseId: string): number {
 
 interface CourseCatalogProps {
   courses: Course[];
+  userId: string;
   onCourseClick: (course: Course) => void;
 }
 
-export const CourseCatalog = ({ courses, onCourseClick }: CourseCatalogProps) => {
+export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
   const brands: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma', 'Nội bộ'];
 
@@ -87,7 +93,7 @@ export const CourseCatalog = ({ courses, onCourseClick }: CourseCatalogProps) =>
         {courses
           .filter(c => activeBrand === 'Tất cả' || c.brand === activeBrand)
           .map((course) => {
-          const videoProgress = getVideoProgress(course.id);
+          const videoProgress = getVideoProgress(course.id, userId);
           return (
           <Card 
             key={course.id} 
@@ -170,18 +176,19 @@ export const CourseCatalog = ({ courses, onCourseClick }: CourseCatalogProps) =>
 
 interface CourseDetailProps {
   course: Course;
+  userId: string;
   onBack: () => void;
   onStartQuiz: (quizId?: string) => void;
 }
 
-export const CourseDetail = ({ course, onBack, onStartQuiz }: CourseDetailProps) => {
+export const CourseDetail = ({ course, userId, onBack, onStartQuiz }: CourseDetailProps) => {
   const [activeTab, setActiveTab] = React.useState<'video' | 'slide'>('video');
 
   // ── Udemy-style Video Progress Tracking ────────────────────────────────
   // Supports both:
   // - HTML5 <video> (Supabase Storage .mp4): uses timeupdate for accurate progress
   // - <iframe> (Google Drive): uses focus-polling for approximate progress
-  const [videoWatchProgress, setVideoWatchProgress] = React.useState(() => getVideoProgress(course.id));
+  const [videoWatchProgress, setVideoWatchProgress] = React.useState(() => getVideoProgress(course.id, userId));
   const [isWatching, setIsWatching] = React.useState(false);
   const videoTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeContainerRef = React.useRef<HTMLDivElement>(null);
@@ -204,7 +211,7 @@ export const CourseDetail = ({ course, onBack, onStartQuiz }: CourseDetailProps)
         const pct = Math.round((videoEl.currentTime / videoEl.duration) * 100);
         setVideoWatchProgress(prev => {
           const newProg = Math.max(prev, pct);
-          setVideoProgress(course.id, newProg);
+          setVideoProgress(course.id, newProg, userId);
           return newProg;
         });
       }
@@ -214,7 +221,7 @@ export const CourseDetail = ({ course, onBack, onStartQuiz }: CourseDetailProps)
     const handleEnded = () => {
       setIsWatching(false);
       setVideoWatchProgress(100);
-      setVideoProgress(course.id, 100);
+      setVideoProgress(course.id, 100, userId);
     };
 
     videoEl.addEventListener('timeupdate', handleTimeUpdate);
@@ -263,7 +270,7 @@ export const CourseDetail = ({ course, onBack, onStartQuiz }: CourseDetailProps)
       setVideoWatchProgress(prev => {
         if (prev >= 100) return 100;
         const newProg = Math.min(100, prev + Math.round((3 / VIDEO_TOTAL_SECONDS) * 100));
-        setVideoProgress(course.id, newProg);
+        setVideoProgress(course.id, newProg, userId);
         return newProg;
       });
     }, 3000);
@@ -278,7 +285,7 @@ export const CourseDetail = ({ course, onBack, onStartQuiz }: CourseDetailProps)
   };
 
   // ── Quiz Attempts from localStorage ──────────────────────────────────
-  const localAttempts = getQuizAttempts(course.id);
+  const localAttempts = getQuizAttempts(course.id, userId);
   const totalAttempts = Math.max(course.attempts, localAttempts);
   const hasUsedAttempt = totalAttempts >= 1;
 
@@ -511,16 +518,18 @@ interface CourseModuleProps {
   mode: 'list' | 'detail';
   courses?: Course[];
   course?: Course;
+  userId?: string;
   onSelectCourse?: (course: Course) => void;
   onBack?: () => void;
   onStartQuiz?: (quizId?: string) => void;
 }
 
-export default function CourseModule({ mode, courses = [], course, onSelectCourse, onBack, onStartQuiz }: CourseModuleProps) {
+export default function CourseModule({ mode, courses = [], course, userId = '', onSelectCourse, onBack, onStartQuiz }: CourseModuleProps) {
   if (mode === 'detail' && course) {
     return (
       <CourseDetail
         course={course}
+        userId={userId}
         onBack={onBack || (() => {})}
         onStartQuiz={onStartQuiz || (() => {})}
       />
@@ -529,6 +538,7 @@ export default function CourseModule({ mode, courses = [], course, onSelectCours
   return (
     <CourseCatalog
       courses={courses}
+      userId={userId}
       onCourseClick={onSelectCourse || (() => {})}
     />
   );

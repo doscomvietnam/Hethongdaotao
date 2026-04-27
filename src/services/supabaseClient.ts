@@ -14,4 +14,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
     console.warn("⚠️ Thiếu VITE_SUPABASE_URL hoặc VITE_SUPABASE_ANON_KEY trong file .env. Dữ liệu sẽ không tải được.");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true, // Cần thiết cho reset password redirect
+    },
+});

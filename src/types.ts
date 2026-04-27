@@ -5,7 +5,33 @@ export enum ViewType {
   COURSE_CATALOG = 'course-catalog',
   COURSE_DETAIL = 'course-detail',
   QUIZ = 'quiz',
-  ADMIN = 'admin'
+  REPORT = 'report',
+  ADMIN = 'admin',
+  PROFILE = 'profile',
+  LOGIN = 'login',
+  FORGOT_PASSWORD = 'forgot-password',
+  RESET_PASSWORD = 'reset-password',
+}
+
+export type EmployeeRole = 'admin' | 'manager' | 'employee';
+
+export interface Employee {
+  id: string;
+  auth_user_id: string;
+  email: string;
+  full_name: string;
+  role: EmployeeRole;
+  department?: string;
+  position?: string;
+  phone?: string;
+  avatar_url?: string;
+  birth_date?: string;
+  gender?: 'Nam' | 'Nữ';
+  work_location?: string;
+  employment_status: 'active' | 'inactive';
+  must_change_password: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export type Brand = 'Doscom' | 'Noma' | 'Nội bộ';
@@ -60,3 +86,4 @@ export interface QuizAttempt {
   timestamp: number;
   passed: boolean;
 }
+

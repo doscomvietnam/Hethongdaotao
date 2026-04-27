@@ -1,32 +1,55 @@
 import * as React from 'react';
 import { 
   LayoutDashboard, 
-  BookOpen, 
   GraduationCap, 
   BarChart3, 
-  LogOut, 
   Search, 
   Bell, 
   ShieldCheck,
   Building2,
   Box,
-  ChevronRight
+  ChevronRight,
+  Settings,
 } from 'lucide-react';
-import { ViewType } from '../../types';
+import { ViewType, Employee } from '../../types';
 import { cn } from '../../lib/utils';
 
 interface SidebarProps {
   currentView: ViewType;
   setView: (view: ViewType) => void;
+  employee: Employee;
 }
 
-export const Sidebar = ({ currentView, setView }: SidebarProps) => {
-  const menuItems = [
-    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan' },
-    { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm' },
-    { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo' },
-    { id: ViewType.ADMIN, icon: BarChart3, label: 'Quản trị hệ thống' },
+export const Sidebar = ({ currentView, setView, employee }: SidebarProps) => {
+  const allMenuItems = [
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['admin', 'manager', 'employee'] },
+    { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'] },
+    { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'] },
+    { id: ViewType.REPORT, icon: BarChart3, label: 'Báo cáo', roles: ['admin', 'manager'] },
+    { id: ViewType.ADMIN, icon: Settings, label: 'Quản trị hệ thống', roles: ['admin', 'manager'] },
   ];
+
+  const menuItems = allMenuItems.filter(item => item.roles.includes(employee.role));
+
+  const roleLabels: Record<string, string> = {
+    admin: 'Quản trị viên',
+    manager: 'Quản lý',
+    employee: 'Nhân viên',
+  };
+
+  const roleColors: Record<string, string> = {
+    admin: 'text-emerald-500',
+    manager: 'text-blue-400',
+    employee: 'text-zinc-400',
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
 
   return (
     <aside className="w-72 border-r border-zinc-900 bg-[#0C0C0E] h-screen sticky top-0 flex flex-col z-20 overflow-hidden">
@@ -64,30 +87,47 @@ export const Sidebar = ({ currentView, setView }: SidebarProps) => {
         ))}
       </nav>
 
+      {/* User card — bấm vào mở trang Profile */}
       <div className="p-8 border-t border-zinc-900 bg-black/20">
-        <div className="bg-zinc-900/50 rounded-2xl p-5 border border-zinc-800/50 flex items-center gap-4 group cursor-pointer hover:bg-zinc-800 transition-all">
+        <div
+          onClick={() => setView(ViewType.PROFILE)}
+          className={cn(
+            "rounded-2xl p-5 border flex items-center gap-4 group cursor-pointer transition-all",
+            currentView === ViewType.PROFILE
+              ? "bg-emerald-500/10 border-emerald-500/20"
+              : "bg-zinc-900/50 border-zinc-800/50 hover:bg-zinc-800"
+          )}
+        >
             <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex-shrink-0 flex items-center justify-center overflow-hidden ring-1 ring-zinc-700/50 shadow-inner">
                  <div className="w-full h-full bg-emerald-500/10 flex items-center justify-center">
-                    <span className="text-emerald-500 font-black italic text-xs uppercase">AD</span>
+                    <span className="text-emerald-500 font-black italic text-xs uppercase">
+                      {getInitials(employee.full_name)}
+                    </span>
                  </div>
             </div>
             <div className="flex-1 overflow-hidden">
-                <p className="text-xs font-black text-white truncate italic uppercase tracking-tighter">Admin Doscom</p>
+                <p className="text-xs font-black text-white truncate italic uppercase tracking-tighter">
+                  {employee.full_name}
+                </p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <p className="text-[9px] text-zinc-500 truncate uppercase font-black tracking-widest italic">Hệ thống bảo mật</p>
+                    <p className={`text-[9px] truncate uppercase font-black tracking-widest italic ${roleColors[employee.role]}`}>
+                      {roleLabels[employee.role]}
+                    </p>
                 </div>
             </div>
-            <button className="text-zinc-700 hover:text-red-500 transition-colors">
-                <LogOut className="w-4 h-4" />
-            </button>
+            <ChevronRight className="w-4 h-4 text-zinc-600" />
         </div>
       </div>
     </aside>
   );
 };
 
-export const Navbar = () => {
+interface NavbarProps {
+  employee: Employee;
+}
+
+export const Navbar = ({ employee }: NavbarProps) => {
   return (
     <header className="h-24 border-b border-zinc-900 bg-[#09090B]/80 backdrop-blur-3xl sticky top-0 z-10 px-12 flex items-center justify-between">
       <div className="flex items-center gap-12">
@@ -108,11 +148,10 @@ export const Navbar = () => {
 
       <div className="flex items-center gap-10">
         <div className="flex flex-col items-end">
-            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest leading-none mb-1.5 italic">Chỉ số đạo tạo</p>
-            <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10B981]" />
-                <p className="text-xl font-black text-white leading-none font-mono tracking-tighter italic underline decoration-emerald-500/20 decoration-2 underline-offset-4">94.2%</p>
-            </div>
+            <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest leading-none mb-1.5 italic">Xin chào</p>
+            <p className="text-sm font-black text-white leading-none tracking-tight italic">
+              {employee.full_name}
+            </p>
         </div>
         
         <div className="h-10 w-[2px] bg-zinc-900" />
@@ -131,12 +170,14 @@ export const Navbar = () => {
 interface LayoutProps {
   currentView: ViewType;
   onNavigate: (view: string) => void;
+  employee: Employee;
+  onLogout: () => void;
+  onChangePassword: () => void;
   children: React.ReactNode;
 }
 
-export default function Layout({ currentView, onNavigate, children }: LayoutProps) {
+export default function Layout({ currentView, onNavigate, employee, children }: LayoutProps) {
   const handleSetView = (view: ViewType) => {
-    // Map ViewType enum value to string key for onNavigate
     const viewMap: Record<ViewType, string> = {
       [ViewType.DASHBOARD]: 'dashboard',
       [ViewType.PRODUCT_LIBRARY]: 'products',
@@ -144,16 +185,25 @@ export default function Layout({ currentView, onNavigate, children }: LayoutProp
       [ViewType.COURSE_CATALOG]: 'courses',
       [ViewType.COURSE_DETAIL]: 'courses',
       [ViewType.QUIZ]: 'courses',
+      [ViewType.REPORT]: 'report',
       [ViewType.ADMIN]: 'admin',
+      [ViewType.PROFILE]: 'profile',
+      [ViewType.LOGIN]: 'dashboard',
+      [ViewType.FORGOT_PASSWORD]: 'dashboard',
+      [ViewType.RESET_PASSWORD]: 'dashboard',
     };
     onNavigate(viewMap[view] || 'dashboard');
   };
 
   return (
     <div className="flex min-h-screen bg-[#09090B] text-white">
-      <Sidebar currentView={currentView} setView={handleSetView} />
+      <Sidebar
+        currentView={currentView}
+        setView={handleSetView}
+        employee={employee}
+      />
       <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
-        <Navbar />
+        <Navbar employee={employee} />
         <main className="flex-1 overflow-y-auto p-12">
           {children}
         </main>
