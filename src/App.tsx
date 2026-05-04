@@ -11,14 +11,17 @@ import LoginPage from "./components/auth/LoginPage";
 import ForgotPasswordPage from "./components/auth/ForgotPasswordPage";
 import ResetPasswordPage from "./components/auth/ResetPasswordPage";
 import ChangePasswordModal from "./components/auth/ChangePasswordModal";
+import ThemeSwitcher from "./themes/ThemeSwitcher";
 
 import { ViewType, Product, Course, Quiz, Employee } from "./types";
 import type { User } from "@supabase/supabase-js";
 
 import { getProducts } from "./services/productService";
 import { getCourses } from "./services/courseService";
+import { supabase } from "./services/supabaseClient";
 import { getQuizById, getQuizByCourseId } from "./services/quizService";
 import { getDashboardSummary } from "./services/dashboardService";
+import { saveQuizResult as saveQuizToSupabase } from "./services/trainingProgressService";
 import {
   getSession,
   getEmployeeProfile,
@@ -80,6 +83,7 @@ function App() {
   const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
   const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(null);
   const [activeQuiz, setActiveQuiz] = React.useState<Quiz | null>(null);
+  const quizStartRef = React.useRef<number | null>(null);
 
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -260,6 +264,74 @@ function App() {
       const [productData, courseData] = await Promise.all([getProducts(), getCourses()]);
 
       setProducts(productData);
+
+      // Merge tiến độ từ Supabase vào courses + sync localStorage → Supabase
+      if (employee?.id && employee?.auth_user_id) {
+        try {
+          const { data: progressData } = await supabase
+            .from('training_progress')
+            .select('course_id, video_progress, quiz_score, quiz_time_seconds, quiz_passed, quiz_completed_at, status')
+            .eq('employee_id', employee.id);
+
+          const progressMap = new Map((progressData || []).map((p: any) => [p.course_id, p]));
+
+          // Read localStorage video progress
+          const localVideoKey = `lms_video_progress_${employee.auth_user_id}`;
+          const localVideoData = JSON.parse(localStorage.getItem(localVideoKey) || '{}');
+
+          for (const course of courseData) {
+            const supaProgress = progressMap.get(course.id);
+            const localVideoProg = localVideoData[course.id] || 0;
+
+            // Get the best video progress between Supabase and localStorage
+            const supaVideoProg = supaProgress?.video_progress || 0;
+            const bestVideoProg = Math.max(supaVideoProg, localVideoProg);
+
+            // Sync localStorage video progress to Supabase if higher
+            if (localVideoProg > supaVideoProg && localVideoProg > 0) {
+              supabase.from('training_progress').upsert({
+                employee_id: employee.id,
+                course_id: course.id,
+                video_progress: localVideoProg,
+                status: supaProgress?.quiz_passed ? 'completed' : 'in_progress',
+                updated_at: new Date().toISOString(),
+              }, { onConflict: 'employee_id,course_id' }).then(({ error }) => {
+                if (error) console.error('Sync video progress error:', error);
+              });
+            }
+
+            // Sync Supabase video progress back to localStorage if higher
+            if (supaVideoProg > localVideoProg) {
+              localVideoData[course.id] = supaVideoProg;
+              localStorage.setItem(localVideoKey, JSON.stringify(localVideoData));
+            }
+
+            // Merge into course object
+            if (supaProgress) {
+              course.videoProgress = bestVideoProg;
+              // Progress: quiz passed = 100%, quiz attempted but failed = 50% + video portion, video only = up to 50%
+              if (supaProgress.quiz_passed) {
+                course.progress = 100;
+              } else if (supaProgress.quiz_completed_at) {
+                // Quiz attempted but not passed
+                course.progress = Math.round(50 + (bestVideoProg / 100) * 49);
+              } else {
+                // Only video progress — caps at 50%
+                course.progress = bestVideoProg > 0 ? Math.round((bestVideoProg / 100) * 50) : 0;
+              }
+              course.lastQuizScore = supaProgress.quiz_score ?? undefined;
+              course.attempts = supaProgress.quiz_completed_at ? 1 : 0;
+              course.isCompleted = supaProgress.quiz_passed || false;
+            } else if (localVideoProg > 0) {
+              course.videoProgress = localVideoProg;
+              course.progress = Math.round((localVideoProg / 100) * 50);
+            }
+          }
+        } catch (e) {
+          console.error('Error loading training progress:', e);
+        }
+      }
+
       setCourses(courseData);
 
       await refreshDashboard(courseData);
@@ -268,7 +340,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [refreshDashboard]);
+  }, [refreshDashboard, employee?.id, employee?.auth_user_id]);
 
   // Chỉ load data khi đã đăng nhập thành công
   React.useEffect(() => {
@@ -352,6 +424,7 @@ function App() {
       }
 
       setActiveQuiz(quiz);
+      quizStartRef.current = Date.now();
       setCurrentView(ViewType.QUIZ);
     } catch (error) {
       console.error("Lỗi mở quiz:", error);
@@ -366,9 +439,20 @@ function App() {
   const handleQuizComplete = async (result: QuizResult) => {
     if (!selectedCourseId) return;
 
-    // Persist attempt to localStorage (max 1)
     const userId = employee?.auth_user_id || '';
-    saveQuizAttempt(selectedCourseId, userId);
+
+    // Save quiz result to Supabase FIRST
+    let supabaseSaved = false;
+    if (employee?.id) {
+      const quizTimeSeconds = quizStartRef.current ? Math.round((Date.now() - quizStartRef.current) / 1000) : 0;
+      supabaseSaved = await saveQuizToSupabase(employee.id, selectedCourseId, result.score, quizTimeSeconds, result.passed);
+      quizStartRef.current = null;
+    }
+
+    // Only count attempt if Supabase save succeeded
+    if (supabaseSaved) {
+      saveQuizAttempt(selectedCourseId, userId);
+    }
 
     const updatedCourses = courses.map((course) => {
       if (course.id !== selectedCourseId) return course;
@@ -378,15 +462,19 @@ function App() {
 
       return {
         ...course,
-        attempts: 1, // Always 1 since only 1 attempt allowed
+        attempts: supabaseSaved ? 1 : course.attempts,
         lastQuizScore: bestScore,
         isCompleted: course.isCompleted || result.passed,
-        progress: result.passed ? 100 : course.progress === 0 ? 50 : course.progress,
+        progress: result.passed ? 100 : Math.max(course.progress, 50),
       };
     });
 
     setCourses(updatedCourses);
     await refreshDashboard(updatedCourses);
+
+    if (!supabaseSaved) {
+      console.error('Quiz result could not be saved to Supabase. Attempt not counted.');
+    }
 
     setActiveQuiz(null);
     setCurrentView(ViewType.COURSE_DETAIL);
@@ -400,10 +488,11 @@ function App() {
       <div className="flex h-screen items-center justify-center bg-[#09090B]">
         <div className="text-center">
           <div className="mx-auto mb-6 h-12 w-12 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-          <p className="text-sm uppercase tracking-[0.2em] text-zinc-500 font-bold italic">
+          <p className="text-sm uppercase tracking-[0.2em] text-zinc-500 font-bold ">
             Đang kiểm tra phiên đăng nhập...
           </p>
         </div>
+        <ThemeSwitcher />
       </div>
     );
   }
@@ -412,21 +501,30 @@ function App() {
   // RENDER: AUTH PAGES (Chưa đăng nhập)
   // ============================================================
   if (!authUser || !employee) {
+    let authPage: React.ReactNode;
     switch (authView) {
       case 'forgot-password':
-        return <ForgotPasswordPage onBackToLogin={() => setAuthView('login')} />;
+        authPage = <ForgotPasswordPage onBackToLogin={() => setAuthView('login')} />;
+        break;
 
       case 'reset-password':
-        return <ResetPasswordPage onSuccess={handleResetPasswordSuccess} />;
+        authPage = <ResetPasswordPage onSuccess={handleResetPasswordSuccess} />;
+        break;
 
       default:
-        return (
+        authPage = (
           <LoginPage
             onLoginSuccess={handleLoginSuccess}
             onForgotPassword={() => setAuthView('forgot-password')}
           />
         );
     }
+    return (
+      <>
+        {authPage}
+        <ThemeSwitcher />
+      </>
+    );
   }
 
   // ============================================================
@@ -441,6 +539,7 @@ function App() {
           onSuccess={handlePasswordChangeSuccess}
           onClose={() => {}} // Không cho đóng khi forced
         />
+        <ThemeSwitcher />
       </div>
     );
   }
@@ -510,6 +609,7 @@ function App() {
             mode="list"
             courses={courses}
             userId={employee.auth_user_id}
+            employeeId={employee.id}
             onSelectCourse={(course: Course) => handleOpenCourse(course.id)}
           />
         );
@@ -528,6 +628,7 @@ function App() {
             mode="detail"
             course={selectedCourse}
             userId={employee.auth_user_id}
+            employeeId={employee.id}
             onBack={handleBackToCourses}
             onStartQuiz={(quizId?: string) => handleStartQuiz(quizId)}
           />
@@ -555,21 +656,21 @@ function App() {
         return (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <header className="flex flex-col gap-4 border-l-4 border-emerald-500 pl-8 py-2">
-              <h1 className="text-5xl font-black tracking-tighter text-white italic uppercase leading-none">BÁO CÁO</h1>
+              <h1 className="text-5xl font-black tracking-tighter text-white  uppercase leading-none">BÁO CÁO</h1>
               <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Báo cáo tiến độ đào tạo và hiệu suất</p>
             </header>
             <div className="grid gap-6 md:grid-cols-3">
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 hover:border-emerald-500/20 transition-all">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black italic">Tổng sản phẩm</p>
-                <p className="mt-4 text-5xl font-black italic text-white">{products.length}</p>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black ">Tổng sản phẩm</p>
+                <p className="mt-4 text-5xl font-black  text-white">{products.length}</p>
               </div>
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 hover:border-emerald-500/20 transition-all">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black italic">Tổng khóa học</p>
-                <p className="mt-4 text-5xl font-black italic text-white">{courses.length}</p>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black ">Tổng khóa học</p>
+                <p className="mt-4 text-5xl font-black  text-white">{courses.length}</p>
               </div>
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 hover:border-emerald-500/20 transition-all">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black italic">Tỷ lệ hoàn thành</p>
-                <p className="mt-4 text-5xl font-black italic text-white">{dashboardSummary?.completionRate || 0}%</p>
+                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black ">Tỷ lệ hoàn thành</p>
+                <p className="mt-4 text-5xl font-black  text-white">{dashboardSummary?.completionRate || 0}%</p>
               </div>
             </div>
           </div>
@@ -601,6 +702,10 @@ function App() {
         employee={employee}
         onLogout={handleLogout}
         onChangePassword={() => setShowChangePassword(true)}
+        courses={courses}
+        products={products}
+        onCourseClick={(courseId: string) => handleOpenCourse(courseId)}
+        onProductClick={(productId: string) => handleOpenProduct(productId)}
       >
         {renderContent()}
       </Layout>
@@ -614,6 +719,9 @@ function App() {
           onClose={() => setShowChangePassword(false)}
         />
       )}
+
+      {/* Floating theme switcher — visible everywhere */}
+      <ThemeSwitcher />
     </>
   );
 }

@@ -91,11 +91,11 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
                                     <KeyRound className="w-5 h-5 text-emerald-500" />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg font-black uppercase italic tracking-tight text-white">
+                                    <h2 className="text-lg font-black uppercase  tracking-tight text-white">
                                         Đổi mật khẩu
                                     </h2>
                                     {isForced && (
-                                        <p className="text-[10px] text-amber-500 font-bold uppercase tracking-widest italic">
+                                        <p className="text-[10px] text-amber-500 font-bold uppercase tracking-widest ">
                                             Bắt buộc đổi trước khi tiếp tục
                                         </p>
                                     )}
@@ -130,7 +130,7 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {/* New password */}
                             <div>
-                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                     Mật khẩu mới
                                 </label>
                                 <div className="relative group">
@@ -175,7 +175,7 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
 
                             {/* Confirm password */}
                             <div>
-                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                     Xác nhận mật khẩu
                                 </label>
                                 <div className="relative group">
@@ -211,7 +211,7 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
                                 id="change-password-submit"
                                 type="submit"
                                 disabled={isLoading}
-                                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase italic tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none mt-2"
+                                className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase  tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none mt-2"
                             >
                                 {isLoading ? (
                                     <>
@@ -230,7 +230,7 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
                         <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6">
                             <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                         </div>
-                        <h3 className="text-lg font-black uppercase italic tracking-tight text-white mb-3">
+                        <h3 className="text-lg font-black uppercase  tracking-tight text-white mb-3">
                             Đổi mật khẩu thành công!
                         </h3>
                         <p className="text-sm text-zinc-400">

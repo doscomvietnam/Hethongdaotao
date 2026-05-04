@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Eye, EyeOff, Loader2, AlertTriangle, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertTriangle, Mail, Lock, ArrowRight } from 'lucide-react';
 import { loginWithValidation } from '../../services/authService';
 import type { Employee } from '../../types';
 import type { User } from '@supabase/supabase-js';
@@ -68,10 +68,10 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
             <div className="relative z-10 w-full max-w-md mx-4">
                 {/* Logo section */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 mb-6 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
-                        <ShieldCheck className="w-10 h-10 text-emerald-500" />
+                    <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white/5 border border-zinc-800/60 mb-6 shadow-[0_0_40px_rgba(16,185,129,0.15)] overflow-hidden">
+                        <img src="/logo.png" alt="Doscom Academy" className="w-20 h-20 object-contain" />
                     </div>
-                    <h1 className="text-3xl font-black uppercase italic tracking-tight text-white">
+                    <h1 className="text-3xl font-black uppercase  tracking-tight text-white">
                         DOSCOM
                     </h1>
                     <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em] mt-1">
@@ -82,10 +82,10 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
                 {/* Card */}
                 <div className="bg-zinc-950/80 backdrop-blur-xl border border-zinc-800/60 rounded-3xl p-8 shadow-2xl shadow-black/40">
                     <div className="mb-8">
-                        <h2 className="text-lg font-black uppercase italic tracking-tight text-white">
+                        <h2 className="text-lg font-black uppercase  tracking-tight text-white">
                             Đăng nhập hệ thống
                         </h2>
-                        <p className="text-xs text-zinc-500 mt-1 uppercase tracking-widest font-bold italic">
+                        <p className="text-xs text-zinc-500 mt-1 uppercase tracking-widest font-bold ">
                             Truy cập nội bộ doanh nghiệp
                         </p>
                     </div>
@@ -101,7 +101,7 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
                     <form onSubmit={handleSubmit} className="space-y-5">
                         {/* Email */}
                         <div>
-                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                 Email
                             </label>
                             <div className="relative group">
@@ -121,7 +121,7 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
 
                         {/* Password */}
                         <div>
-                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                            <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                 Mật khẩu
                             </label>
                             <div className="relative group">
@@ -153,7 +153,7 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
                                 type="button"
                                 onClick={onForgotPassword}
                                 disabled={isLoading}
-                                className="text-xs text-emerald-500/70 hover:text-emerald-400 transition-colors font-bold uppercase tracking-widest italic disabled:opacity-50"
+                                className="text-xs text-emerald-500/70 hover:text-emerald-400 transition-colors font-bold uppercase tracking-widest  disabled:opacity-50"
                             >
                                 Quên mật khẩu?
                             </button>
@@ -164,7 +164,7 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
                             id="login-submit"
                             type="submit"
                             disabled={isLoading}
-                            className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase italic tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none group"
+                            className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase  tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none group"
                         >
                             {isLoading ? (
                                 <>
@@ -185,7 +185,7 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
                 <div className="text-center mt-8">
                     <div className="flex items-center justify-center gap-2 mb-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] italic">
+                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] ">
                             Hệ thống bảo mật nội bộ
                         </p>
                     </div>

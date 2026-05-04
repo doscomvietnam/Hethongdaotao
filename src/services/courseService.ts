@@ -1,6 +1,6 @@
 import type { Course } from "../types";
 import { supabase } from "./supabaseClient";
-import { convertGoogleDriveToDirectUrl, convertGoogleDriveToVideoEmbedUrl, convertGoogleDriveToSlideEmbedUrl } from "./mediaHelpers";
+import { convertGoogleDriveToDirectUrl, convertGoogleDriveToVideoEmbedUrl, convertGoogleDriveToDirectVideoUrl, convertGoogleDriveToSlideEmbedUrl } from "./mediaHelpers";
 
 /**
  * Map dữ liệu từ Supabase row sang Course interface

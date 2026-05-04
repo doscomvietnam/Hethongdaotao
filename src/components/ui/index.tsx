@@ -22,7 +22,7 @@ export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttrib
       <button
         ref={ref}
         className={cn(
-          'inline-flex items-center justify-center rounded-2xl font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 italic',
+          'inline-flex items-center justify-center rounded-2xl font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 ',
           variants[variant],
           sizes[size],
           className
@@ -44,7 +44,7 @@ export const Badge = ({ className, variant = 'default', ...props }: React.HTMLAt
     warning: 'bg-red-500/10 text-red-500 border-red-500/20'
   };
   return (
-    <div className={cn('px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-widest italic', variants[variant], className)} {...props} />
+    <div className={cn('px-3 py-1 rounded-full text-[10px] font-black border uppercase tracking-widest ', variants[variant], className)} {...props} />
   );
 };
 

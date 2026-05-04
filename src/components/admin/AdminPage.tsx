@@ -33,10 +33,10 @@ function TabPlaceholder({ tab }: { tab: typeof ADMIN_TABS[number] }) {
           <input
             type="text"
             placeholder={`Tìm kiếm ${tab.label.toLowerCase()}...`}
-            className="bg-transparent border-none outline-none text-[11px] w-full text-zinc-200 placeholder:text-zinc-700 font-bold uppercase italic tracking-[0.05em]"
+            className="bg-transparent border-none outline-none text-[11px] w-full text-zinc-200 placeholder:text-zinc-700 font-bold uppercase  tracking-[0.05em]"
           />
         </div>
-        <button className="flex items-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest italic transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30">
+        <button className="flex items-center gap-3 bg-emerald-500 hover:bg-emerald-400 text-white px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest  transition-all shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30">
           <Plus className="w-4 h-4" />
           Thêm mới
         </button>
@@ -48,16 +48,16 @@ function TabPlaceholder({ tab }: { tab: typeof ADMIN_TABS[number] }) {
           <tab.icon className="w-10 h-10 text-zinc-700 group-hover:text-emerald-500 transition-colors" />
         </div>
         <div className="space-y-3">
-          <h3 className="text-2xl font-black text-zinc-400 uppercase italic tracking-tight">
+          <h3 className="text-2xl font-black text-zinc-400 uppercase  tracking-tight">
             {tab.label}
           </h3>
-          <p className="text-[11px] text-zinc-600 font-bold uppercase tracking-widest italic max-w-md leading-relaxed">
+          <p className="text-[11px] text-zinc-600 font-bold uppercase tracking-widest  max-w-md leading-relaxed">
             {tab.description}. Module này đang được phát triển và sẽ sớm được hoàn thiện.
           </p>
         </div>
         <div className="flex items-center gap-2 mt-4 opacity-50">
           <Shield className="w-3.5 h-3.5 text-emerald-500" />
-          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest italic">
+          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest ">
             Dành cho quản trị viên
           </span>
         </div>
@@ -76,7 +76,7 @@ export default function AdminPage() {
       <header className="flex flex-col gap-4 border-l-4 border-emerald-500 pl-8 py-2">
         <div className="flex items-center gap-4">
           <Settings className="w-8 h-8 text-emerald-500" />
-          <h1 className="text-5xl font-black tracking-tighter text-white italic uppercase leading-none">
+          <h1 className="text-5xl font-black tracking-tighter text-white  uppercase leading-none">
             QUẢN TRỊ HỆ THỐNG
           </h1>
         </div>
@@ -92,7 +92,7 @@ export default function AdminPage() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'flex items-center gap-2.5 px-5 py-3.5 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest italic whitespace-nowrap',
+              'flex items-center gap-2.5 px-5 py-3.5 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest  whitespace-nowrap',
               activeTab === tab.id
                 ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-500/20'
                 : 'text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800/50'

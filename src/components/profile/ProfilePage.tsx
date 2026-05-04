@@ -59,7 +59,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
             {/* Back button */}
             <button
                 onClick={onBack}
-                className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-emerald-400 transition-colors uppercase tracking-widest italic mb-8 group"
+                className="flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-emerald-400 transition-colors uppercase tracking-widest  mb-8 group"
             >
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 Quay lại
@@ -81,20 +81,20 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
                 <div className="px-8 pb-8">
                     <div className="flex items-end gap-6 -mt-10">
                         <div className="w-20 h-20 rounded-2xl bg-zinc-900 border-4 border-[#09090B] flex items-center justify-center shadow-xl ring-1 ring-zinc-800">
-                            <span className="text-2xl font-black italic text-emerald-500">
+                            <span className="text-2xl font-black  text-emerald-500">
                                 {getInitials(employee.full_name)}
                             </span>
                         </div>
                         <div className="flex-1 pb-1">
-                            <h1 className="text-xl font-black uppercase italic tracking-tight text-white">
+                            <h1 className="text-xl font-black uppercase  tracking-tight text-white">
                                 {employee.full_name}
                             </h1>
                             <div className="flex items-center gap-3 mt-1.5">
-                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest italic border ${roleBadgeColors[employee.role]}`}>
+                                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest  border ${roleBadgeColors[employee.role]}`}>
                                     <ShieldCheck className="w-3 h-3" />
                                     {roleLabels[employee.role]}
                                 </span>
-                                <span className="flex items-center gap-1.5 text-[10px] text-zinc-600 font-bold uppercase tracking-widest italic">
+                                <span className="flex items-center gap-1.5 text-[10px] text-zinc-600 font-bold uppercase tracking-widest ">
                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                     Đang hoạt động
                                 </span>
@@ -106,7 +106,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
 
             {/* Info grid */}
             <div className="mt-6 bg-zinc-950/80 border border-zinc-800/60 rounded-3xl p-8 shadow-2xl shadow-black/40">
-                <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 italic">
+                <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-6 ">
                     Thông tin cá nhân
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -119,7 +119,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
                                 <item.icon className="w-4 h-4 text-zinc-500" />
                             </div>
                             <div className="min-w-0">
-                                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] italic">
+                                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] ">
                                     {item.label}
                                 </p>
                                 <p className="text-sm font-bold text-white mt-0.5 truncate">
@@ -138,7 +138,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
                     className="flex items-center justify-center gap-3 bg-zinc-950/80 border border-zinc-800/60 rounded-2xl p-5 hover:border-emerald-500/30 hover:bg-emerald-500/5 transition-all group"
                 >
                     <KeyRound className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 transition-colors" />
-                    <span className="text-xs font-black uppercase italic tracking-widest text-zinc-400 group-hover:text-emerald-400 transition-colors">
+                    <span className="text-xs font-black uppercase  tracking-widest text-zinc-400 group-hover:text-emerald-400 transition-colors">
                         Đổi mật khẩu
                     </span>
                 </button>
@@ -148,7 +148,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
                     className="flex items-center justify-center gap-3 bg-zinc-950/80 border border-zinc-800/60 rounded-2xl p-5 hover:border-red-500/30 hover:bg-red-500/5 transition-all group"
                 >
                     <LogOut className="w-5 h-5 text-zinc-500 group-hover:text-red-400 transition-colors" />
-                    <span className="text-xs font-black uppercase italic tracking-widest text-zinc-400 group-hover:text-red-400 transition-colors">
+                    <span className="text-xs font-black uppercase  tracking-widest text-zinc-400 group-hover:text-red-400 transition-colors">
                         Đăng xuất
                     </span>
                 </button>

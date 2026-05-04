@@ -81,7 +81,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                     <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 mb-6 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
                         <ShieldCheck className="w-10 h-10 text-emerald-500" />
                     </div>
-                    <h1 className="text-3xl font-black uppercase italic tracking-tight text-white">
+                    <h1 className="text-3xl font-black uppercase  tracking-tight text-white">
                         DOSCOM
                     </h1>
                     <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em] mt-1">
@@ -98,7 +98,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                                     <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
                                         <KeyRound className="w-5 h-5 text-emerald-500" />
                                     </div>
-                                    <h2 className="text-lg font-black uppercase italic tracking-tight text-white">
+                                    <h2 className="text-lg font-black uppercase  tracking-tight text-white">
                                         Đặt lại mật khẩu
                                     </h2>
                                 </div>
@@ -118,7 +118,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 {/* New password */}
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                         Mật khẩu mới
                                     </label>
                                     <div className="relative group">
@@ -166,7 +166,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
 
                                 {/* Confirm password */}
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                         Xác nhận mật khẩu
                                     </label>
                                     <div className="relative group">
@@ -203,7 +203,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                                     id="reset-submit"
                                     type="submit"
                                     disabled={isLoading}
-                                    className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase italic tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none"
+                                    className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase  tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none"
                                 >
                                     {isLoading ? (
                                         <>
@@ -222,7 +222,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6">
                                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                             </div>
-                            <h3 className="text-lg font-black uppercase italic tracking-tight text-white mb-3">
+                            <h3 className="text-lg font-black uppercase  tracking-tight text-white mb-3">
                                 Đổi mật khẩu thành công!
                             </h3>
                             <p className="text-sm text-zinc-400">
@@ -239,7 +239,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                 <div className="text-center mt-8">
                     <div className="flex items-center justify-center gap-2 mb-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] italic">
+                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] ">
                             Hệ thống bảo mật nội bộ
                         </p>
                     </div>

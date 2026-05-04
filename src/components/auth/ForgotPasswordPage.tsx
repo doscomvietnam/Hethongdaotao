@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Mail, Loader2, ArrowLeft, CheckCircle2, Send } from 'lucide-react';
+import { Mail, Loader2, ArrowLeft, CheckCircle2, Send } from 'lucide-react';
 import { resetPasswordForEmail } from '../../services/authService';
 
 interface ForgotPasswordPageProps {
@@ -46,10 +46,10 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
             <div className="relative z-10 w-full max-w-md mx-4">
                 {/* Logo */}
                 <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 mb-6 shadow-[0_0_40px_rgba(16,185,129,0.15)]">
-                        <ShieldCheck className="w-10 h-10 text-emerald-500" />
+                    <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white/5 border border-zinc-800/60 mb-6 shadow-[0_0_40px_rgba(16,185,129,0.15)] overflow-hidden">
+                        <img src="/logo.png" alt="Doscom Academy" className="w-20 h-20 object-contain" />
                     </div>
-                    <h1 className="text-3xl font-black uppercase italic tracking-tight text-white">
+                    <h1 className="text-3xl font-black uppercase  tracking-tight text-white">
                         DOSCOM
                     </h1>
                     <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em] mt-1">
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                     {!isSent ? (
                         <>
                             <div className="mb-8">
-                                <h2 className="text-lg font-black uppercase italic tracking-tight text-white">
+                                <h2 className="text-lg font-black uppercase  tracking-tight text-white">
                                     Quên mật khẩu
                                 </h2>
                                 <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
@@ -73,7 +73,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
 
                             <form onSubmit={handleSubmit} className="space-y-5">
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 italic">
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
                                         Email đăng ký
                                     </label>
                                     <div className="relative group">
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                                     id="forgot-submit"
                                     type="submit"
                                     disabled={isLoading || !email.trim()}
-                                    className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase italic tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none group"
+                                    className="w-full bg-emerald-500 hover:bg-emerald-400 disabled:bg-emerald-500/50 text-white font-black text-sm uppercase  tracking-widest py-4 rounded-2xl transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(16,185,129,0.2)] hover:shadow-[0_0_40px_rgba(16,185,129,0.3)] disabled:shadow-none group"
                                 >
                                     {isLoading ? (
                                         <>
@@ -117,7 +117,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6">
                                 <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                             </div>
-                            <h3 className="text-lg font-black uppercase italic tracking-tight text-white mb-3">
+                            <h3 className="text-lg font-black uppercase  tracking-tight text-white mb-3">
                                 Email đã được gửi
                             </h3>
                             <p className="text-sm text-zinc-400 leading-relaxed mb-2">
@@ -132,7 +132,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                     {/* Back to login */}
                     <button
                         onClick={onBackToLogin}
-                        className="w-full mt-6 flex items-center justify-center gap-2 text-xs text-zinc-500 hover:text-emerald-400 transition-colors font-bold uppercase tracking-widest italic py-3"
+                        className="w-full mt-6 flex items-center justify-center gap-2 text-xs text-zinc-500 hover:text-emerald-400 transition-colors font-bold uppercase tracking-widest  py-3"
                     >
                         <ArrowLeft className="w-4 h-4" />
                         Quay lại đăng nhập
@@ -143,7 +143,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                 <div className="text-center mt-8">
                     <div className="flex items-center justify-center gap-2 mb-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] italic">
+                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] ">
                             Hệ thống bảo mật nội bộ
                         </p>
                     </div>

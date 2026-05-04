@@ -1,13 +1,34 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Geist", "Inter", ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular,
+    Menlo, monospace;
 }
 
 @layer base {
+  html {
+    font-family: var(--font-sans);
+    /* Shrink global type scale ~6% — tighter, more premium */
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv01", "cv11";
+    font-optical-sizing: auto;
+    letter-spacing: -0.011em;
+  }
   body {
     @apply bg-[#09090B] text-zinc-100;
+    font-family: var(--font-sans);
+  }
+  code, kbd, pre, samp {
+    font-family: var(--font-mono);
+  }
+  /* Disable italic globally — premium enterprise look */
+  i, em, address, cite, dfn, var {
+    font-style: normal;
   }
 }
 
