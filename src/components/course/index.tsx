@@ -610,9 +610,10 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
     return Math.min(100, videoPart + quizPart);
   }, [videoWatchProgress, course.lastQuizScore, hasQuiz]);
 
-  // ── Quiz access (video gate removed) ────────────────────────────────
-  const videoGatePassed = true;
-  const quizDisabled = hasUsedAttempt;
+  // ── Quiz access: phải xem video ≥ 50% mới mở bài test ─────────────
+  const VIDEO_GATE_THRESHOLD = 50;
+  const videoGatePassed = !hasVideo || videoWatchProgress >= VIDEO_GATE_THRESHOLD;
+  const quizDisabled = hasUsedAttempt || !videoGatePassed;
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-700 pb-20">
@@ -866,10 +867,43 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
               <div className="pt-4 relative z-10">
                 <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-700/20 mb-8 flex items-center justify-between">
                   <span className="text-[10px] font-black text-zinc-600 uppercase  tracking-widest">Trạng thái:</span>
-                  <Badge variant={course.isCompleted ? 'success' : hasUsedAttempt ? 'warning' : 'default'} className={cn("px-4 py-1.5 font-black uppercase text-[9px]  border-none leading-none shadow-xl", course.isCompleted ? 'bg-emerald-500 text-white' : hasUsedAttempt ? 'bg-red-500/10 text-red-500' : 'bg-zinc-800 text-zinc-500')}>
-                    {course.isCompleted ? 'ĐÃ HOÀN THÀNH' : hasUsedAttempt ? 'ĐÃ SỬ DỤNG HẾT LƯỢT' : 'CHƯA LÀM BÀI'}
+                  <Badge
+                    variant={course.isCompleted ? 'success' : hasUsedAttempt ? 'warning' : !videoGatePassed ? 'warning' : 'default'}
+                    className={cn(
+                      "px-4 py-1.5 font-black uppercase text-[9px]  border-none leading-none shadow-xl",
+                      course.isCompleted
+                        ? 'bg-emerald-500 text-white'
+                        : hasUsedAttempt
+                          ? 'bg-red-500/10 text-red-500'
+                          : !videoGatePassed
+                            ? 'bg-amber-500/10 text-amber-400'
+                            : 'bg-zinc-800 text-zinc-500'
+                    )}
+                  >
+                    {course.isCompleted
+                      ? 'ĐÃ HOÀN THÀNH'
+                      : hasUsedAttempt
+                        ? 'ĐÃ SỬ DỤNG HẾT LƯỢT'
+                        : !videoGatePassed
+                          ? `CHỜ XEM VIDEO (${videoWatchProgress}/${VIDEO_GATE_THRESHOLD}%)`
+                          : 'CHƯA LÀM BÀI'}
                   </Badge>
                 </div>
+
+                {/* Gate hint khi chưa đủ 50% video */}
+                {!videoGatePassed && !hasUsedAttempt && (
+                  <div className="mb-4 flex items-start gap-3 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+                    <Lock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-black text-amber-400 uppercase tracking-widest">
+                        Bài test sẽ mở khi xem video ≥ {VIDEO_GATE_THRESHOLD}%
+                      </p>
+                      <p className="text-[10px] font-bold text-zinc-500">
+                        Tiến độ hiện tại: <span className="text-amber-400 font-mono">{videoWatchProgress}%</span> — cần thêm <span className="text-amber-400 font-mono">{Math.max(0, VIDEO_GATE_THRESHOLD - videoWatchProgress)}%</span>
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 <Button
                   disabled={quizDisabled}
@@ -881,7 +915,11 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                       : 'bg-emerald-500 text-white hover:bg-emerald-600 animate-pulse-slow hover:animate-none'
                   )}
                 >
-                  {hasUsedAttempt ? 'ĐÃ HẾT LƯỢT LÀM BÀI (1/1)' : 'Bắt đầu làm bài test'}
+                  {hasUsedAttempt
+                    ? 'ĐÃ HẾT LƯỢT LÀM BÀI (1/1)'
+                    : !videoGatePassed
+                      ? `XEM VIDEO ≥ ${VIDEO_GATE_THRESHOLD}% ĐỂ MỞ KHÓA`
+                      : 'Bắt đầu làm bài test'}
                   {!quizDisabled ? <ArrowRight className="w-6 h-6" /> : <Lock className="w-5 h-5" />}
                 </Button>
 
