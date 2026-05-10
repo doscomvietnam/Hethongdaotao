@@ -93,34 +93,121 @@ interface CourseCatalogProps {
 
 export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
+  const [activeSub, setActiveSub] = React.useState<string>('Tất cả');
   const brands: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma', 'Nội bộ', 'Claude'];
+
+  // Reset chip cấp 2 khi đổi tab thương hiệu
+  React.useEffect(() => {
+    setActiveSub('Tất cả');
+  }, [activeBrand]);
+
+  // Cấp 2 dùng `department` cho Nội bộ, `category` cho các brand còn lại
+  const isInternal = activeBrand === 'Nội bộ';
+  const subLabel = isInternal ? 'Phòng ban' : 'Dòng khóa học';
+
+  const coursesByBrand = activeBrand === 'Tất cả'
+    ? courses
+    : courses.filter(c => c.brand === activeBrand);
+
+  // 5 phòng ban nội bộ luôn hiện chip dù chưa có khóa học nào
+  const INTERNAL_DEPARTMENTS = [
+    'Phòng kinh doanh',
+    'Phòng tổng hợp',
+    'Phòng công nghệ',
+    'Phòng marketing',
+    'Phòng kho',
+  ];
+
+  // Bỏ tiền tố "Phòng " khi so sánh để tránh trùng giữa "Kho" và "Phòng kho"
+  const normalizeDept = (s: string) =>
+    s.toLowerCase().replace(/^phòng\s+/i, '').trim();
+
+  const subOptions = React.useMemo(() => {
+    const values = coursesByBrand
+      .map(c => (isInternal ? (c.department || '') : (c.category || '')).trim())
+      .filter(Boolean);
+
+    if (!isInternal) {
+      return ['Tất cả', ...Array.from(new Set(values))];
+    }
+
+    // Nội bộ: dedupe theo dạng đã chuẩn hóa, ưu tiên hiện canonical "Phòng X"
+    const seen = new Map<string, string>();
+    for (const name of INTERNAL_DEPARTMENTS) seen.set(normalizeDept(name), name);
+    for (const v of values) {
+      const key = normalizeDept(v);
+      if (!seen.has(key)) seen.set(key, v); // phòng ngoài 5 mặc định → giữ nguyên tên DB
+    }
+    return ['Tất cả', ...Array.from(seen.values())];
+  }, [coursesByBrand, isInternal]);
+
+  const filteredCourses = activeSub === 'Tất cả'
+    ? coursesByBrand
+    : coursesByBrand.filter(c => {
+        const v = (isInternal ? c.department : c.category) || '';
+        return isInternal
+          ? normalizeDept(v) === normalizeDept(activeSub)
+          : v.trim() === activeSub;
+      });
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
-        <div className="space-y-3">
-          <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">KHÓA HỌC PHÁT TRIỂN</h1>
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
+          <div className="space-y-3">
+            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">KHÓA HỌC PHÁT TRIỂN</h1>
+          </div>
+
+          <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0 flex-wrap">
+            {brands.map((brand) => (
+              <button
+                key={brand}
+                onClick={() => setActiveBrand(brand as any)}
+                className={`px-5 py-3 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest whitespace-nowrap ${activeBrand === brand
+                  ? 'bg-emerald-500 text-white'
+                  : 'text-zinc-600 hover:text-zinc-300'
+                  }`}
+              >
+                {brand}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0">
-          {brands.map((brand) => (
-            <button
-              key={brand}
-              onClick={() => setActiveBrand(brand as any)}
-              className={`px-5 py-3 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest whitespace-nowrap ${activeBrand === brand
-                ? 'bg-emerald-500 text-white'
-                : 'text-zinc-600 hover:text-zinc-300'
-                }`}
-            >
-              {brand}
-            </button>
-          ))}
-        </div>
+        {/* Cấp 2: chip danh mục / phòng ban */}
+        {subOptions.length > 1 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mr-2">
+              {subLabel}
+            </span>
+            {subOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setActiveSub(opt)}
+                className={cn(
+                  "px-4 py-1.5 rounded-full text-[10px] font-black transition-all uppercase tracking-widest border",
+                  activeSub === opt
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                    : 'bg-zinc-900/40 text-zinc-500 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
+                )}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
+      {filteredCourses.length === 0 && (
+        <div className="rounded-[2rem] border border-dashed border-zinc-800 bg-zinc-950/40 py-20 px-6 text-center">
+          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">
+            Chưa có khóa học nào cho {isInternal ? 'phòng ban' : 'danh mục'} này
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {courses
-          .filter(c => activeBrand === 'Tất cả' || c.brand === activeBrand)
+        {filteredCourses
           .map((course) => {
             const videoProgress = Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0);
             // Video = 50%, submit quiz (pass/fail) = +50%
