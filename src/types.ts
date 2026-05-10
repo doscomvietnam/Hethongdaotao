@@ -34,7 +34,7 @@ export interface Employee {
   updated_at?: string;
 }
 
-export type Brand = 'Doscom' | 'Noma' | 'Nội bộ';
+export type Brand = 'Doscom' | 'Noma' | 'Nội bộ' | 'Claude';
 
 export interface Product {
   id: string;
@@ -69,6 +69,7 @@ export interface Course {
   title: string;
   brand: string;
   category: string;
+  department?: string; // null/undefined = tất cả phòng ban
   thumbnail: string;
   videoUrl: string;
   slideUrl?: string;
@@ -78,6 +79,8 @@ export interface Course {
   attempts: number;
   lastQuizScore?: number;
   videoProgress?: number;
+  startDate?: string | null;  // ISO date string
+  endDate?: string | null;    // ISO date string
 }
 
 export interface QuizAttempt {

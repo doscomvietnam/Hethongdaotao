@@ -22,6 +22,23 @@ export async function upsertVideoProgress(employeeId: string, courseId: string, 
   }
 }
 
+// ── Mark slide-only course as viewed/completed ──────────────────────────
+export async function markSlideViewed(employeeId: string, courseId: string) {
+  try {
+    await supabase
+      .from('training_progress')
+      .upsert({
+        employee_id: employeeId,
+        course_id: courseId,
+        video_progress: 100,
+        status: 'completed',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'employee_id,course_id' });
+  } catch (e) {
+    console.error('Error marking slide as viewed:', e);
+  }
+}
+
 // ── Save quiz result ────────────────────────────────────────────────────
 export async function saveQuizResult(
   employeeId: string,
@@ -79,7 +96,7 @@ export async function getAllTrainingProgress(): Promise<any[]> {
       .select(`
         *,
         employees!fk_employee(full_name, department, email),
-        courses!fk_course(course_name, brand, category)
+        courses!fk_course(course_name, brand, category, video_url, quiz_id)
       `)
       .order('updated_at', { ascending: false });
 
@@ -90,7 +107,7 @@ export async function getAllTrainingProgress(): Promise<any[]> {
     const [progressRes, empRes, courseRes] = await Promise.all([
       supabase.from('training_progress').select('*').order('updated_at', { ascending: false }),
       supabase.from('employees').select('id, full_name, department, email'),
-      supabase.from('courses').select('course_id, course_name, brand, category'),
+      supabase.from('courses').select('course_id, course_name, brand, category, video_url, quiz_id'),
     ]);
 
     const empMap = new Map((empRes.data || []).map((e: any) => [e.id, e]));
@@ -99,7 +116,7 @@ export async function getAllTrainingProgress(): Promise<any[]> {
     return (progressRes.data || []).map((p: any) => ({
       ...p,
       employees: empMap.get(p.employee_id) || { full_name: '—', department: '—', email: '' },
-      courses: courseMap.get(p.course_id) || { course_name: '—', brand: '', category: '' },
+      courses: courseMap.get(p.course_id) || { course_name: '—', brand: '', category: '', video_url: '', quiz_id: '' },
     }));
   } catch (e) {
     console.error('Error:', e);
@@ -108,8 +125,34 @@ export async function getAllTrainingProgress(): Promise<any[]> {
 }
 
 // ── Admin: Dashboard aggregate stats ────────────────────────────────────
-export async function getAdminStats() {
+export async function getAdminStats(department?: string) {
   try {
+    // If department filter is specified (for managers), filter by department
+    if (department) {
+      const [employeesRes, coursesRes, progressRes] = await Promise.all([
+        supabase.from('employees').select('id').eq('employment_status', 'active').eq('department', department),
+        supabase.from('courses').select('course_id', { count: 'exact', head: true }).eq('status', 'active'),
+        supabase.from('training_progress').select(`
+          *,
+          employees!fk_employee(department)
+        `),
+      ]);
+
+      const deptEmployeeIds = new Set((employeesRes.data || []).map((e: any) => e.id));
+      const employeeCount = deptEmployeeIds.size;
+      const courseCount = coursesRes.count || 0;
+
+      // Only count progress records from this department's employees
+      const deptProgress = (progressRes.data || []).filter((p: any) => p.employees?.department === department);
+      const completedCount = deptProgress.filter((p: any) => p.quiz_passed === true).length;
+      const failedCount = deptProgress.filter((p: any) => p.quiz_score != null && !p.quiz_passed).length;
+      const totalExpected = employeeCount * courseCount;
+      const completionRate = totalExpected > 0 ? Math.round((completedCount / totalExpected) * 100 * 10) / 10 : 0;
+
+      return { employeeCount, courseCount, completionRate, failedCount };
+    }
+
+    // Admin: full company stats
     const [employeesRes, coursesRes, progressRes] = await Promise.all([
       supabase.from('employees').select('id', { count: 'exact', head: true }).eq('employment_status', 'active'),
       supabase.from('courses').select('course_id', { count: 'exact', head: true }).eq('status', 'active'),
@@ -139,29 +182,138 @@ export async function getDepartmentStats(): Promise<{ name: string; hoanthanh: n
     const { data } = await supabase
       .from('training_progress')
       .select(`
-        quiz_passed, quiz_score, video_progress,
-        employees!fk_employee(department)
+        quiz_passed, quiz_score, quiz_completed_at, video_progress, status,
+        employees!fk_employee(department),
+        courses!fk_course(video_url, quiz_id)
       `);
 
     if (!data || data.length === 0) return [];
 
-    const deptMap: Record<string, { total: number; passed: number; avgScore: number; scores: number[] }> = {};
+    const deptMap: Record<string, { total: number; completed: number; scores: number[] }> = {};
 
-    for (const row of data) {
-      const dept = (row as any).employees?.department || 'Khác';
-      if (!deptMap[dept]) deptMap[dept] = { total: 0, passed: 0, avgScore: 0, scores: [] };
+    for (const row of data as any[]) {
+      const dept = row.employees?.department || 'Khác';
+      const hasVideo = Boolean(row.courses?.video_url);
+      const hasQuiz = Boolean(row.courses?.quiz_id);
+      const isSlideOnly = !hasVideo && !hasQuiz;
+
+      // Định nghĩa "đã hoàn thành" theo loại nội dung khóa
+      let isDone = false;
+      if (isSlideOnly) {
+        isDone = row.status === 'completed';
+      } else if (hasQuiz) {
+        // Có quiz: hoàn thành khi đã nộp quiz (kể cả không đạt) — khớp logic hiện tại
+        isDone = Boolean(row.quiz_completed_at);
+      } else {
+        // Video-only: hoàn thành khi xem hết video
+        isDone = (row.video_progress || 0) >= 100;
+      }
+
+      if (!deptMap[dept]) deptMap[dept] = { total: 0, completed: 0, scores: [] };
       deptMap[dept].total++;
-      if (row.quiz_passed) deptMap[dept].passed++;
+      if (isDone) deptMap[dept].completed++;
       if (row.quiz_score != null) deptMap[dept].scores.push(row.quiz_score);
     }
 
-    return Object.entries(deptMap).map(([name, d]) => ({
-      name,
-      hoanthanh: d.total > 0 ? Math.round((d.passed / d.total) * 100) : 0,
-      hieusuat: d.scores.length > 0 ? Math.round(d.scores.reduce((a, b) => a + b, 0) / d.scores.length) : 0,
-    }));
-  } catch {
+    return Object.entries(deptMap)
+      .map(([name, d]) => ({
+        name,
+        hoanthanh: d.total > 0 ? Math.round((d.completed / d.total) * 100) : 0,
+        hieusuat: d.scores.length > 0 ? Math.round(d.scores.reduce((a, b) => a + b, 0) / d.scores.length) : 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+  } catch (e) {
+    console.error('Lỗi getDepartmentStats:', e);
     return [];
+  }
+}
+
+// ── Monthly stats: số bản ghi đã hoàn thành mỗi tháng (12 tháng gần nhất) ─
+export interface MonthlyStat {
+  month: string;        // 'T05/2026'
+  completed: number;    // Số (employee × course) hoàn thành tháng đó
+  total: number;        // Số bản ghi training_progress được cập nhật tháng đó
+  rate: number;         // % completed/total
+  growthRate: number;   // % tăng trưởng vs tháng trước (tính sau)
+}
+
+export async function getMonthlyStats(months = 12, department?: string): Promise<MonthlyStat[]> {
+  try {
+    const { data } = await supabase
+      .from('training_progress')
+      .select(`
+        quiz_completed_at, status, video_progress, updated_at,
+        employees!fk_employee(department),
+        courses!fk_course(video_url, quiz_id)
+      `);
+    if (!data) return [];
+
+    const now = new Date();
+    const buckets: Record<string, { total: number; completed: number }> = {};
+    for (let i = 0; i < months; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      buckets[key] = { total: 0, completed: 0 };
+    }
+
+    for (const row of data as any[]) {
+      // Filter by department if specified (for managers)
+      if (department && row.employees?.department !== department) continue;
+
+      const ts = row.quiz_completed_at || row.updated_at;
+      if (!ts) continue;
+      const d = new Date(ts);
+      const key = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+      if (!(key in buckets)) continue;
+
+      const hasVideo = Boolean(row.courses?.video_url);
+      const hasQuiz = Boolean(row.courses?.quiz_id);
+      const isSlideOnly = !hasVideo && !hasQuiz;
+      let isDone = false;
+      if (isSlideOnly) isDone = row.status === 'completed';
+      else if (hasQuiz) isDone = Boolean(row.quiz_completed_at);
+      else isDone = (row.video_progress || 0) >= 100;
+
+      buckets[key].total++;
+      if (isDone) buckets[key].completed++;
+    }
+
+    const result: MonthlyStat[] = Object.entries(buckets)
+      .map(([month, b]) => ({
+        month: `T${month}`,
+        completed: b.completed,
+        total: b.total,
+        rate: b.total > 0 ? Math.round((b.completed / b.total) * 100) : 0,
+        growthRate: 0,
+      }))
+      .sort((a, b) => {
+        // Sort theo time tăng dần (T01/2025 → T05/2026)
+        const [ma, ya] = a.month.replace('T', '').split('/');
+        const [mb, yb] = b.month.replace('T', '').split('/');
+        return new Date(+ya, +ma - 1).getTime() - new Date(+yb, +mb - 1).getTime();
+      });
+
+    // Tính growth rate so với tháng trước
+    for (let i = 1; i < result.length; i++) {
+      const prev = result[i - 1].rate;
+      const cur = result[i].rate;
+      result[i].growthRate = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : 0;
+    }
+    return result;
+  } catch (e) {
+    console.error('getMonthlyStats error:', e);
+    return [];
+  }
+}
+
+// ── Overall completion rate ─────────────────────────────────────────────
+export async function getOverallCompletionRate(department?: string): Promise<{ rate: number; growthRate: number }> {
+  try {
+    const monthly = await getMonthlyStats(2, department);
+    if (monthly.length < 2) return { rate: monthly[0]?.rate || 0, growthRate: 0 };
+    return { rate: monthly[monthly.length - 1].rate, growthRate: monthly[monthly.length - 1].growthRate };
+  } catch {
+    return { rate: 0, growthRate: 0 };
   }
 }
 
@@ -200,38 +352,166 @@ export async function exportTrainingReportExcel() {
     }));
   }
 
-  // Build worksheet data
-  const wsData = rows.map((r: any, i: number) => ({
-    'STT': i + 1,
-    'Họ tên nhân viên': r.employees?.full_name || '—',
-    'Phòng ban': r.employees?.department || '—',
-    'Tên khóa học': r.courses?.course_name || '—',
-    'Thời gian làm bài': r.quiz_time_seconds != null ? `${Math.floor(r.quiz_time_seconds / 60)}p ${r.quiz_time_seconds % 60}s` : '—',
-    'Điểm số': r.quiz_score != null ? r.quiz_score : '—',
-    'Xếp loại': r.quiz_score != null ? (r.quiz_passed ? 'Đạt' : 'Không đạt') : 'Chưa làm',
-    'Tiến độ video (%)': r.video_progress || 0,
-    'Trạng thái': r.quiz_completed_at ? 'Hoàn thành' : 'Chưa làm',
-  }));
+  buildAndDownloadExcel(XLSX, rows, 'bao-cao-dao-tao');
+}
 
-  const ws = XLSX.utils.json_to_sheet(wsData);
+// ── Export filtered data: xuất Excel theo kết quả tìm kiếm/lọc ─────────
+export type ReportFilterGrade = 'all' | 'pass' | 'fail' | 'pending';
+export interface ExportContext {
+  filterGrade: ReportFilterGrade;
+  searchQuery: string;
+}
 
-  // Set column widths
-  ws['!cols'] = [
-    { wch: 5 },  // STT
-    { wch: 25 }, // Họ tên
-    { wch: 15 }, // Phòng ban
-    { wch: 30 }, // Khóa học
-    { wch: 18 }, // Thời gian
-    { wch: 10 }, // Điểm
-    { wch: 15 }, // Xếp loại
-    { wch: 18 }, // Tiến độ video
-    { wch: 15 }, // Trạng thái
+const FILTER_LABEL: Record<ReportFilterGrade, string> = {
+  all: 'Tất cả',
+  pass: 'Đạt',
+  fail: 'Không đạt',
+  pending: 'Chưa làm',
+};
+
+const FILTER_SLUG: Record<ReportFilterGrade, string> = {
+  all: 'tat-ca',
+  pass: 'dat',
+  fail: 'khong-dat',
+  pending: 'chua-lam',
+};
+
+export async function exportFilteredReportExcel(filteredRows: any[], ctx?: ExportContext) {
+  const XLSX = await import('xlsx');
+  const filterGrade = ctx?.filterGrade ?? 'all';
+  const searchQuery = (ctx?.searchQuery ?? '').trim();
+  const prefix = `bao-cao-${FILTER_SLUG[filterGrade]}`;
+  buildAndDownloadExcel(XLSX, filteredRows, prefix, { filterGrade, searchQuery });
+}
+
+// ── Shared: build worksheet and download ────────────────────────────────
+function buildAndDownloadExcel(
+  XLSX: any,
+  rows: any[],
+  filenamePrefix: string,
+  ctx?: ExportContext,
+) {
+  const filterGrade = ctx?.filterGrade ?? 'all';
+  const searchQuery = (ctx?.searchQuery ?? '').trim();
+  const filterLabel = FILTER_LABEL[filterGrade];
+
+  const HEADERS = [
+    'STT',
+    'Họ tên nhân viên',
+    'Phòng ban',
+    'Email',
+    'Tên khóa học',
+    'Thời gian làm bài',
+    'Điểm số',
+    'Xếp loại',
+    'Tiến độ video (%)',
+    'Ngày hoàn thành',
+    'Trạng thái',
   ];
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Báo cáo đào tạo');
+  const dataRows = rows.map((r: any, i: number) => {
+    const hasVideo = Boolean(r.courses?.video_url);
+    const hasQuiz = Boolean(r.courses?.quiz_id);
+    const isSlideOnly = !hasVideo && !hasQuiz;
+    const videoProg = r.video_progress || 0;
 
-  const filename = `bao-cao-dao-tao_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    let statusText: string;
+    if (isSlideOnly) {
+      statusText = r.status === 'completed' ? 'Đã xem' : 'Chưa xem';
+    } else if (hasVideo && !hasQuiz) {
+      statusText = videoProg >= 100 ? 'Hoàn thành' : (videoProg > 0 ? 'Đang học' : 'Chưa bắt đầu');
+    } else {
+      statusText = r.quiz_completed_at ? 'Hoàn thành' : (videoProg > 0 ? 'Đang học' : 'Chưa bắt đầu');
+    }
+
+    return [
+      i + 1,
+      r.employees?.full_name || '—',
+      r.employees?.department || '—',
+      r.employees?.email || '—',
+      r.courses?.course_name || '—',
+      !hasQuiz ? '—' : (r.quiz_time_seconds != null ? `${Math.floor(r.quiz_time_seconds / 60)}p ${r.quiz_time_seconds % 60}s` : '—'),
+      !hasQuiz ? '—' : (r.quiz_score != null ? r.quiz_score : '—'),
+      !hasQuiz ? '—' : (r.quiz_score != null ? (r.quiz_passed ? 'Đạt' : 'Không đạt') : 'Chưa làm'),
+      !hasVideo ? '—' : videoProg,
+      r.quiz_completed_at
+        ? new Date(r.quiz_completed_at).toLocaleString('vi-VN')
+        : (isSlideOnly && r.status === 'completed' && r.updated_at
+          ? new Date(r.updated_at).toLocaleString('vi-VN')
+          : '—'),
+      statusText,
+    ];
+  });
+
+  const generatedAt = new Date().toLocaleString('vi-VN');
+
+  // Build sheet rows: title → meta → blank → table header → data
+  const aoa: any[][] = [
+    ['BÁO CÁO KẾT QUẢ HỌC TẬP'],
+    [`Bộ lọc: ${filterLabel}`, '', '', `Từ khoá: ${searchQuery || '(không)'}`, '', '', `Tổng số bản ghi: ${rows.length}`, '', '', `Xuất lúc: ${generatedAt}`],
+    [],
+    HEADERS,
+    ...dataRows,
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+
+  // Column widths
+  ws['!cols'] = [
+    { wch: 5 },   // STT
+    { wch: 28 },  // Họ tên
+    { wch: 18 },  // Phòng ban
+    { wch: 28 },  // Email
+    { wch: 36 },  // Khóa học
+    { wch: 16 },  // Thời gian
+    { wch: 10 },  // Điểm
+    { wch: 14 },  // Xếp loại
+    { wch: 18 },  // Tiến độ video
+    { wch: 20 },  // Ngày hoàn thành
+    { wch: 16 },  // Trạng thái
+  ];
+
+  // Merge title row across all columns
+  ws['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } },
+  ];
+
+  // Freeze header row (row index 4 = below table header)
+  ws['!freeze'] = { xSplit: 0, ySplit: 4 };
+
+  // Auto-filter on table header + data range
+  const headerRowIdx = 3; // 0-based: title(0), meta(1), blank(2), header(3)
+  const lastDataRow = headerRowIdx + dataRows.length;
+  ws['!autofilter'] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: headerRowIdx, c: 0 },
+      e: { r: lastDataRow, c: HEADERS.length - 1 },
+    }),
+  };
+
+  // Style title and headers (xlsx community build supports basic styles via cellStyles option in some viewers)
+  const titleCell = ws['A1'];
+  if (titleCell) {
+    titleCell.s = { font: { bold: true, sz: 14 }, alignment: { horizontal: 'center' } };
+  }
+  for (let c = 0; c < HEADERS.length; c++) {
+    const addr = XLSX.utils.encode_cell({ r: headerRowIdx, c });
+    if (ws[addr]) {
+      ws[addr].s = {
+        font: { bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { fgColor: { rgb: '10B981' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+      };
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  const sheetName = `Báo cáo - ${filterLabel}`.slice(0, 31); // Excel sheet name max 31 chars
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+  const dateSlug = new Date().toISOString().slice(0, 10);
+  const searchSlug = searchQuery ? `_${searchQuery.toLowerCase().replace(/[^a-z0-9]+/gi, '-').slice(0, 30)}` : '';
+  const filename = `${filenamePrefix}${searchSlug}_${dateSlug}.xlsx`;
   XLSX.writeFile(wb, filename);
 }
 

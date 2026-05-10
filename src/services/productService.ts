@@ -54,3 +54,59 @@ export async function getProductById(id: string): Promise<Product | null> {
     const products = await getProducts();
     return products.find((item) => item.id === id) ?? null;
 }
+
+// ── Admin CRUD ──────────────────────────────────────────────────────────
+export async function getAllProductsRaw(): Promise<any[]> {
+    const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("product_id", { ascending: true });
+    if (error) { console.error("Lỗi tải products (admin):", error); throw error; }
+    return Array.isArray(data) ? data : [];
+}
+
+export interface ProductInput {
+    product_id: string;
+    product_code?: string;
+    product_name: string;
+    brand: string;
+    category: string;
+    short_description?: string;
+    feature_1?: string;
+    feature_2?: string;
+    feature_3?: string;
+    feature_4?: string;
+    thumbnail_url?: string;
+    status?: string;
+}
+
+export async function createProduct(input: ProductInput): Promise<void> {
+    const payload = { ...input, status: input.status || "active" };
+    const { error } = await supabase.from("products").insert(payload);
+    if (error) throw error;
+}
+
+export async function updateProduct(productId: string, input: Partial<ProductInput>): Promise<void> {
+    const { product_id: _ignore, ...rest } = input as any;
+    const { data, error } = await supabase
+        .from("products")
+        .update(rest)
+        .eq("product_id", productId)
+        .select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+        throw new Error('Không có sản phẩm nào được cập nhật — kiểm tra RLS policy UPDATE cho bảng products.');
+    }
+}
+
+export async function deleteProduct(productId: string): Promise<void> {
+    const { data, error } = await supabase
+        .from("products")
+        .delete()
+        .eq("product_id", productId)
+        .select();
+    if (error) throw error;
+    if (!data || data.length === 0) {
+        throw new Error('Không xoá được — kiểm tra RLS policy DELETE cho bảng products.');
+    }
+}

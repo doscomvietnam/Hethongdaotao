@@ -1,0 +1,41 @@
+flowchart LR
+  classDef start fill:#10B981,stroke:#059669,color:#fff
+  classDef step fill:#1F2937,stroke:#374151,color:#fff
+  classDef db fill:#A855F7,stroke:#7C3AED,color:#fff
+  classDef done fill:#F59E0B,stroke:#D97706,color:#fff
+
+  Start(["🚀 User mở<br/>Course Detail"]):::start
+
+  subgraph V1["📺 Video Tracking"]
+    direction TB
+    V_API["YouTube IFrame API<br/>gắn vào iframe"]:::step
+    V_Poll["Poll mỗi 2s<br/>currentTime/duration"]:::step
+    V_LS["💾 localStorage<br/>video_progress"]:::db
+    V_DB["🗄️ Supabase<br/>training_progress.video_progress"]:::db
+    V_API --> V_Poll
+    V_Poll --> V_LS
+    V_Poll --> V_DB
+  end
+
+  subgraph Q1["📝 Quiz Flow"]
+    direction TB
+    Q_Start(["Bấm 'Bắt đầu làm quiz'"]):::start
+    Q_Load["getQuizByCourseId<br/>load câu hỏi"]:::step
+    Q_View["QuizView<br/>Timer + tab-switch detection"]:::step
+    Q_Submit["Submit"]:::step
+    Q_Save["saveQuizToSupabase<br/>training_progress.quiz_*"]:::db
+    Q_Local["💾 localStorage<br/>quiz_attempts"]:::db
+    Q_Update["update courses state"]:::step
+    Q_Done(["✅ Result Screen<br/>Đạt/Không đạt"]):::done
+    Q_Start --> Q_Load --> Q_View --> Q_Submit
+    Q_Submit --> Q_Save
+    Q_Submit --> Q_Local
+    Q_Submit --> Q_Update
+    Q_Update --> Q_Done
+  end
+
+  Complete(["🏆 Course<br/>Hoàn thành<br/>video=100% + quiz submit"]):::done
+
+  Start --> V1
+  V1 --> Q1
+  Q1 --> Complete

@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import {
   Play,
   ArrowRight,
+  ChevronLeft,
   ShieldCheck,
   Zap,
   MonitorPlay,
@@ -11,10 +12,41 @@ import {
   FileText,
   Eye,
   Lock,
+  ExternalLink,
+  CalendarClock,
+  AlertTriangle,
 } from 'lucide-react';
 import { Course, Brand } from '../../types';
 import { Card, Badge, Button, Progress, cn } from '../ui';
-import { upsertVideoProgress } from '../../services/trainingProgressService';
+import { upsertVideoProgress, markSlideViewed } from '../../services/trainingProgressService';
+
+// ── YouTube IFrame API loader ──────────────────────────────────────────
+// Load script (once globally) và resolve khi window.YT.Player sẵn sàng.
+function ensureYouTubeAPI(): Promise<any> {
+  return new Promise((resolve) => {
+    const w = window as any;
+    if (w.YT?.Player) { resolve(w.YT); return; }
+
+    if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(tag);
+    }
+
+    const prev = w.onYouTubeIframeAPIReady;
+    w.onYouTubeIframeAPIReady = () => {
+      prev?.();
+      resolve(w.YT);
+    };
+
+    // Fallback poll trong trường hợp script đã load xong trước khi gán callback
+    const start = Date.now();
+    const poll = setInterval(() => {
+      if (w.YT?.Player) { clearInterval(poll); resolve(w.YT); return; }
+      if (Date.now() - start > 10_000) { clearInterval(poll); resolve(null); }
+    }, 200);
+  });
+}
 
 // ─── Video Progress Tracker Helpers ─────────────────────────────────────────
 
@@ -61,26 +93,23 @@ interface CourseCatalogProps {
 
 export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
-  const brands: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma', 'Nội bộ'];
+  const brands: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma', 'Nội bộ', 'Claude'];
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
         <div className="space-y-3">
-          <h1 className="text-5xl font-black tracking-tight text-white  uppercase leading-none">KHÓA HỌC PHÁT TRIỂN</h1>
-          <p className="text-emerald-500 font-black font-mono text-[10px] tracking-[0.3em] uppercase  bg-emerald-500/5 inline-block px-4 py-1.5 rounded-full ring-1 ring-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-            Dành riêng cho nhân sự khối vận hành Doscom
-          </p>
+          <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">KHÓA HỌC PHÁT TRIỂN</h1>
         </div>
 
-        <div className="flex items-center gap-3 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 shadow-2xl backdrop-blur-md">
+        <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0">
           {brands.map((brand) => (
             <button
               key={brand}
               onClick={() => setActiveBrand(brand as any)}
-              className={`px-8 py-3 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest  ${activeBrand === brand
-                  ? 'bg-emerald-500 text-white shadow-xl shadow-emerald-500/20'
-                  : 'text-zinc-600 hover:text-zinc-300'
+              className={`px-5 py-3 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest whitespace-nowrap ${activeBrand === brand
+                ? 'bg-emerald-500 text-white'
+                : 'text-zinc-600 hover:text-zinc-300'
                 }`}
             >
               {brand}
@@ -94,6 +123,13 @@ export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogP
           .filter(c => activeBrand === 'Tất cả' || c.brand === activeBrand)
           .map((course) => {
             const videoProgress = Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0);
+            // Video = 50%, submit quiz (pass/fail) = +50%
+            const courseHasQuiz = Boolean(course.quizId);
+            const videoPart = Math.round(videoProgress * 0.5);
+            const quizPart = course.lastQuizScore != null ? 50 : 0;
+            const trainingProgress = !courseHasQuiz
+              ? videoProgress
+              : Math.min(100, videoPart + quizPart);
             return (
               <Card
                 key={course.id}
@@ -110,9 +146,19 @@ export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogP
                       target.style.display = 'none';
                     }}
                   />
-                  <div className="absolute top-4 left-4 z-10 flex gap-2">
+                  <div className="absolute top-4 left-4 z-10 flex gap-2 flex-wrap">
                     <span className="inline-block backdrop-blur-xl px-3 py-1 rounded-full font-black uppercase text-[8px] tracking-widest leading-none border" style={{ backgroundColor: 'rgba(0,0,0,0.75)', color: '#FFFFFF', borderColor: 'rgba(255,255,255,0.1)' }}>{course.category}</span>
-                    {course.isCompleted && <span className="inline-block px-3 py-1 rounded-full font-black uppercase text-[8px] tracking-widest leading-none shadow-2xl" style={{ backgroundColor: '#10B981', color: '#FFFFFF' }}>HOÀN THÀNH</span>}
+                    {course.isCompleted && (course.videoUrl || course.quizId) && <span className="inline-block px-3 py-1 rounded-full font-black uppercase text-[8px] tracking-widest leading-none shadow-2xl" style={{ backgroundColor: '#10B981', color: '#FFFFFF' }}>HOÀN THÀNH</span>}
+                    {/* Deadline badges */}
+                    {(() => {
+                      if (!course.endDate || course.isCompleted) return null;
+                      const today = new Date(); today.setHours(0,0,0,0);
+                      const end = new Date(course.endDate); end.setHours(0,0,0,0);
+                      const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+                      if (days < 0) return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-black uppercase text-[8px] tracking-widest leading-none shadow-2xl bg-red-500 text-white animate-pulse"><AlertTriangle className="w-2.5 h-2.5" />QUÁ HẠN</span>;
+                      if (days <= 2) return <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-black uppercase text-[8px] tracking-widest leading-none shadow-2xl bg-amber-500 text-white"><CalendarClock className="w-2.5 h-2.5" />{days === 0 ? 'HÔM NAY' : `CÒN ${days} NGÀY`}</span>;
+                      return null;
+                    })()}
                   </div>
 
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 pointer-events-none">
@@ -137,30 +183,41 @@ export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogP
                   </div>
 
                   <div className="mt-auto space-y-4 pt-4 border-t border-zinc-900/50">
-                    {/* Video Progress */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[9px] font-black  tracking-widest uppercase">
-                        <span className="text-zinc-600  leading-none flex items-center gap-1.5">
-                          <Eye className="w-3 h-3" /> Tiến độ xem video
-                        </span>
-                        <span className="text-cyan-400 font-mono ">{videoProgress}%</span>
+                    {/* Video Progress — only show when course has video */}
+                    {course.videoUrl && (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-[9px] font-black  tracking-widest uppercase">
+                          <span className="text-zinc-600  leading-none flex items-center gap-1.5">
+                            <Eye className="w-3 h-3" /> Tiến độ xem video
+                          </span>
+                          <span className="text-cyan-400 font-mono ">{videoProgress}%</span>
+                        </div>
+                        <Progress value={videoProgress} className="h-1" />
                       </div>
-                      <Progress value={videoProgress} className="h-1" />
-                    </div>
+                    )}
 
-                    {/* Training Progress */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[9px] font-black  tracking-widest uppercase">
-                        <span className="text-zinc-600  leading-none">Tiến độ đào tạo</span>
-                        <span className="text-emerald-500 font-mono ">{course.progress}%</span>
+                    {/* Training Progress — hide for slide-only courses */}
+                    {(course.videoUrl || course.quizId) && (
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between items-center text-[9px] font-black  tracking-widest uppercase">
+                          <span className="text-zinc-600  leading-none">Tiến độ đào tạo</span>
+                          <span className="text-emerald-500 font-mono ">{trainingProgress}%</span>
+                        </div>
+                        <Progress value={trainingProgress} className="h-1.5" />
                       </div>
-                      <Progress value={course.progress} className="h-1.5" />
-                    </div>
+                    )}
 
-                    <Button variant={course.isCompleted ? 'outline' : 'primary'} className={`w-full text-[10px] font-black h-12 uppercase tracking-widest rounded-xl group/btn  ${course.isCompleted ? 'border-zinc-800 text-emerald-500 hover:bg-emerald-500 hover:text-white' : ''}`}>
-                      {course.isCompleted ? 'Xem lại bài học' : course.progress > 0 ? 'Tiếp tục học tập' : 'Bắt đầu ngay'}
-                      <ArrowRight className="w-3.5 h-3.5 ml-2 group-hover/btn:translate-x-1 transition-transform" />
-                    </Button>
+                    {(() => {
+                      const isSlideOnly = !course.videoUrl && !course.quizId;
+                      const label = isSlideOnly ? 'Bắt đầu ngay' : course.isCompleted ? 'Xem lại bài học' : trainingProgress > 0 ? 'Tiếp tục học tập' : 'Bắt đầu ngay';
+                      const isOutline = !isSlideOnly && course.isCompleted;
+                      return (
+                        <Button variant={isOutline ? 'outline' : 'primary'} className={`w-full text-[10px] font-black h-12 uppercase tracking-widest rounded-xl group/btn  ${isOutline ? 'border-zinc-800 text-emerald-500 hover:bg-emerald-500 hover:text-white' : ''}`}>
+                          {label}
+                          <ArrowRight className="w-3.5 h-3.5 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+                        </Button>
+                      );
+                    })()}
                   </div>
                 </div>
               </Card>
@@ -182,19 +239,49 @@ interface CourseDetailProps {
 }
 
 export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }: CourseDetailProps) => {
-  const [activeTab, setActiveTab] = React.useState<'video' | 'slide'>('video');
+  // Auto-select initial tab based on available content
+  const [activeTab, setActiveTab] = React.useState<'video' | 'slide'>(
+    course.videoUrl ? 'video' : 'slide'
+  );
+
+  const hasVideo = Boolean(course.videoUrl);
+  const hasSlide = Boolean(course.slideUrl);
+  const hasQuiz = Boolean(course.quizId);
+
+  // ── Slide-only courses: mark as completed when user opens the detail page
+  React.useEffect(() => {
+    if (!employeeId) return;
+    if (hasVideo || hasQuiz) return; // only for pure slide-only courses
+    if (!hasSlide) return;
+    if (course.isCompleted) return; // already completed in DB
+    markSlideViewed(employeeId, course.id);
+  }, [employeeId, course.id, course.isCompleted, hasVideo, hasQuiz, hasSlide]);
 
   // ── Video Progress Tracking ────────────────────────────────────────────
+  // Nguyên tắc: Tích lũy thời gian phát thực tế (watchedSeconds).
+  // Video 10 phút = 100%. Tua không tính. Pause dừng đếm.
+  // Chuyển tab vẫn đếm nếu video đang phát.
+  // progress = watchedSeconds / totalDuration * 100
+
   const [videoWatchProgress, setVideoWatchProgress] = React.useState(() => Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0));
   const [isWatching, setIsWatching] = React.useState(false);
   const videoTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeContainerRef = React.useRef<HTMLDivElement>(null);
   const supabaseSyncRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ytPlayerRef = React.useRef<any>(null);
   const focusDummyRef = React.useRef<HTMLButtonElement>(null);
   const programmaticFocusRef = React.useRef(false);
 
+  // Accumulated play time tracking
+  const watchedSecondsRef = React.useRef(0);
+  const durationRef = React.useRef(0);
+  const playStartTimestampRef = React.useRef(0);     // Date.now() khi bắt đầu phát
+  const playStartSecondsRef = React.useRef(0);        // watchedSeconds tại thời điểm bắt đầu phát
+  const durationInitializedRef = React.useRef(false);  // Đã khởi tạo watchedSeconds từ saved progress chưa
+
   const isDirectVideoFile = /\.(mp4|webm|ogg)(\?.*)?$/i.test(course.videoUrl || '');
-  const VIDEO_TOTAL_SECONDS = 600;
+  const isYouTube = /youtube\.com\/embed\/|youtu\.be\//.test(course.videoUrl || '');
+  const VIDEO_TOTAL_SECONDS = 600; // fallback cho iframe Drive/khác
 
   // ── Sync video progress to Supabase (debounced) ────────────────────────
   const syncToSupabase = React.useCallback((progress: number) => {
@@ -205,7 +292,129 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
     }, 2000);
   }, [employeeId, course.id]);
 
-  // ── Native <video> progress tracking via timeupdate ────────────────────
+  // ── Khởi tạo watchedSeconds từ saved progress khi biết duration ────────
+  const initWatchedSeconds = React.useCallback((duration: number) => {
+    if (durationInitializedRef.current) return;
+    durationRef.current = duration;
+    // Khôi phục watchedSeconds từ % đã lưu
+    const savedPct = Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0);
+    watchedSecondsRef.current = Math.round((savedPct / 100) * duration);
+    durationInitializedRef.current = true;
+  }, [course.id, userId, course.videoProgress]);
+
+  // ── Hàm cập nhật progress từ watchedSeconds ───────────────────────────
+  const updateProgressFromSeconds = React.useCallback(() => {
+    const dur = durationRef.current;
+    if (dur <= 0) return;
+    const pct = Math.min(100, Math.round((watchedSecondsRef.current / dur) * 100));
+    setVideoWatchProgress(prev => {
+      const next = Math.max(prev, pct);
+      if (next !== prev) {
+        setVideoProgress(course.id, next, userId);
+        syncToSupabase(next);
+      }
+      return next;
+    });
+  }, [course.id, userId, syncToSupabase]);
+
+  // ── Unified Timer: đếm thời gian phát thực tế bằng Date.now() ────────
+  // Hoạt động cho TẤT CẢ loại video. Dùng Date.now() để tránh bị
+  // browser throttle timer trong background tab.
+  React.useEffect(() => {
+    if (videoTimerRef.current) {
+      clearInterval(videoTimerRef.current);
+      videoTimerRef.current = null;
+    }
+    if (!isWatching) return;
+
+    // Ghi lại thời điểm bắt đầu phát
+    playStartTimestampRef.current = Date.now();
+    playStartSecondsRef.current = watchedSecondsRef.current;
+
+    videoTimerRef.current = setInterval(() => {
+      const elapsed = (Date.now() - playStartTimestampRef.current) / 1000;
+      watchedSecondsRef.current = playStartSecondsRef.current + elapsed;
+      updateProgressFromSeconds();
+    }, 1000);
+
+    return () => {
+      // Khi dừng, cập nhật lần cuối
+      if (playStartTimestampRef.current > 0) {
+        const elapsed = (Date.now() - playStartTimestampRef.current) / 1000;
+        watchedSecondsRef.current = playStartSecondsRef.current + elapsed;
+        updateProgressFromSeconds();
+      }
+      if (videoTimerRef.current) clearInterval(videoTimerRef.current);
+    };
+  }, [isWatching, updateProgressFromSeconds]);
+
+  // ── YouTube IFrame API ────────────────────────────────────────────────
+  // Chỉ dùng onStateChange để phát hiện play/pause.
+  // KHÔNG dừng khi chuyển tab. KHÔNG tính theo currentTime (chống tua).
+  React.useEffect(() => {
+    if (activeTab !== 'video' || !isYouTube || !course.videoUrl) return;
+
+    const iframeEl = iframeContainerRef.current?.querySelector('iframe');
+    if (!iframeEl) return;
+
+    let player: any = null;
+    let cancelled = false;
+
+    ensureYouTubeAPI().then((YT: any) => {
+      if (cancelled || !YT?.Player) return;
+      try {
+        player = new YT.Player(iframeEl, {
+          events: {
+            onReady: () => {
+              try {
+                const dur = player?.getDuration?.() || 0;
+                if (dur > 0) initWatchedSeconds(dur);
+              } catch { /* ignore */ }
+            },
+            onStateChange: (e: any) => {
+              const state = e.data;
+
+              // Lấy duration nếu chưa có
+              try {
+                const dur = player?.getDuration?.() || 0;
+                if (dur > 0 && !durationInitializedRef.current) initWatchedSeconds(dur);
+              } catch { /* ignore */ }
+
+              if (state === 1) {
+                // PLAYING → bật tracking
+                setIsWatching(true);
+              } else if (state === 2 || state === 0 || state === -1) {
+                // PAUSED (2) / ENDED (0) / UNSTARTED (-1) → dừng tracking
+                setIsWatching(false);
+              }
+              // BUFFERING (3) / CUED (5): giữ nguyên trạng thái hiện tại
+
+              if (state === 0) {
+                // ENDED → force 100%
+                const dur = player?.getDuration?.() || 0;
+                if (dur > 0) watchedSecondsRef.current = dur;
+                setVideoWatchProgress(100);
+                setVideoProgress(course.id, 100, userId);
+                syncToSupabase(100);
+              }
+            },
+          },
+        });
+        ytPlayerRef.current = player;
+      } catch (err) {
+        console.warn('Không khởi tạo được YT.Player:', err);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      ytPlayerRef.current = null;
+      try { player?.destroy?.(); } catch { /* ignore */ }
+    };
+  }, [activeTab, isYouTube, course.videoUrl, course.id, userId, syncToSupabase, initWatchedSeconds]);
+
+  // ── Native <video> tracking ───────────────────────────────────────────
+  // Dùng play/pause events. KHÔNG dừng khi chuyển tab.
   React.useEffect(() => {
     if (activeTab !== 'video' || !course.videoUrl || !isDirectVideoFile) return;
 
@@ -215,52 +424,60 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
     const videoEl = container.querySelector('video');
     if (!videoEl) return;
 
-    const handleTimeUpdate = () => {
+    const handleLoadedMetadata = () => {
       if (videoEl.duration && videoEl.duration > 0) {
-        const pct = Math.round((videoEl.currentTime / videoEl.duration) * 100);
-        setVideoWatchProgress(prev => {
-          const newProg = Math.max(prev, pct);
-          setVideoProgress(course.id, newProg, userId);
-          return newProg;
-        });
+        initWatchedSeconds(videoEl.duration);
       }
     };
     const handlePlay = () => setIsWatching(true);
     const handlePause = () => setIsWatching(false);
     const handleEnded = () => {
       setIsWatching(false);
+      if (videoEl.duration > 0) watchedSecondsRef.current = videoEl.duration;
       setVideoWatchProgress(100);
       setVideoProgress(course.id, 100, userId);
+      syncToSupabase(100);
     };
 
-    videoEl.addEventListener('timeupdate', handleTimeUpdate);
+    // Init duration nếu đã loaded
+    if (videoEl.duration && videoEl.duration > 0) {
+      initWatchedSeconds(videoEl.duration);
+    }
+
+    videoEl.addEventListener('loadedmetadata', handleLoadedMetadata);
     videoEl.addEventListener('play', handlePlay);
     videoEl.addEventListener('pause', handlePause);
     videoEl.addEventListener('ended', handleEnded);
 
     return () => {
-      videoEl.removeEventListener('timeupdate', handleTimeUpdate);
+      videoEl.removeEventListener('loadedmetadata', handleLoadedMetadata);
       videoEl.removeEventListener('play', handlePlay);
       videoEl.removeEventListener('pause', handlePause);
       videoEl.removeEventListener('ended', handleEnded);
     };
-  }, [activeTab, course.videoUrl, course.id, isDirectVideoFile]);
+  }, [activeTab, course.videoUrl, course.id, isDirectVideoFile, syncToSupabase, initWatchedSeconds]);
 
-  // ── ALL iframe videos: blur/focus toggle with focus stealing ───────────
-  // Each click on the iframe toggles tracking ON/OFF.
-  // After detecting a click (via window blur), we steal focus back so the
-  // NEXT click on the iframe also triggers a new blur event.
-  // This keeps tracking in sync with the video's play/pause state.
+  // ── Generic iframe (Drive...): toggle tracking khi click vào iframe ────
+  // Không thể phát hiện play/pause trong cross-origin iframe.
+  // Mỗi click vào iframe = toggle (play/pause). Dùng focus-stealing để
+  // phát hiện các click tiếp theo (vì focus đã nằm trong iframe).
   React.useEffect(() => {
-    if (isDirectVideoFile || activeTab !== 'video' || !course.videoUrl) return;
+    if (isDirectVideoFile || isYouTube || activeTab !== 'video' || !course.videoUrl) return;
+
+    // Init duration cho generic iframe
+    if (!durationInitializedRef.current) {
+      initWatchedSeconds(VIDEO_TOTAL_SECONDS);
+    }
 
     const handleWindowBlur = () => {
+      if (document.hidden) return;
       setTimeout(() => {
+        if (document.hidden) return;
         const iframeEl = iframeContainerRef.current?.querySelector('iframe');
         if (iframeEl && document.activeElement === iframeEl) {
-          // Toggle tracking (each click = play/pause in iframe)
+          // Toggle tracking: play → pause → play ...
           setIsWatching(prev => !prev);
-          // Steal focus back so next click triggers another blur event
+          // Steal focus back để click tiếp theo cũng trigger blur
           setTimeout(() => {
             programmaticFocusRef.current = true;
             focusDummyRef.current?.focus();
@@ -271,54 +488,23 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
     };
 
     const handleWindowFocus = () => {
-      // Ignore our own programmatic focus stealing
+      // Ignore programmatic focus stealing
       if (programmaticFocusRef.current) return;
-      // User clicked outside iframe → stop tracking
-      setIsWatching(false);
-    };
-
-    const handleVisibility = () => {
-      if (document.hidden) setIsWatching(false);
     };
 
     window.addEventListener('blur', handleWindowBlur);
     window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
-
     return () => {
       window.removeEventListener('blur', handleWindowBlur);
       window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [isDirectVideoFile, activeTab, course.videoUrl]);
+  }, [isDirectVideoFile, isYouTube, activeTab, course.videoUrl, initWatchedSeconds]);
 
-  // Stop tracking when switching content tabs
+  // Stop tracking when switching content tabs (video → slide)
   React.useEffect(() => {
     if (activeTab !== 'video') setIsWatching(false);
   }, [activeTab]);
 
-  // Timer: only increments when isWatching is true (for iframe mode)
-  React.useEffect(() => {
-    if (videoTimerRef.current) {
-      clearInterval(videoTimerRef.current);
-      videoTimerRef.current = null;
-    }
-    if (!isWatching || isDirectVideoFile) return;
-
-    videoTimerRef.current = setInterval(() => {
-      setVideoWatchProgress(prev => {
-        if (prev >= 100) return 100;
-        const newProg = Math.min(100, prev + Math.round((3 / VIDEO_TOTAL_SECONDS) * 100));
-        setVideoProgress(course.id, newProg, userId);
-        syncToSupabase(newProg);
-        return newProg;
-      });
-    }, 3000);
-
-    return () => {
-      if (videoTimerRef.current) clearInterval(videoTimerRef.current);
-    };
-  }, [isWatching, course.id, isDirectVideoFile]);
 
   const handleTabChange = (tab: 'video' | 'slide') => {
     setActiveTab(tab);
@@ -329,6 +515,14 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   const totalAttempts = Math.max(course.attempts, localAttempts);
   const hasUsedAttempt = totalAttempts >= 1;
 
+  // ── Course progress real-time: video = 50%, submit quiz (pass/fail) = +50%
+  const computedCourseProgress = React.useMemo(() => {
+    if (!hasQuiz) return videoWatchProgress;
+    const videoPart = Math.round(videoWatchProgress * 0.5);
+    const quizPart = course.lastQuizScore != null ? 50 : 0;
+    return Math.min(100, videoPart + quizPart);
+  }, [videoWatchProgress, course.lastQuizScore, hasQuiz]);
+
   // ── Quiz access (video gate removed) ────────────────────────────────
   const videoGatePassed = true;
   const quizDisabled = hasUsedAttempt;
@@ -336,7 +530,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-700 pb-20">
       <header className="flex flex-col gap-8">
-        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.3em] transition-all  underline underline-offset-8 decoration-zinc-800">
+        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.3em] transition-all">
+          <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           QUAY LẠI KHÓA HỌC
         </button>
 
@@ -350,37 +545,73 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 {course.brand}
               </Badge>
             </div>
-            <h1 className="text-6xl font-black tracking-tighter text-white  uppercase leading-tight">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white uppercase leading-tight">
               {course.title}
             </h1>
+            {/* Deadline banner */}
+            {course.endDate && !course.isCompleted && (() => {
+              const today = new Date(); today.setHours(0,0,0,0);
+              const end = new Date(course.endDate); end.setHours(0,0,0,0);
+              const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
+              const endFormatted = `${end.getDate().toString().padStart(2,'0')}/${(end.getMonth()+1).toString().padStart(2,'0')}/${end.getFullYear()}`;
+              if (days < 0) return (
+                <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-red-500/10 border border-red-500/30 animate-pulse">
+                  <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <span className="text-[11px] font-black text-red-400 uppercase tracking-widest">
+                    Quá hạn từ {endFormatted} — Vui lòng hoàn thành ngay!
+                  </span>
+                </div>
+              );
+              if (days <= 2) return (
+                <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <CalendarClock className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                  <span className="text-[11px] font-black text-amber-400 uppercase tracking-widest">
+                    {days === 0 ? `Hết hạn hôm nay (${endFormatted})` : `Còn ${days} ngày — Hết hạn ${endFormatted}`}
+                  </span>
+                </div>
+              );
+              return (
+                <div className="flex items-center gap-3 px-5 py-3 rounded-xl bg-zinc-900/50 border border-zinc-800">
+                  <CalendarClock className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                  <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">
+                    Thời hạn: {course.startDate ? `${new Date(course.startDate).toLocaleDateString('vi-VN')} → ` : ''}{endFormatted} (còn {days} ngày)
+                  </span>
+                </div>
+              );
+            })()}
           </div>
 
-          <div className="flex flex-col items-end gap-5">
-            <div className="flex justify-between items-center w-full min-w-[320px] mb-1">
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ">Tiến độ khóa học</span>
-              <span className="text-emerald-500 font-mono font-black text-lg ">{course.progress}%</span>
+          {/* Tiến độ — ẩn cho slide-only (không video, không quiz) */}
+          {(hasVideo || hasQuiz) && (
+            <div className="flex flex-col items-end gap-5">
+              <div className="flex justify-between items-center w-full min-w-[320px] mb-1">
+                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ">
+                  {hasQuiz ? 'Tiến độ khóa học' : 'Tiến độ xem video'}
+                </span>
+                <span className="text-emerald-500 font-mono font-black text-lg ">{hasQuiz ? computedCourseProgress : videoWatchProgress}%</span>
+              </div>
+              <Progress value={hasQuiz ? computedCourseProgress : videoWatchProgress} className="w-[320px] h-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-zinc-900" />
             </div>
-            <Progress value={course.progress} className="w-[320px] h-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-zinc-900" />
-          </div>
+          )}
         </div>
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+      <div className={hasQuiz ? "grid grid-cols-1 lg:grid-cols-2 gap-12" : "max-w-4xl mx-auto"}>
         {/* VIDEO & SLIDE ĐÀO TẠO */}
         <section className="space-y-8">
-          {/* Tab Toggle */}
-          <div className="flex items-center gap-6">
-            <button
-              onClick={() => handleTabChange('video')}
-              className={cn(
-                "flex items-center gap-3 transition-all",
-                activeTab === 'video' ? "text-emerald-500" : "text-zinc-600 hover:text-zinc-400"
-              )}
-            >
-              <MonitorPlay className="w-7 h-7" />
-              <span className="text-xl font-black  uppercase tracking-wider">Video</span>
-            </button>
-            {course.slideUrl && (
+          {/* Tab Toggle — only show tabs when both video and slide exist */}
+          {hasVideo && hasSlide && (
+            <div className="flex items-center gap-6">
+              <button
+                onClick={() => handleTabChange('video')}
+                className={cn(
+                  "flex items-center gap-3 transition-all",
+                  activeTab === 'video' ? "text-emerald-500" : "text-zinc-600 hover:text-zinc-400"
+                )}
+              >
+                <MonitorPlay className="w-7 h-7" />
+                <span className="text-xl font-black  uppercase tracking-wider">Video</span>
+              </button>
               <button
                 onClick={() => handleTabChange('slide')}
                 className={cn(
@@ -391,11 +622,11 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 <FileText className="w-7 h-7" />
                 <span className="text-xl font-black  uppercase tracking-wider">Slide</span>
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Video Content */}
-          {activeTab === 'video' && (
+          {/* Video Content — only render when course has video */}
+          {activeTab === 'video' && hasVideo && (
             <div className="space-y-4">
               <div
                 ref={iframeContainerRef}
@@ -406,36 +637,43 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                     : ""
                 )}
               >
-                {course.videoUrl ? (
-                  isDirectVideoFile ? (
-                    <video
-                      src={course.videoUrl}
-                      className="w-full h-full"
-                      controls
-                      controlsList="nodownload"
-                      title={course.title}
-                      playsInline
-                    />
-                  ) : (
+                {isDirectVideoFile ? (
+                  <video
+                    src={course.videoUrl}
+                    className="w-full h-full"
+                    controls
+                    controlsList="nodownload"
+                    title={course.title}
+                    playsInline
+                  />
+                ) : (() => {
+                  // YouTube cần enablejsapi=1 để IFrame API hoạt động
+                  let iframeSrc = course.videoUrl || '';
+                  if (isYouTube) {
+                    const sep = iframeSrc.includes('?') ? '&' : '?';
+                    if (!iframeSrc.includes('enablejsapi=')) {
+                      iframeSrc += `${sep}enablejsapi=1`;
+                    }
+                    if (!iframeSrc.includes('origin=') && typeof window !== 'undefined') {
+                      iframeSrc += `&origin=${window.location.origin}`;
+                    }
+                  }
+                  return (
                     <iframe
-                      src={course.videoUrl}
+                      src={iframeSrc}
                       className="w-full h-full"
                       allow="autoplay; encrypted-media"
                       allowFullScreen
                       title={course.title}
                       style={{ border: 'none' }}
                     />
-                  )
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="text-center space-y-4">
-                      <MonitorPlay className="w-16 h-16 text-zinc-700 mx-auto" />
-                      <p className="text-zinc-600 text-sm font-bold uppercase tracking-widest ">Chưa có video đào tạo</p>
-                    </div>
-                  </div>
+                  );
+                })()}
+                {/* Hidden focus target for focus-stealing mechanism (generic iframe) */}
+                {!isDirectVideoFile && !isYouTube && (
+                  <button ref={focusDummyRef} tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', opacity: 0, width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }} />
                 )}
-                {/* Hidden focus target for focus-stealing mechanism */}
-                <button ref={focusDummyRef} tabIndex={-1} aria-hidden="true" style={{ position: 'absolute', opacity: 0, width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none' }} />
+
               </div>
 
               {/* Video Progress Bar */}
@@ -483,8 +721,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
             </div>
           )}
 
-          {/* Slide Content */}
-          {activeTab === 'slide' && course.slideUrl && (
+          {/* Slide Content — only render when course has slide */}
+          {activeTab === 'slide' && hasSlide && (
             <div className="aspect-video bg-black rounded-2xl overflow-hidden relative">
               <iframe
                 src={course.slideUrl}
@@ -493,69 +731,81 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 allowFullScreen
                 title={`Slide - ${course.title}`}
               />
+              <a
+                href={course.slideUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute top-3 right-3 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 text-white text-[10px] font-black uppercase tracking-widest border border-blue-400/30 transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 hover:-translate-y-0.5"
+                title="Mở tài liệu ở tab mới"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Mở ở tab mới
+              </a>
             </div>
           )}
         </section>
 
-        {/* BÀI KIỂM TRA */}
-        <section className="space-y-10">
-          <div className="flex items-center gap-4">
-            <Trophy className="w-8 h-8 text-emerald-500" />
-            <h2 className="text-3xl font-black text-white  uppercase tracking-wider underline decoration-zinc-800 decoration-4 underline-offset-[12px]">Bài kiểm tra đánh giá</h2>
-          </div>
-
-          <Card className="p-12 bg-zinc-900/50 border-zinc-800 rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.4)] space-y-12 relative overflow-hidden group border-dashed hover:border-emerald-500/30 transition-all">
-            <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 blur-[80px] rounded-full -mr-24 -mt-24 pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-700" />
-
-            <div className="space-y-6 relative z-10">
-              <div className="flex items-center gap-3 mb-2">
-                <Zap className="w-5 h-5 text-emerald-500" />
-                <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
-              </div>
-              <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">Mỗi người chỉ được làm bài 1 lần duy nhất.</span></p>
-
+        {/* BÀI KIỂM TRA — chỉ hiện khi course có quiz */}
+        {hasQuiz && (
+          <section className="space-y-10">
+            <div className="flex items-center gap-4">
+              <Trophy className="w-8 h-8 text-emerald-500" />
+              <h2 className="text-3xl font-black text-white  uppercase tracking-wider underline decoration-zinc-800 decoration-4 underline-offset-[12px]">Bài kiểm tra đánh giá</h2>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 relative z-10">
-              <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
-                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Kết quả cao nhất</p>
-                <p className="text-2xl font-black text-white  font-mono tracking-tighter">{course.lastQuizScore != null && course.lastQuizScore > 0 ? course.lastQuizScore : '--'} <span className="text-xs text-zinc-700">PDS</span></p>
-              </div>
-              <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
-                <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Số lần thực hiện</p>
-                <p className="text-2xl font-black text-white  font-mono tracking-tighter">{totalAttempts} / 1</p>
-              </div>
-            </div>
+            <Card className="p-12 bg-zinc-900/50 border-zinc-800 rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.4)] space-y-12 relative overflow-hidden group border-dashed hover:border-emerald-500/30 transition-all">
+              <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-500/5 blur-[80px] rounded-full -mr-24 -mt-24 pointer-events-none group-hover:bg-emerald-500/10 transition-all duration-700" />
 
-            <div className="pt-4 relative z-10">
-              <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-700/20 mb-8 flex items-center justify-between">
-                <span className="text-[10px] font-black text-zinc-600 uppercase  tracking-widest">Trạng thái:</span>
-                <Badge variant={course.isCompleted ? 'success' : hasUsedAttempt ? 'warning' : 'default'} className={cn("px-4 py-1.5 font-black uppercase text-[9px]  border-none leading-none shadow-xl", course.isCompleted ? 'bg-emerald-500 text-white' : hasUsedAttempt ? 'bg-red-500/10 text-red-500' : 'bg-zinc-800 text-zinc-500')}>
-                  {course.isCompleted ? 'ĐÃ HOÀN THÀNH' : hasUsedAttempt ? 'ĐÃ SỬ DỤNG HẾT LƯỢT' : 'CHƯA LÀM BÀI'}
-                </Badge>
+              <div className="space-y-6 relative z-10">
+                <div className="flex items-center gap-3 mb-2">
+                  <Zap className="w-5 h-5 text-emerald-500" />
+                  <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
+                </div>
+                <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">Mỗi người chỉ được làm bài 1 lần duy nhất.</span></p>
+
               </div>
 
-              <Button
-                disabled={quizDisabled}
-                onClick={() => onStartQuiz(course.quizId)}
-                className={cn(
-                  "w-full h-20 rounded-[2rem] font-black uppercase text-sm  tracking-[0.3em] transition-all flex items-center justify-center gap-5 shadow-2xl",
-                  quizDisabled
-                    ? 'bg-zinc-900 text-zinc-700 border border-zinc-800 cursor-not-allowed'
-                    : 'bg-emerald-500 text-white hover:bg-emerald-600 animate-pulse-slow hover:animate-none'
-                )}
-              >
-                {hasUsedAttempt ? 'ĐÃ HẾT LƯỢT LÀM BÀI (1/1)' : 'Bắt đầu làm bài test'}
-                {!quizDisabled ? <ArrowRight className="w-6 h-6" /> : <Lock className="w-5 h-5" />}
-              </Button>
-
-              <div className="mt-8 flex items-center justify-center gap-3 opacity-60">
-                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest leading-none">Kết quả được đồng bộ trực tiếp về Lark</span>
+              <div className="grid grid-cols-2 gap-6 relative z-10">
+                <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
+                  <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Kết quả cao nhất</p>
+                  <p className="text-2xl font-black text-white  font-mono tracking-tighter">{course.lastQuizScore != null && course.lastQuizScore > 0 ? course.lastQuizScore : '--'} <span className="text-xs text-zinc-700">PDS</span></p>
+                </div>
+                <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
+                  <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Số lần thực hiện</p>
+                  <p className="text-2xl font-black text-white  font-mono tracking-tighter">{totalAttempts} / 1</p>
+                </div>
               </div>
-            </div>
-          </Card>
-        </section>
+
+              <div className="pt-4 relative z-10">
+                <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-700/20 mb-8 flex items-center justify-between">
+                  <span className="text-[10px] font-black text-zinc-600 uppercase  tracking-widest">Trạng thái:</span>
+                  <Badge variant={course.isCompleted ? 'success' : hasUsedAttempt ? 'warning' : 'default'} className={cn("px-4 py-1.5 font-black uppercase text-[9px]  border-none leading-none shadow-xl", course.isCompleted ? 'bg-emerald-500 text-white' : hasUsedAttempt ? 'bg-red-500/10 text-red-500' : 'bg-zinc-800 text-zinc-500')}>
+                    {course.isCompleted ? 'ĐÃ HOÀN THÀNH' : hasUsedAttempt ? 'ĐÃ SỬ DỤNG HẾT LƯỢT' : 'CHƯA LÀM BÀI'}
+                  </Badge>
+                </div>
+
+                <Button
+                  disabled={quizDisabled}
+                  onClick={() => onStartQuiz(course.quizId)}
+                  className={cn(
+                    "w-full h-20 rounded-[2rem] font-black uppercase text-sm  tracking-[0.3em] transition-all flex items-center justify-center gap-5 shadow-2xl",
+                    quizDisabled
+                      ? 'bg-zinc-900 text-zinc-700 border border-zinc-800 cursor-not-allowed'
+                      : 'bg-emerald-500 text-white hover:bg-emerald-600 animate-pulse-slow hover:animate-none'
+                  )}
+                >
+                  {hasUsedAttempt ? 'ĐÃ HẾT LƯỢT LÀM BÀI (1/1)' : 'Bắt đầu làm bài test'}
+                  {!quizDisabled ? <ArrowRight className="w-6 h-6" /> : <Lock className="w-5 h-5" />}
+                </Button>
+
+                <div className="mt-8 flex items-center justify-center gap-3 opacity-60">
+                  <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                  <span className="text-[10px] font-black text-zinc-500 uppercase tracking-widest leading-none">Kết quả được đồng bộ trực tiếp về Lark</span>
+                </div>
+              </div>
+            </Card>
+          </section>
+        )}
       </div>
     </div>
   );

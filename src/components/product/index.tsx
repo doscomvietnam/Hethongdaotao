@@ -51,15 +51,15 @@ const ProductLibrary = ({ products, onSelectProduct }: ProductLibraryProps) => {
           </div>
 
           {/* Brand tabs (level 1) */}
-          <div className="flex items-center gap-2 bg-zinc-900/40 p-1.5 rounded-2xl border border-zinc-800 shadow-2xl backdrop-blur-md flex-wrap">
+          <div className="flex items-center gap-2 bg-zinc-900/40 p-1.5 rounded-2xl border border-zinc-800 backdrop-blur-md flex-wrap">
             {BRANDS.map((b) => (
               <button
                 key={b}
                 onClick={() => setActiveBrand(b)}
                 className={cn(
-                  "px-6 py-2.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-widest",
+                  "px-6 py-2.5 rounded-xl text-[11px] font-black transition-all uppercase tracking-widest whitespace-nowrap",
                   activeBrand === b
-                    ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/20"
+                    ? "bg-emerald-500 text-white"
                     : "text-zinc-500 hover:text-zinc-200"
                 )}
               >

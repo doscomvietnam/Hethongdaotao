@@ -60,6 +60,52 @@ interface QuizResult {
 // ============================================================
 type AuthView = 'login' | 'forgot-password' | 'reset-password';
 
+// ============================================================
+// URL ROUTING HELPERS
+// ============================================================
+const VIEW_TO_PATH: Record<string, string> = {
+  [ViewType.DASHBOARD]: '/dashboard',
+  [ViewType.PRODUCT_LIBRARY]: '/products',
+  [ViewType.PRODUCT_DETAIL]: '/products',   // + /:id
+  [ViewType.COURSE_CATALOG]: '/courses',
+  [ViewType.COURSE_DETAIL]: '/courses',     // + /:id
+  [ViewType.QUIZ]: '/quiz',
+  [ViewType.REPORT]: '/report',
+  [ViewType.ADMIN]: '/admin',
+  [ViewType.PROFILE]: '/profile',
+};
+
+function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string } {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/dashboard';
+  const segments = path.split('/').filter(Boolean); // e.g. ['products', 'abc123']
+
+  switch (segments[0]) {
+    case 'products':
+      if (segments[1]) return { view: ViewType.PRODUCT_DETAIL, productId: segments[1] };
+      return { view: ViewType.PRODUCT_LIBRARY };
+    case 'courses':
+      if (segments[1]) return { view: ViewType.COURSE_DETAIL, courseId: segments[1] };
+      return { view: ViewType.COURSE_CATALOG };
+    case 'quiz':
+      return { view: ViewType.QUIZ };
+    case 'report':
+      return { view: ViewType.REPORT };
+    case 'admin':
+      return { view: ViewType.ADMIN };
+    case 'profile':
+      return { view: ViewType.PROFILE };
+    case 'dashboard':
+    default:
+      return { view: ViewType.DASHBOARD };
+  }
+}
+
+function pushUrl(path: string) {
+  if (window.location.pathname !== path) {
+    window.history.pushState({ path }, '', path);
+  }
+}
+
 function App() {
   // ============================================================
   // AUTH STATE
@@ -72,20 +118,51 @@ function App() {
   const [showChangePassword, setShowChangePassword] = React.useState(false);
 
   // ============================================================
-  // APP STATE
+  // APP STATE — initial view read from URL
   // ============================================================
-  const [currentView, setCurrentView] = React.useState<ViewType>(ViewType.DASHBOARD);
+  const initialUrlState = React.useMemo(() => parseUrlToState(), []);
+  const [currentView, setCurrentView] = React.useState<ViewType>(initialUrlState.view);
 
   const [products, setProducts] = React.useState<Product[]>([]);
   const [courses, setCourses] = React.useState<Course[]>([]);
   const [dashboardSummary, setDashboardSummary] = React.useState<any>(null);
 
-  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(null);
-  const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(null);
+  const [selectedProductId, setSelectedProductId] = React.useState<string | null>(initialUrlState.productId || null);
+  const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(initialUrlState.courseId || null);
   const [activeQuiz, setActiveQuiz] = React.useState<Quiz | null>(null);
   const quizStartRef = React.useRef<number | null>(null);
 
   const [isLoading, setIsLoading] = React.useState(true);
+
+  // ============================================================
+  // URL SYNC — push URL when view changes + handle browser back/forward
+  // ============================================================
+  React.useEffect(() => {
+    // Build the correct URL path based on current view + selected IDs
+    let path = VIEW_TO_PATH[currentView] || '/dashboard';
+    if (currentView === ViewType.PRODUCT_DETAIL && selectedProductId) {
+      path = `/products/${selectedProductId}`;
+    } else if (currentView === ViewType.COURSE_DETAIL && selectedCourseId) {
+      path = `/courses/${selectedCourseId}`;
+    } else if (currentView === ViewType.QUIZ && selectedCourseId) {
+      path = `/quiz/${selectedCourseId}`;
+    }
+    pushUrl(path);
+  }, [currentView, selectedProductId, selectedCourseId]);
+
+  // Handle browser back/forward buttons
+  React.useEffect(() => {
+    const handlePopState = () => {
+      const urlState = parseUrlToState();
+      setCurrentView(urlState.view);
+      if (urlState.productId) setSelectedProductId(urlState.productId);
+      else if (urlState.view === ViewType.PRODUCT_LIBRARY) setSelectedProductId(null);
+      if (urlState.courseId) setSelectedCourseId(urlState.courseId);
+      else if (urlState.view === ViewType.COURSE_CATALOG) setSelectedCourseId(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // ============================================================
   // AUTH INITIALIZATION — Kiểm tra session khi mở app
@@ -155,8 +232,11 @@ function App() {
           setAuthUser(session.user);
           setEmployee(emp);
           setMustChangePassword(emp.must_change_password);
-          // Tất cả roles đều vào Dashboard mặc định
-          setCurrentView(ViewType.DASHBOARD);
+          // Khôi phục view từ URL (nếu người dùng mở trực tiếp link /courses, /admin, v.v.)
+          const urlState = parseUrlToState();
+          setCurrentView(urlState.view);
+          if (urlState.productId) setSelectedProductId(urlState.productId);
+          if (urlState.courseId) setSelectedCourseId(urlState.courseId);
         }
       } catch (error) {
         console.error('Auth init error:', error);
@@ -200,8 +280,11 @@ function App() {
     setAuthUser(user);
     setEmployee(emp);
     setMustChangePassword(needsPasswordChange);
-    // Tất cả roles đều vào Dashboard mặc định
-    setCurrentView(ViewType.DASHBOARD);
+    // Khôi phục view từ URL sau khi đăng nhập
+    const urlState = parseUrlToState();
+    setCurrentView(urlState.view);
+    if (urlState.productId) setSelectedProductId(urlState.productId);
+    if (urlState.courseId) setSelectedCourseId(urlState.courseId);
   };
 
   const handleLogout = async () => {
@@ -213,6 +296,7 @@ function App() {
       setShowChangePassword(false);
       setCurrentView(ViewType.DASHBOARD);
       setAuthView('login');
+      pushUrl('/dashboard');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -257,9 +341,10 @@ function App() {
     }
   }, []);
 
-  const initData = React.useCallback(async () => {
+  const initData = React.useCallback(async (silent = false) => {
     try {
-      setIsLoading(true);
+      // silent=true → không toggle loading spinner (tránh unmount AdminPage khi admin refresh data)
+      if (!silent) setIsLoading(true);
 
       const [productData, courseData] = await Promise.all([getProducts(), getCourses()]);
 
@@ -309,38 +394,56 @@ function App() {
             // Merge into course object
             if (supaProgress) {
               course.videoProgress = bestVideoProg;
-              // Progress: quiz passed = 100%, quiz attempted but failed = 50% + video portion, video only = up to 50%
-              if (supaProgress.quiz_passed) {
-                course.progress = 100;
-              } else if (supaProgress.quiz_completed_at) {
-                // Quiz attempted but not passed
-                course.progress = Math.round(50 + (bestVideoProg / 100) * 49);
+              const courseHasQuiz = Boolean(course.quizId);
+              const courseHasVideo = Boolean(course.videoUrl);
+
+              if (courseHasQuiz) {
+                // Courses WITH quiz: video = 50%, submit quiz (kể cả không đạt) = +50%
+                const videoPart = Math.round((bestVideoProg / 100) * 50);
+                const quizSubmitted = Boolean(supaProgress.quiz_completed_at);
+                course.progress = videoPart + (quizSubmitted ? 50 : 0);
+              } else if (courseHasVideo) {
+                // Courses WITHOUT quiz, WITH video: video progress = overall progress
+                course.progress = bestVideoProg;
               } else {
-                // Only video progress — caps at 50%
-                course.progress = bestVideoProg > 0 ? Math.round((bestVideoProg / 100) * 50) : 0;
+                // Slide-only courses: completed only when DB explicitly says so
+                const slideCompleted = supaProgress.status === 'completed';
+                course.progress = slideCompleted ? 100 : 0;
+                course.isCompleted = slideCompleted;
               }
               course.lastQuizScore = supaProgress.quiz_score ?? undefined;
               course.attempts = supaProgress.quiz_completed_at ? 1 : 0;
-              course.isCompleted = supaProgress.quiz_passed || false;
+              // Hoàn thành = xem đủ video 100% AND đã nộp quiz (pass/fail OK)
+              if (courseHasQuiz) {
+                course.isCompleted = bestVideoProg >= 100 && Boolean(supaProgress.quiz_completed_at);
+              }
             } else if (localVideoProg > 0) {
               course.videoProgress = localVideoProg;
-              course.progress = Math.round((localVideoProg / 100) * 50);
+              const courseHasQuiz = Boolean(course.quizId);
+              course.progress = courseHasQuiz ? Math.round((localVideoProg / 100) * 50) : localVideoProg;
             }
+            // Slide-only courses with no progress record: progress stays 0, not completed
           }
         } catch (e) {
           console.error('Error loading training progress:', e);
         }
       }
 
-      setCourses(courseData);
+      // Lọc khoá học theo phòng ban của user (admin/manager thấy tất cả)
+      const isPrivileged = employee?.role === 'admin' || employee?.role === 'manager';
+      const visibleCourses = isPrivileged
+        ? courseData
+        : courseData.filter(c => !c.department || c.department === (employee?.department || ''));
 
-      await refreshDashboard(courseData);
+      setCourses(visibleCourses);
+
+      await refreshDashboard(visibleCourses);
     } catch (error) {
       console.error("Lỗi khởi tạo dữ liệu:", error);
     } finally {
       setIsLoading(false);
     }
-  }, [refreshDashboard, employee?.id, employee?.auth_user_id]);
+  }, [refreshDashboard, employee?.id, employee?.auth_user_id, employee?.role, employee?.department]);
 
   // Chỉ load data khi đã đăng nhập thành công
   React.useEffect(() => {
@@ -356,6 +459,8 @@ function App() {
     switch (view) {
       case "dashboard":
         setCurrentView(ViewType.DASHBOARD);
+        // Silently refresh data so progress is always up-to-date
+        initData(true);
         break;
       case "products":
         setSelectedProductId(null);
@@ -364,6 +469,8 @@ function App() {
       case "courses":
         setSelectedCourseId(null);
         setCurrentView(ViewType.COURSE_CATALOG);
+        // Silently refresh data so progress is always up-to-date
+        initData(true);
         break;
       case "report":
         setCurrentView(ViewType.REPORT);
@@ -376,6 +483,7 @@ function App() {
         break;
       default:
         setCurrentView(ViewType.DASHBOARD);
+        initData(true);
     }
   };
 
@@ -397,6 +505,8 @@ function App() {
   const handleBackToCourses = () => {
     setSelectedCourseId(null);
     setCurrentView(ViewType.COURSE_CATALOG);
+    // Refresh data so course list shows updated progress
+    initData(true);
   };
 
   const handleStartQuiz = async (quizId?: string) => {
@@ -436,12 +546,11 @@ function App() {
     setCurrentView(ViewType.COURSE_DETAIL);
   };
 
-  const handleQuizComplete = async (result: QuizResult) => {
+  // Lưu kết quả quiz vào Supabase + cập nhật state local. Không navigate.
+  const persistQuizResult = async (result: QuizResult) => {
     if (!selectedCourseId) return;
-
     const userId = employee?.auth_user_id || '';
 
-    // Save quiz result to Supabase FIRST
     let supabaseSaved = false;
     if (employee?.id) {
       const quizTimeSeconds = quizStartRef.current ? Math.round((Date.now() - quizStartRef.current) / 1000) : 0;
@@ -449,23 +558,24 @@ function App() {
       quizStartRef.current = null;
     }
 
-    // Only count attempt if Supabase save succeeded
     if (supabaseSaved) {
       saveQuizAttempt(selectedCourseId, userId);
     }
 
     const updatedCourses = courses.map((course) => {
       if (course.id !== selectedCourseId) return course;
-
       const previousBestScore = course.lastQuizScore || 0;
       const bestScore = Math.max(previousBestScore, result.score);
-
+      // Submit quiz → +50% progress. Chỉ mark hoàn thành nếu video đủ 100%.
+      const videoProg = course.videoProgress || 0;
+      const videoPart = Math.round((videoProg / 100) * 50);
+      const newProgress = videoPart + 50;
       return {
         ...course,
         attempts: supabaseSaved ? 1 : course.attempts,
         lastQuizScore: bestScore,
-        isCompleted: course.isCompleted || result.passed,
-        progress: result.passed ? 100 : Math.max(course.progress, 50),
+        isCompleted: videoProg >= 100,
+        progress: Math.max(course.progress, newProgress),
       };
     });
 
@@ -475,7 +585,16 @@ function App() {
     if (!supabaseSaved) {
       console.error('Quiz result could not be saved to Supabase. Attempt not counted.');
     }
+  };
 
+  const handleQuizComplete = async (result: QuizResult) => {
+    await persistQuizResult(result);
+    setActiveQuiz(null);
+    setCurrentView(ViewType.COURSE_DETAIL);
+  };
+
+  const handleQuizFinishAndExit = async (result: QuizResult) => {
+    await persistQuizResult(result);
     setActiveQuiz(null);
     setCurrentView(ViewType.COURSE_DETAIL);
   };
@@ -574,7 +693,7 @@ function App() {
           );
         }
         return (
-          <AdminDashboard />
+          <AdminDashboard employee={employee} />
         );
 
       case ViewType.PRODUCT_LIBRARY:
@@ -649,6 +768,7 @@ function App() {
             attempts={selectedCourse?.attempts || 0}
             onComplete={handleQuizComplete}
             onExit={handleExitQuiz}
+            onFinishAndExit={handleQuizFinishAndExit}
           />
         );
 
@@ -677,7 +797,23 @@ function App() {
         );
 
       case ViewType.ADMIN:
-        return <AdminPage />;
+        // Employee không được truy cập trang quản trị
+        if (employee.role === 'employee') {
+          return (
+            <div className="flex h-full min-h-[60vh] items-center justify-center">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 mx-auto rounded-3xl bg-red-500/10 flex items-center justify-center">
+                  <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-5.364l-1.414 1.414A2 2 0 0116 11V7a4 4 0 00-8 0v4a2 2 0 01-1.95 1.95l-1.414-1.414" />
+                  </svg>
+                </div>
+                <p className="text-xl font-black text-white uppercase tracking-tight">Không có quyền truy cập</p>
+                <p className="text-xs text-zinc-500 font-bold uppercase tracking-widest">Bạn không có quyền truy cập trang quản trị hệ thống.</p>
+              </div>
+            </div>
+          );
+        }
+        return <AdminPage onDataChanged={() => initData(true)} employee={employee} />;
 
       case ViewType.PROFILE:
         return (
@@ -686,6 +822,7 @@ function App() {
             onBack={() => setCurrentView(ViewType.DASHBOARD)}
             onLogout={handleLogout}
             onChangePassword={() => setShowChangePassword(true)}
+            onEmployeeUpdate={(emp) => setEmployee(emp)}
           />
         );
 

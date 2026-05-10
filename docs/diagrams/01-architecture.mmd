@@ -1,0 +1,93 @@
+flowchart TB
+  classDef view fill:#10B981,stroke:#059669,color:#fff,stroke-width:2px
+  classDef admin fill:#F59E0B,stroke:#D97706,color:#fff,stroke-width:2px
+  classDef service fill:#3B82F6,stroke:#2563EB,color:#fff,stroke-width:2px
+  classDef db fill:#A855F7,stroke:#7C3AED,color:#fff,stroke-width:2px
+  classDef ext fill:#EF4444,stroke:#DC2626,color:#fff,stroke-width:2px
+  classDef storage fill:#06B6D4,stroke:#0891B2,color:#fff,stroke-width:2px
+
+  subgraph CLIENT["🖥️ CLIENT — Browser (React 19 + Vite + TypeScript)"]
+    direction TB
+    App["App.tsx<br/>Root state · Routing · Auth gate"]:::view
+
+    subgraph V1["📱 USER VIEWS"]
+      direction LR
+      Login["LoginPage"]:::view
+      Dash["Dashboard"]:::view
+      Cat["Course Catalog"]:::view
+      Detail["Course Detail<br/>(YouTube tracking)"]:::view
+      QV["QuizView"]:::view
+      Prof["Profile<br/>(Avatar upload)"]:::view
+      Prod["Product Library"]:::view
+    end
+
+    subgraph V2["🛠️ ADMIN VIEWS — 4 tabs"]
+      direction LR
+      EM["👥 Employees<br/>+ Auth signUp"]:::admin
+      CM["📚 Courses<br/>+ Inline Quiz 10Q"]:::admin
+      PM["📦 Products"]:::admin
+      SS["⚙️ Settings"]:::admin
+    end
+
+    subgraph SVC["⚡ SERVICE LAYER"]
+      direction LR
+      AuthSvc["authService"]:::service
+      EmpSvc["employeeService"]:::service
+      CrsSvc["courseService"]:::service
+      QzSvc["quizService"]:::service
+      TPS["trainingProgressService<br/>+ Excel export<br/>+ Monthly stats"]:::service
+      NSvc["notificationService"]:::service
+      StSvc["storageService<br/>(uploadImage)"]:::service
+      MH["mediaHelpers<br/>(YouTube/Drive URL)"]:::service
+    end
+
+    LS[("📦 localStorage<br/>video_progress<br/>quiz_attempts<br/>system_settings")]
+
+    App --> V1
+    App --> V2
+    V1 --> SVC
+    V2 --> SVC
+    SVC -.cache.-> LS
+  end
+
+  subgraph BACKEND["☁️ SUPABASE — Backend"]
+    direction TB
+    SBAuth["🔐 AUTH<br/>Email/Password<br/>JWT · Sessions<br/>Reset password"]:::ext
+
+    subgraph DB["🗄️ POSTGRES (RLS enabled)"]
+      direction LR
+      T1["employees"]:::db
+      T2["courses"]:::db
+      T3["products"]:::db
+      T4["quizzes"]:::db
+      T5["quiz_questions"]:::db
+      T6["training_progress"]:::db
+      T7["notifications"]:::db
+    end
+
+    Storage["🗂️ STORAGE<br/>Bucket: lms-assets<br/>avatars/<br/>course-thumbnails/<br/>product-thumbnails/"]:::storage
+  end
+
+  subgraph EXT["🌐 EXTERNAL INTEGRATIONS"]
+    direction LR
+    YT["YouTube IFrame API<br/>Track video real-time"]:::ext
+    GD["Google Drive<br/>embed slide/video"]:::ext
+    Lark["Lark Wiki/Docx<br/>tài liệu nội bộ"]:::ext
+    Vercel["Vercel<br/>CDN + CI/CD"]:::ext
+  end
+
+  AuthSvc -->|signIn signUp| SBAuth
+  EmpSvc -->|CRUD| T1
+  CrsSvc -->|CRUD| T2
+  CrsSvc -->|notify| T7
+  QzSvc -->|CRUD| T4
+  QzSvc -->|CRUD| T5
+  TPS -->|CRUD| T6
+  NSvc -->|CRUD| T7
+  StSvc -->|upload| Storage
+
+  Detail -.iframe.-> YT
+  Detail -.iframe.-> GD
+  Detail -.iframe.-> Lark
+  CLIENT ==>|HTTPS| BACKEND
+  CLIENT -.host.-> Vercel

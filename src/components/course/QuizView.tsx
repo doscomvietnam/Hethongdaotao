@@ -26,10 +26,12 @@ interface QuizViewProps {
   quiz: Quiz;
   onComplete: (result: QuizResult) => void;
   onExit: () => void;
+  /** Lưu kết quả + thoát về danh mục khóa học (dùng cho nút "Thoát" ở result screen) */
+  onFinishAndExit?: (result: QuizResult) => void;
   attempts: number;
 }
 
-export const QuizView = ({ quiz, onComplete, onExit, attempts }: QuizViewProps) => {
+export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }: QuizViewProps) => {
   const [currentIdx, setCurrentIdx] = React.useState(0);
   const [selectedOption, setSelectedOption] = React.useState<number | null>(null);
   const [answers, setAnswers] = React.useState<number[]>([]);
@@ -251,7 +253,20 @@ export const QuizView = ({ quiz, onComplete, onExit, attempts }: QuizViewProps) 
                     </div>
                 )}
 
-                <button onClick={onExit} className="text-zinc-600 hover:text-white font-black uppercase text-[10px] tracking-[0.3em] py-2 transition-all  underline underline-offset-8 decoration-zinc-800">THOÁT TRANG KIỂM TRA</button>
+                <button
+                  onClick={() => {
+                    // Nếu có handler save+exit-to-catalog, dùng nó (auto lưu kết quả).
+                    // Fallback: chỉ exit (legacy).
+                    if (onFinishAndExit) {
+                      onFinishAndExit({ score, passed, answers });
+                    } else {
+                      onExit();
+                    }
+                  }}
+                  className="text-zinc-600 hover:text-white font-black uppercase text-[10px] tracking-[0.3em] py-2 transition-all  underline underline-offset-8 decoration-zinc-800"
+                >
+                  THOÁT TRANG KIỂM TRA
+                </button>
             </div>
         </div>
       </div>
