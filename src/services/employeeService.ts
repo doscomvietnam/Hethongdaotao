@@ -51,8 +51,11 @@ export async function createEmployee(input: EmployeeInput): Promise<void> {
     employment_status: input.employment_status || 'active',
     must_change_password: input.must_change_password ?? true,
   };
-  const { error } = await supabase.from('employees').insert(payload);
+  const { data, error } = await supabase.from('employees').insert(payload).select();
   if (error) throw error;
+  if (!data || data.length === 0) {
+    throw new Error('Không tạo được nhân viên — kiểm tra RLS policy INSERT cho bảng employees.');
+  }
 }
 
 /**

@@ -275,10 +275,11 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
         setError('Ngày bắt đầu phải trước ngày kết thúc'); return;
       }
     }
-    // Xoá dates nếu tắt deadline
+    // Chuẩn bị form data — không mutate state trực tiếp
+    const formData = { ...form };
     if (!hasDeadline) {
-      form.start_date = null;
-      form.end_date = null;
+      formData.start_date = null;
+      formData.end_date = null;
     }
 
     // Validate quiz inline (khi bật toggle, kể cả tạo mới và edit)
@@ -293,7 +294,7 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
           setError(`Câu ${i + 1}: cần ít nhất 2 đáp án (A và B)`); return;
         }
       }
-      derivedQuizId = existingQuizId || `Q_${form.course_id.replace(/^C_/, '')}`;
+      derivedQuizId = existingQuizId || `Q_${formData.course_id.replace(/^C_/, '')}`;
     }
 
     setSaving(true);
@@ -301,8 +302,8 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
       if (isEditMode) {
         // ── Edit course ─────────────────────────────────────────────
         const courseToUpdate = includeQuiz
-          ? { ...form, quiz_id: derivedQuizId }
-          : form;
+          ? { ...formData, quiz_id: derivedQuizId }
+          : formData;
         const { course_id, ...rest } = courseToUpdate;
         await updateCourse(course_id, rest);
 
@@ -318,7 +319,7 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
             // Quiz lần đầu được thêm cho course đã tồn tại
             await createQuiz({
               quiz_id: derivedQuizId,
-              course_id: form.course_id,
+              course_id: formData.course_id,
               quiz_title: quizMeta.quiz_title.trim(),
               pass_score: quizMeta.pass_score || '80',
               max_attempts: quizMeta.max_attempts || '1',
@@ -347,7 +348,7 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
               await createQuestion({
                 question_id: `${derivedQuizId}_Q${Date.now().toString(36)}_${i}`,
                 quiz_id: derivedQuizId,
-                course_id: form.course_id,
+                course_id: formData.course_id,
                 ...payload,
                 status: 'active',
               });
@@ -357,14 +358,14 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
       } else {
         // ── Create course ──────────────────────────────────────────
         const courseToCreate = includeQuiz
-          ? { ...form, quiz_id: derivedQuizId }
-          : form;
+          ? { ...formData, quiz_id: derivedQuizId }
+          : formData;
         await createCourse(courseToCreate);
 
         if (includeQuiz) {
           await createQuiz({
             quiz_id: derivedQuizId,
-            course_id: form.course_id,
+            course_id: formData.course_id,
             quiz_title: quizMeta.quiz_title.trim(),
             pass_score: quizMeta.pass_score || '80',
             max_attempts: quizMeta.max_attempts || '1',
@@ -374,7 +375,7 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
             await createQuestion({
               question_id: `${derivedQuizId}_Q${String(i + 1).padStart(2, '0')}`,
               quiz_id: derivedQuizId,
-              course_id: form.course_id,
+              course_id: formData.course_id,
               question_text: q.question_text.trim(),
               option_a: q.option_a.trim(),
               option_b: q.option_b.trim(),
@@ -390,8 +391,17 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
       await onDataChanged?.();
       setEditing(null);
     } catch (e: any) {
-      console.error(e);
-      setError(e?.message || 'Không lưu được khóa học');
+      console.error('[CourseManagement] Save error:', e);
+      // Bóc tách thông tin lỗi Supabase để hiện rõ nguyên nhân
+      const details = [e?.message, e?.details, e?.hint, e?.code]
+        .filter(Boolean)
+        .join(' — ');
+      let userMsg = details || 'Không lưu được khóa học';
+      // Nhận diện lỗi RLS quen thuộc
+      if (/row-level security/i.test(userMsg) || e?.code === '42501') {
+        userMsg = `RLS chặn thao tác. Chạy file supabase/fix_admin_rls.sql trên Supabase SQL Editor để cấp quyền admin/manager. Chi tiết: ${userMsg}`;
+      }
+      setError(userMsg);
     } finally {
       setSaving(false);
     }
