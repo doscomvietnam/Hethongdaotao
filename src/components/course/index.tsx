@@ -856,7 +856,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
               <div className="grid grid-cols-2 gap-6 relative z-10">
                 <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
                   <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Kết quả cao nhất</p>
-                  <p className="text-2xl font-black text-white  font-mono tracking-tighter">{course.lastQuizScore != null && course.lastQuizScore > 0 ? course.lastQuizScore : '--'} <span className="text-xs text-zinc-700">PDS</span></p>
+                  <p className="text-2xl font-black text-white  font-mono tracking-tighter">{course.lastQuizScore != null ? course.lastQuizScore : '--'} <span className="text-xs text-zinc-700">PDS</span></p>
                 </div>
                 <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
                   <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Số lần thực hiện</p>

@@ -6,6 +6,7 @@ import CourseModule from "./components/course";
 import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
 import ProfilePage from "./components/profile/ProfilePage";
+import GuidePage from "./components/guide";
 
 import LoginPage from "./components/auth/LoginPage";
 import ForgotPasswordPage from "./components/auth/ForgotPasswordPage";
@@ -481,6 +482,9 @@ function App() {
       case "profile":
         setCurrentView(ViewType.PROFILE);
         break;
+      case "guide":
+        setCurrentView(ViewType.GUIDE);
+        break;
       default:
         setCurrentView(ViewType.DASHBOARD);
         initData(true);
@@ -825,6 +829,9 @@ function App() {
             onEmployeeUpdate={(emp) => setEmployee(emp)}
           />
         );
+
+      case ViewType.GUIDE:
+        return <GuidePage />;
 
       default:
         return null;

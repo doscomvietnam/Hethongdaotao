@@ -88,28 +88,30 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
   // ── Tab switch detection ──────────────────────────────────────────────
   const [tabSwitchCount, setTabSwitchCount] = React.useState(0);
   const [showTabWarning, setShowTabWarning] = React.useState(false);
+  const [showExitConfirm, setShowExitConfirm] = React.useState(false);
+  const lastSwitchRef = React.useRef(0);
 
   React.useEffect(() => {
     if (isFinished) return;
 
+    // Chỉ dùng visibilitychange — chính xác 1 lần mỗi khi chuyển tab.
+    // Không dùng 'blur' vì nó fire đồng thời → đếm gấp đôi/gấp ba.
     const handleVisibilityChange = () => {
       if (document.hidden) {
+        // Debounce: bỏ qua nếu event fire quá gần nhau (< 500ms)
+        const now = Date.now();
+        if (now - lastSwitchRef.current < 500) return;
+        lastSwitchRef.current = now;
+
         setTabSwitchCount(prev => prev + 1);
         setShowTabWarning(true);
       }
     };
 
-    const handleBlur = () => {
-      setTabSwitchCount(prev => prev + 1);
-      setShowTabWarning(true);
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('blur', handleBlur);
     };
   }, [isFinished]);
 
@@ -130,6 +132,17 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
     }
   };
 
+  // Auto-submit: điền -1 cho câu chưa trả lời, hiện result screen
+  const forceSubmit = () => {
+    const currentAnswers = answersRef.current;
+    const remaining = shuffledQuestions.length - currentAnswers.length;
+    const finalAnswers = [...currentAnswers, ...Array(remaining).fill(-1)];
+    setAnswers(finalAnswers);
+    setShowTabWarning(false);
+    setShowExitConfirm(false);
+    setIsFinished(true);
+  };
+
   const calculateScore = () => {
     let correctCount = 0;
     answers.forEach((ans, idx) => {
@@ -139,6 +152,9 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
   };
 
   // ── Tab Warning Overlay ───────────────────────────────────────────────
+  const MAX_VIOLATIONS = 3;
+  const mustForceSubmit = tabSwitchCount >= MAX_VIOLATIONS;
+
   if (showTabWarning && !isFinished) {
     return (
       <div className="fixed inset-0 bg-[#09090B] z-[70] flex flex-col items-center justify-center p-8">
@@ -157,21 +173,34 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
             </h2>
             <p className="text-sm text-zinc-400 font-bold leading-relaxed">
               Hệ thống phát hiện bạn đã chuyển ra khỏi trang kiểm tra.
-              Hành vi này sẽ được ghi nhận trong báo cáo.
+              {mustForceSubmit ? (
+                <> Bạn đã vi phạm <span className="text-red-500">{MAX_VIOLATIONS} lần</span>. Bài kiểm tra sẽ được <span className="text-white">tự động nộp ngay lập tức</span>. Các câu chưa trả lời sẽ tính là <span className="text-red-500">sai</span>.</>
+              ) : (
+                <> Còn <span className="text-amber-500">{MAX_VIOLATIONS - tabSwitchCount} lần</span> cảnh báo nữa bài kiểm tra sẽ bị tự động nộp.</>
+              )}
             </p>
           </div>
 
           <div className="p-5 bg-red-500/5 border border-red-500/20 rounded-2xl flex items-center justify-between">
             <span className="text-[10px] font-black text-red-500/70 uppercase tracking-widest ">Số lần vi phạm</span>
-            <span className="text-2xl font-black text-red-500  font-mono">{tabSwitchCount}</span>
+            <span className="text-2xl font-black text-red-500  font-mono">{tabSwitchCount} <span className="text-sm text-zinc-600">/ {MAX_VIOLATIONS}</span></span>
           </div>
 
-          <Button
-            onClick={() => setShowTabWarning(false)}
-            className="w-full h-14 rounded-2xl bg-red-500 text-white font-black uppercase  tracking-widest text-xs hover:bg-red-600 border-none shadow-2xl shadow-red-500/20"
-          >
-            QUAY LẠI BÀI KIỂM TRA
-          </Button>
+          {mustForceSubmit ? (
+            <Button
+              onClick={forceSubmit}
+              className="w-full h-14 rounded-2xl bg-red-500 text-white font-black uppercase  tracking-widest text-xs hover:bg-red-600 border-none shadow-2xl shadow-red-500/20"
+            >
+              XEM KẾT QUẢ BÀI NỘP
+            </Button>
+          ) : (
+            <Button
+              onClick={() => setShowTabWarning(false)}
+              className="w-full h-14 rounded-2xl bg-red-500 text-white font-black uppercase  tracking-widest text-xs hover:bg-red-600 border-none shadow-2xl shadow-red-500/20"
+            >
+              QUAY LẠI BÀI KIỂM TRA
+            </Button>
+          )}
         </motion.div>
       </div>
     );
@@ -273,12 +302,59 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
     );
   }
 
+  // ── Exit Confirmation Overlay ──────────────────────────────────────────
+  if (showExitConfirm) {
+    return (
+      <div className="fixed inset-0 bg-[#09090B] z-[70] flex flex-col items-center justify-center p-8">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-lg w-full text-center space-y-8"
+        >
+          <div className="w-28 h-28 mx-auto rounded-[2rem] bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center">
+            <AlertTriangle size={56} className="text-amber-500" />
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="text-3xl font-black text-amber-500 uppercase tracking-tight">
+              XÁC NHẬN THOÁT
+            </h2>
+            <p className="text-sm text-zinc-400 font-bold leading-relaxed">
+              Nếu bạn thoát, bài kiểm tra sẽ được <span className="text-white">tự động nộp ngay lập tức</span> với các câu đã trả lời.
+              Các câu chưa trả lời sẽ tính là <span className="text-red-500">sai</span>.
+            </p>
+          </div>
+
+          <div className="p-5 bg-amber-500/5 border border-amber-500/20 rounded-2xl flex items-center justify-between">
+            <span className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest">Đã trả lời</span>
+            <span className="text-2xl font-black text-amber-500 font-mono">{answers.length} <span className="text-sm text-zinc-600">/ {shuffledQuestions.length}</span></span>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Button
+              onClick={() => setShowExitConfirm(false)}
+              className="w-full h-14 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs hover:bg-emerald-600 border-none shadow-2xl shadow-emerald-500/20"
+            >
+              QUAY LẠI LÀM BÀI
+            </Button>
+            <button
+              onClick={forceSubmit}
+              className="w-full h-14 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-500 font-black uppercase tracking-widest text-xs hover:bg-red-500/20 transition-all"
+            >
+              THOÁT & NỘP BÀI NGAY
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    );
+  }
+
   // ── Quiz Questions Screen ─────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-[#09090B] z-[60] flex flex-col p-5 md:p-8 overflow-hidden">
         {/* Header */}
         <div className="max-w-3xl mx-auto w-full flex items-center justify-between mb-6">
-            <button onClick={onExit} className="flex items-center gap-2 text-zinc-500 hover:text-white font-black text-[10px] uppercase tracking-widest transition-all group ">
+            <button onClick={() => setShowExitConfirm(true)} className="flex items-center gap-2 text-zinc-500 hover:text-white font-black text-[10px] uppercase tracking-widest transition-all group ">
                 <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                 THOÁT
             </button>

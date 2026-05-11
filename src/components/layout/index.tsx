@@ -18,6 +18,8 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeft,
+  ExternalLink,
+  FileText,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -180,6 +182,43 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
             </div>
           );
         })}
+
+        {/* Divider */}
+        <div className={cn('border-t border-zinc-900/50 my-4', collapsed ? 'mx-2' : 'mx-4')} />
+
+        {/* Hướng dẫn sử dụng — trang nhúng */}
+        <div className="relative group">
+          <button
+            onClick={() => setView(ViewType.GUIDE)}
+            className={cn(
+              'w-full flex items-center rounded-2xl font-black transition-all',
+              collapsed
+                ? 'justify-center px-0 py-4 text-xs'
+                : 'gap-4 px-5 py-4 text-xs uppercase tracking-widest',
+              currentView === ViewType.GUIDE
+                ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                : 'text-zinc-500 hover:bg-zinc-800/50 hover:text-zinc-200'
+            )}
+          >
+            {currentView === ViewType.GUIDE && (
+              <div className="absolute left-0 w-1.5 h-6 bg-emerald-500 rounded-r-full shadow-[0_0_15px_#10B981]" />
+            )}
+            <FileText className={cn('w-5 h-5 flex-shrink-0', currentView === ViewType.GUIDE ? 'text-emerald-500' : 'text-zinc-600 group-hover:text-zinc-300')} />
+            {!collapsed && (
+              <>
+                <span className="uppercase tracking-widest">Hướng dẫn sử dụng</span>
+                {currentView === ViewType.GUIDE && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />}
+              </>
+            )}
+          </button>
+          {/* Tooltip khi collapsed */}
+          {collapsed && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-xl text-[10px] font-black text-zinc-200 uppercase tracking-widest whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-200 z-50 shadow-xl">
+              Hướng dẫn sử dụng
+              <div className="absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[5px] border-t-transparent border-b-[5px] border-b-transparent border-r-[5px] border-r-zinc-800" />
+            </div>
+          )}
+        </div>
       </nav>
 
 
@@ -663,6 +702,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.LOGIN]: 'dashboard',
       [ViewType.FORGOT_PASSWORD]: 'dashboard',
       [ViewType.RESET_PASSWORD]: 'dashboard',
+      [ViewType.GUIDE]: 'guide',
     };
     onNavigate(viewMap[view] || 'dashboard');
   };
