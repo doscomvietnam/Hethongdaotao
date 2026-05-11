@@ -159,6 +159,20 @@ export async function getDistinctDepartments(): Promise<string[]> {
 
 export async function updateCourse(courseId: string, input: Partial<CourseInput>): Promise<void> {
     const { course_id: _ignore, ...rest } = input as any;
+
+    // Chuyển chuỗi rỗng → null cho các cột nullable / FK để tránh lỗi
+    // "violates foreign key constraint" khi giá trị là "" thay vì null
+    const NULLABLE_FIELDS = [
+        'product_id', 'quiz_id', 'department',
+        'thumbnail_url', 'slide_url', 'video_url',
+        'start_date', 'end_date',
+    ];
+    for (const key of NULLABLE_FIELDS) {
+        if (key in rest && (rest[key] === '' || rest[key] === undefined)) {
+            rest[key] = null;
+        }
+    }
+
     const { data, error } = await supabase
         .from("courses")
         .update(rest)

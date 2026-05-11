@@ -390,8 +390,17 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
       await onDataChanged?.();
       setEditing(null);
     } catch (e: any) {
-      console.error(e);
-      setError(e?.message || 'Không lưu được khóa học');
+      console.error('[CourseManagement] Save error:', e);
+      // Bóc tách thông tin lỗi Supabase để hiện rõ nguyên nhân
+      const details = [e?.message, e?.details, e?.hint, e?.code]
+        .filter(Boolean)
+        .join(' — ');
+      let userMsg = details || 'Không lưu được khóa học';
+      // Nhận diện lỗi RLS quen thuộc
+      if (/row-level security/i.test(userMsg) || e?.code === '42501') {
+        userMsg = `RLS chặn thao tác. Chạy file supabase/fix_admin_rls.sql trên Supabase SQL Editor để cấp quyền admin/manager. Chi tiết: ${userMsg}`;
+      }
+      setError(userMsg);
     } finally {
       setSaving(false);
     }
@@ -489,8 +498,8 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
                     <td className="px-3 py-4 text-xs font-bold text-zinc-400 max-w-[160px] truncate" title={row.category}>{row.category}</td>
                     <td className="px-3 py-4 whitespace-nowrap">
                       {row.end_date ? (() => {
-                        const today = new Date(); today.setHours(0,0,0,0);
-                        const end = new Date(row.end_date); end.setHours(0,0,0,0);
+                        const today = new Date(); today.setHours(0, 0, 0, 0);
+                        const end = new Date(row.end_date); end.setHours(0, 0, 0, 0);
                         const days = Math.ceil((end.getTime() - today.getTime()) / 86400000);
                         if (days < 0) return <span className="inline-block whitespace-nowrap text-[10px] font-black text-red-400 uppercase tracking-widest bg-red-500/10 border border-red-500/20 px-3 py-1 rounded-lg">Quá hạn</span>;
                         if (days <= 2) return <span className="inline-block whitespace-nowrap text-[10px] font-black text-amber-400 uppercase tracking-widest bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-lg">Còn {days}d</span>;
@@ -501,9 +510,8 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
                     </td>
                     <td className="px-3 py-4 text-[10px] font-black text-zinc-500 uppercase tracking-widest whitespace-nowrap">{types.length ? types.join(' + ') : '—'}</td>
                     <td className="px-3 py-4 whitespace-nowrap">
-                      <span className={`inline-block whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg ${
-                        row.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-800 text-zinc-500'
-                      }`}>{row.status === 'active' ? 'Hoạt động' : 'Ẩn'}</span>
+                      <span className={`inline-block whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg ${row.status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-800 text-zinc-500'
+                        }`}>{row.status === 'active' ? 'Hoạt động' : 'Ẩn'}</span>
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-1 justify-end">
@@ -599,17 +607,17 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
             {isManager ? (
               <TextInput value={managerDept} disabled />
             ) : (
-            <Dropdown
-              value={form.department || ALL_DEPT_VALUE}
-              onChange={(v) => setForm({ ...form, department: v === ALL_DEPT_VALUE ? '' : v })}
-              options={[
-                { value: ALL_DEPT_VALUE, label: 'Tất cả phòng ban', hint: 'Mọi nhân viên đều thấy + nhận thông báo' },
-                ...departments
-                  .filter(d => d.trim().toLowerCase() !== 'chủ tịch')
-                  .map(d => ({ value: d, label: d })),
-              ]}
-              className="w-full"
-            />
+              <Dropdown
+                value={form.department || ALL_DEPT_VALUE}
+                onChange={(v) => setForm({ ...form, department: v === ALL_DEPT_VALUE ? '' : v })}
+                options={[
+                  { value: ALL_DEPT_VALUE, label: 'Tất cả phòng ban', hint: 'Mọi nhân viên đều thấy + nhận thông báo' },
+                  ...departments
+                    .filter(d => d.trim().toLowerCase() !== 'chủ tịch')
+                    .map(d => ({ value: d, label: d })),
+                ]}
+                className="w-full"
+              />
             )}
           </Field>
 
@@ -648,15 +656,13 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
                 setHasDeadline(next);
                 if (!next) setForm({ ...form, start_date: '', end_date: '' });
               }}
-              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all ${
-                hasDeadline
+              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all ${hasDeadline
                   ? 'border-amber-500/40 bg-amber-500/5'
                   : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/50'
-              }`}
+                }`}
             >
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                hasDeadline ? 'bg-amber-500/20' : 'bg-zinc-900'
-              }`}>
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${hasDeadline ? 'bg-amber-500/20' : 'bg-zinc-900'
+                }`}>
                 <CalendarClock className={`w-5 h-5 ${hasDeadline ? 'text-amber-400' : 'text-zinc-500'}`} />
               </div>
               <div className="flex-1 text-left">
@@ -669,12 +675,10 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
                     : 'Bấm để đặt thời hạn cho khóa học này.'}
                 </p>
               </div>
-              <div className={`w-12 h-7 rounded-full p-1 transition-colors ${
-                hasDeadline ? 'bg-amber-500' : 'bg-zinc-800'
-              }`}>
-                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                  hasDeadline ? 'translate-x-5' : 'translate-x-0'
-                }`} />
+              <div className={`w-12 h-7 rounded-full p-1 transition-colors ${hasDeadline ? 'bg-amber-500' : 'bg-zinc-800'
+                }`}>
+                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${hasDeadline ? 'translate-x-5' : 'translate-x-0'
+                  }`} />
               </div>
             </button>
 
@@ -721,166 +725,161 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
 
           {/* ── Inline quiz section (cả tạo mới và edit) ─────────────── */}
           <div className="pt-5 border-t border-zinc-900 space-y-4">
-              <button
-                type="button"
-                onClick={() => {
-                  // Edit mode + đã có quiz: không cho tắt (tránh xoá nhầm)
-                  if (isEditMode && existingQuizId) return;
-                  setIncludeQuiz(v => !v);
-                }}
-                disabled={isEditMode && !!existingQuizId}
-                className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all ${
-                  includeQuiz
-                    ? 'border-emerald-500/40 bg-emerald-500/5'
-                    : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/50'
+            <button
+              type="button"
+              onClick={() => {
+                // Edit mode + đã có quiz: không cho tắt (tránh xoá nhầm)
+                if (isEditMode && existingQuizId) return;
+                setIncludeQuiz(v => !v);
+              }}
+              disabled={isEditMode && !!existingQuizId}
+              className={`w-full flex items-center gap-4 p-5 rounded-2xl border transition-all ${includeQuiz
+                  ? 'border-emerald-500/40 bg-emerald-500/5'
+                  : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700 hover:bg-zinc-900/50'
                 } ${isEditMode && existingQuizId ? 'cursor-default' : ''}`}
-              >
-                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${
-                  includeQuiz ? 'bg-emerald-500/20' : 'bg-zinc-900'
+            >
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${includeQuiz ? 'bg-emerald-500/20' : 'bg-zinc-900'
                 }`}>
-                  <HelpCircle className={`w-5 h-5 ${includeQuiz ? 'text-emerald-400' : 'text-zinc-500'}`} />
-                </div>
-                <div className="flex-1 text-left">
-                  <p className="text-sm font-black text-white uppercase tracking-tight">
-                    {existingQuizId
-                      ? `Quiz đã liên kết: ${existingQuizId}`
-                      : includeQuiz
-                        ? 'Đang thêm quiz cùng khóa học'
-                        : isEditMode ? 'Khóa học chưa có quiz — bấm để thêm' : 'Có muốn thêm quiz cho khóa học này không?'}
-                  </p>
-                  <p className="text-[10px] text-zinc-500 font-bold tracking-wide mt-1">
-                    {existingQuizId
-                      ? 'Sửa metadata quiz và câu hỏi bên dưới. Để xoá quiz, dùng Supabase Table Editor.'
-                      : includeQuiz
-                        ? 'Bạn có thể nhập tới 10 câu hỏi (hoặc nhiều hơn). Quiz sẽ tự liên kết với khóa học.'
-                        : 'Bấm để mở form quiz + 10 câu hỏi inline.'}
-                  </p>
-                </div>
-                <div className={`w-12 h-7 rounded-full p-1 transition-colors ${
-                  includeQuiz ? 'bg-emerald-500' : 'bg-zinc-800'
+                <HelpCircle className={`w-5 h-5 ${includeQuiz ? 'text-emerald-400' : 'text-zinc-500'}`} />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-sm font-black text-white uppercase tracking-tight">
+                  {existingQuizId
+                    ? `Quiz đã liên kết: ${existingQuizId}`
+                    : includeQuiz
+                      ? 'Đang thêm quiz cùng khóa học'
+                      : isEditMode ? 'Khóa học chưa có quiz — bấm để thêm' : 'Có muốn thêm quiz cho khóa học này không?'}
+                </p>
+                <p className="text-[10px] text-zinc-500 font-bold tracking-wide mt-1">
+                  {existingQuizId
+                    ? 'Sửa metadata quiz và câu hỏi bên dưới. Để xoá quiz, dùng Supabase Table Editor.'
+                    : includeQuiz
+                      ? 'Bạn có thể nhập tới 10 câu hỏi (hoặc nhiều hơn). Quiz sẽ tự liên kết với khóa học.'
+                      : 'Bấm để mở form quiz + 10 câu hỏi inline.'}
+                </p>
+              </div>
+              <div className={`w-12 h-7 rounded-full p-1 transition-colors ${includeQuiz ? 'bg-emerald-500' : 'bg-zinc-800'
                 }`}>
-                  <div className={`w-5 h-5 rounded-full bg-white transition-transform ${
-                    includeQuiz ? 'translate-x-5' : 'translate-x-0'
+                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${includeQuiz ? 'translate-x-5' : 'translate-x-0'
                   }`} />
-                </div>
-              </button>
+              </div>
+            </button>
 
-              {includeQuiz && loadingQuiz ? (
-                <div className="p-8 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02] flex items-center justify-center gap-3 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-500" /> Đang tải quiz và câu hỏi...
-                </div>
-              ) : includeQuiz && (
-                <div className="space-y-5 p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02]">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                    <div className="md:col-span-3">
-                      <Field label="Tiêu đề quiz" required>
-                        <TextInput
-                          value={quizMeta.quiz_title}
-                          onChange={e => setQuizMeta({ ...quizMeta, quiz_title: e.target.value })}
-                          placeholder={`VD: Bài kiểm tra ${form.course_name || 'khóa học'}`}
-                          required={includeQuiz}
-                        />
-                      </Field>
-                    </div>
-                    <Field label="Điểm đạt (%)">
+            {includeQuiz && loadingQuiz ? (
+              <div className="p-8 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02] flex items-center justify-center gap-3 text-[11px] text-zinc-500 font-bold uppercase tracking-widest">
+                <Loader2 className="w-4 h-4 animate-spin text-emerald-500" /> Đang tải quiz và câu hỏi...
+              </div>
+            ) : includeQuiz && (
+              <div className="space-y-5 p-5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.02]">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="md:col-span-3">
+                    <Field label="Tiêu đề quiz" required>
                       <TextInput
-                        type="number" min="0" max="100"
-                        value={quizMeta.pass_score}
-                        onChange={e => setQuizMeta({ ...quizMeta, pass_score: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Số lượt làm tối đa">
-                      <TextInput
-                        type="number" min="1"
-                        value={quizMeta.max_attempts}
-                        onChange={e => setQuizMeta({ ...quizMeta, max_attempts: e.target.value })}
-                      />
-                    </Field>
-                    <Field label={existingQuizId ? 'Mã quiz' : 'Mã quiz (tự sinh)'} hint={existingQuizId ? 'Quiz đã liên kết với khóa học' : 'Khóa học sẽ tự liên kết với quiz này'}>
-                      <TextInput
-                        value={existingQuizId || `Q_${form.course_id.replace(/^C_/, '')}`}
-                        disabled
+                        value={quizMeta.quiz_title}
+                        onChange={e => setQuizMeta({ ...quizMeta, quiz_title: e.target.value })}
+                        placeholder={`VD: Bài kiểm tra ${form.course_name || 'khóa học'}`}
+                        required={includeQuiz}
                       />
                     </Field>
                   </div>
+                  <Field label="Điểm đạt (%)">
+                    <TextInput
+                      type="number" min="0" max="100"
+                      value={quizMeta.pass_score}
+                      onChange={e => setQuizMeta({ ...quizMeta, pass_score: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Số lượt làm tối đa">
+                    <TextInput
+                      type="number" min="1"
+                      value={quizMeta.max_attempts}
+                      onChange={e => setQuizMeta({ ...quizMeta, max_attempts: e.target.value })}
+                    />
+                  </Field>
+                  <Field label={existingQuizId ? 'Mã quiz' : 'Mã quiz (tự sinh)'} hint={existingQuizId ? 'Quiz đã liên kết với khóa học' : 'Khóa học sẽ tự liên kết với quiz này'}>
+                    <TextInput
+                      value={existingQuizId || `Q_${form.course_id.replace(/^C_/, '')}`}
+                      disabled
+                    />
+                  </Field>
+                </div>
 
-                  {/* 10 câu hỏi slot */}
-                  <div className="pt-4 border-t border-emerald-500/10 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="text-sm font-black text-white uppercase tracking-wider">Danh sách câu hỏi</h4>
-                        <p className="text-[10px] text-zinc-500 font-bold tracking-wide mt-1">
-                          Nhập tối thiểu 1 câu — slot trống sẽ được bỏ qua
+                {/* 10 câu hỏi slot */}
+                <div className="pt-4 border-t border-emerald-500/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-black text-white uppercase tracking-wider">Danh sách câu hỏi</h4>
+                      <p className="text-[10px] text-zinc-500 font-bold tracking-wide mt-1">
+                        Nhập tối thiểu 1 câu — slot trống sẽ được bỏ qua
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={addDraftSlot}
+                      className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] font-black text-emerald-400 uppercase tracking-widest"
+                    >
+                      + Thêm slot
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {drafts.map((d, idx) => (
+                      <div key={idx} className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Câu {idx + 1}</span>
+                          {drafts.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => removeDraftSlot(idx)}
+                              className="text-[10px] font-black text-zinc-500 hover:text-red-400 uppercase tracking-widest"
+                            >
+                              Xoá
+                            </button>
+                          )}
+                        </div>
+                        <TextArea
+                          value={d.question_text}
+                          onChange={e => updateDraft(idx, { question_text: e.target.value })}
+                          rows={2}
+                          placeholder="Nội dung câu hỏi (để trống nếu không dùng slot này)"
+                        />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {(['A', 'B', 'C', 'D'] as const).map(letter => {
+                            const key = `option_${letter.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c' | 'option_d';
+                            const isCorrect = d.correct_answer === letter;
+                            return (
+                              <div key={letter} className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => updateDraft(idx, { correct_answer: letter })}
+                                  title={isCorrect ? 'Đáp án đúng' : 'Bấm để chọn làm đáp án đúng'}
+                                  className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-[11px] font-black uppercase transition-all ${isCorrect
+                                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                                      : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-emerald-400 border border-zinc-800'
+                                    }`}
+                                >
+                                  {letter}
+                                </button>
+                                <TextInput
+                                  value={d[key]}
+                                  onChange={e => updateDraft(idx, { [key]: e.target.value })}
+                                  placeholder={`Đáp án ${letter}`}
+                                  className="flex-1"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
+                          Đáp án đúng: <span className="text-emerald-500">{d.correct_answer}</span>
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={addDraftSlot}
-                        className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-[10px] font-black text-emerald-400 uppercase tracking-widest"
-                      >
-                        + Thêm slot
-                      </button>
-                    </div>
-
-                    <div className="space-y-3">
-                      {drafts.map((d, idx) => (
-                        <div key={idx} className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Câu {idx + 1}</span>
-                            {drafts.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => removeDraftSlot(idx)}
-                                className="text-[10px] font-black text-zinc-500 hover:text-red-400 uppercase tracking-widest"
-                              >
-                                Xoá
-                              </button>
-                            )}
-                          </div>
-                          <TextArea
-                            value={d.question_text}
-                            onChange={e => updateDraft(idx, { question_text: e.target.value })}
-                            rows={2}
-                            placeholder="Nội dung câu hỏi (để trống nếu không dùng slot này)"
-                          />
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {(['A', 'B', 'C', 'D'] as const).map(letter => {
-                              const key = `option_${letter.toLowerCase()}` as 'option_a' | 'option_b' | 'option_c' | 'option_d';
-                              const isCorrect = d.correct_answer === letter;
-                              return (
-                                <div key={letter} className="flex items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => updateDraft(idx, { correct_answer: letter })}
-                                    title={isCorrect ? 'Đáp án đúng' : 'Bấm để chọn làm đáp án đúng'}
-                                    className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center text-[11px] font-black uppercase transition-all ${
-                                      isCorrect
-                                        ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
-                                        : 'bg-zinc-900 text-zinc-500 hover:bg-zinc-800 hover:text-emerald-400 border border-zinc-800'
-                                    }`}
-                                  >
-                                    {letter}
-                                  </button>
-                                  <TextInput
-                                    value={d[key]}
-                                    onChange={e => updateDraft(idx, { [key]: e.target.value })}
-                                    placeholder={`Đáp án ${letter}`}
-                                    className="flex-1"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                          <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">
-                            Đáp án đúng: <span className="text-emerald-500">{d.correct_answer}</span>
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                    ))}
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+          </div>
         </form>
       </AdminModal>
 
