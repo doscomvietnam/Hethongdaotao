@@ -82,11 +82,8 @@ export interface ProductInput {
 
 export async function createProduct(input: ProductInput): Promise<void> {
     const payload = { ...input, status: input.status || "active" };
-    const { data, error } = await supabase.from("products").insert(payload).select();
+    const { error } = await supabase.from("products").insert(payload);
     if (error) throw error;
-    if (!data || data.length === 0) {
-        throw new Error('Không tạo được sản phẩm — kiểm tra RLS policy INSERT cho bảng products.');
-    }
 }
 
 export async function updateProduct(productId: string, input: Partial<ProductInput>): Promise<void> {

@@ -111,11 +111,8 @@ export async function createQuiz(input: QuizInput): Promise<void> {
         max_attempts: input.max_attempts || "1",
         status: input.status || "active",
     };
-    const { data, error } = await supabase.from("quizzes").insert(payload).select();
+    const { error } = await supabase.from("quizzes").insert(payload);
     if (error) throw error;
-    if (!data || data.length === 0) {
-        throw new Error('Không tạo được quiz — kiểm tra RLS policy INSERT cho bảng quizzes.');
-    }
 }
 
 export async function updateQuiz(quizId: string, input: Partial<QuizInput>): Promise<void> {
@@ -158,11 +155,8 @@ export interface QuestionInput {
 
 export async function createQuestion(input: QuestionInput): Promise<void> {
     const payload = { ...input, status: input.status || "active" };
-    const { data, error } = await supabase.from("quiz_questions").insert(payload).select();
+    const { error } = await supabase.from("quiz_questions").insert(payload);
     if (error) throw error;
-    if (!data || data.length === 0) {
-        throw new Error('Không tạo được câu hỏi — kiểm tra RLS policy INSERT cho bảng quiz_questions.');
-    }
 }
 
 export async function updateQuestion(questionId: string, input: Partial<QuestionInput>): Promise<void> {

@@ -102,11 +102,8 @@ export async function createCourse(input: CourseInput): Promise<void> {
         start_date: input.start_date || null,
         end_date: input.end_date || null,
     };
-    const { data, error } = await supabase.from("courses").insert(payload).select();
+    const { error } = await supabase.from("courses").insert(payload);
     if (error) throw error;
-    if (!data || data.length === 0) {
-        throw new Error('Không tạo được khóa học — kiểm tra RLS policy INSERT cho bảng courses.');
-    }
 
     // Push notifications cho nhân viên thuộc phòng ban (hoặc toàn bộ nếu null)
     try {
@@ -139,7 +136,7 @@ async function notifyEmployeesAboutCourse(courseId: string, courseName: string, 
         link_id: courseId,
     }));
 
-    const { error: insertErr } = await supabase.from('notifications').insert(rows).select();
+    const { error: insertErr } = await supabase.from('notifications').insert(rows);
     if (insertErr) throw insertErr;
 }
 
