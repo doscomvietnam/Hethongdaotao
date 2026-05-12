@@ -894,6 +894,7 @@ function App() {
             brand={examBrand}
             products={products}
             courses={courses}
+            userId={employee.auth_user_id}
             onBack={() => setCurrentView(ViewType.EXAM_HUB)}
             onStartQuiz={handleStartQuizFromWheel}
           />
