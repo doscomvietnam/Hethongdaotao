@@ -74,6 +74,7 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['admin', 'manager', 'employee'] },
     { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'] },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'] },
+    { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'] },
     { id: ViewType.ADMIN, icon: Settings, label: 'Quản trị hệ thống', roles: ['admin', 'manager'] },
   ];
 
@@ -703,6 +704,8 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.FORGOT_PASSWORD]: 'dashboard',
       [ViewType.RESET_PASSWORD]: 'dashboard',
       [ViewType.GUIDE]: 'guide',
+      [ViewType.EXAM_HUB]: 'exam-hub',
+      [ViewType.EXAM_WHEEL]: 'exam-wheel',
     };
     onNavigate(viewMap[view] || 'dashboard');
   };

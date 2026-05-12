@@ -7,6 +7,8 @@ import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
 import ProfilePage from "./components/profile/ProfilePage";
 import GuidePage from "./components/guide";
+import ExamHubPage from "./components/exam/ExamHubPage";
+import ExamWheelPage from "./components/exam/ExamWheelPage";
 
 import LoginPage from "./components/auth/LoginPage";
 import ForgotPasswordPage from "./components/auth/ForgotPasswordPage";
@@ -74,6 +76,9 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.REPORT]: '/report',
   [ViewType.ADMIN]: '/admin',
   [ViewType.PROFILE]: '/profile',
+  [ViewType.GUIDE]: '/guide',
+  [ViewType.EXAM_HUB]: '/exam',
+  [ViewType.EXAM_WHEEL]: '/exam/wheel',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string } {
@@ -95,6 +100,11 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.ADMIN };
     case 'profile':
       return { view: ViewType.PROFILE };
+    case 'guide':
+      return { view: ViewType.GUIDE };
+    case 'exam':
+      if (segments[1] === 'wheel') return { view: ViewType.EXAM_WHEEL };
+      return { view: ViewType.EXAM_HUB };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -132,6 +142,10 @@ function App() {
   const [selectedCourseId, setSelectedCourseId] = React.useState<string | null>(initialUrlState.courseId || null);
   const [activeQuiz, setActiveQuiz] = React.useState<Quiz | null>(null);
   const quizStartRef = React.useRef<number | null>(null);
+
+  // Exam wheel state
+  const [examBrand, setExamBrand] = React.useState<'Doscom' | 'Noma' | null>(null);
+  const [quizReturnView, setQuizReturnView] = React.useState<ViewType | null>(null);
 
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -485,6 +499,13 @@ function App() {
       case "guide":
         setCurrentView(ViewType.GUIDE);
         break;
+      case "exam-hub":
+        setExamBrand(null);
+        setCurrentView(ViewType.EXAM_HUB);
+        break;
+      case "exam-wheel":
+        setCurrentView(ViewType.EXAM_WHEEL);
+        break;
       default:
         setCurrentView(ViewType.DASHBOARD);
         initData(true);
@@ -513,11 +534,13 @@ function App() {
     initData(true);
   };
 
-  const handleStartQuiz = async (quizId?: string) => {
+  const handleStartQuiz = async (quizId?: string, courseIdOverride?: string) => {
     try {
-      // Check localStorage — only 1 attempt allowed
+      // Khi gọi từ vòng quay, selectedCourseId state chưa kịp update vì cùng tick
+      // → dùng courseIdOverride truyền trực tiếp.
+      const targetCourseId = courseIdOverride || selectedCourseId;
       const userId = employee?.auth_user_id || '';
-      if (selectedCourseId && getQuizAttempts(selectedCourseId, userId) >= 1) {
+      if (targetCourseId && getQuizAttempts(targetCourseId, userId) >= 1) {
         alert('Bạn đã sử dụng hết lượt làm bài kiểm tra (1/1). Không thể làm lại.');
         return;
       }
@@ -528,8 +551,8 @@ function App() {
         quiz = await getQuizById(quizId);
       }
 
-      if (!quiz && selectedCourseId) {
-        quiz = await getQuizByCourseId(selectedCourseId);
+      if (!quiz && targetCourseId) {
+        quiz = await getQuizByCourseId(targetCourseId);
       }
 
       if (!quiz) {
@@ -547,7 +570,23 @@ function App() {
 
   const handleExitQuiz = () => {
     setActiveQuiz(null);
+    // Nếu quiz được mở từ vòng quay → quay lại wheel + refresh data để loại sản phẩm vừa làm
+    if (quizReturnView === ViewType.EXAM_WHEEL) {
+      setQuizReturnView(null);
+      setCurrentView(ViewType.EXAM_WHEEL);
+      initData(true);
+      return;
+    }
+    setQuizReturnView(null);
     setCurrentView(ViewType.COURSE_DETAIL);
+  };
+
+  // Vòng quay → khởi động quiz cho course được chọn
+  const handleStartQuizFromWheel = (course: Course) => {
+    setSelectedCourseId(course.id);
+    setQuizReturnView(ViewType.EXAM_WHEEL);
+    // Truyền course.id thẳng để né race condition với selectedCourseId state
+    handleStartQuiz(course.quizId, course.id);
   };
 
   // Lưu kết quả quiz vào Supabase + cập nhật state local. Không navigate.
@@ -832,6 +871,33 @@ function App() {
 
       case ViewType.GUIDE:
         return <GuidePage />;
+
+      case ViewType.EXAM_HUB:
+        return (
+          <ExamHubPage
+            products={products}
+            courses={courses}
+            onSelectBrand={(brand) => {
+              setExamBrand(brand);
+              setCurrentView(ViewType.EXAM_WHEEL);
+            }}
+          />
+        );
+
+      case ViewType.EXAM_WHEEL:
+        if (!examBrand) {
+          setCurrentView(ViewType.EXAM_HUB);
+          return null;
+        }
+        return (
+          <ExamWheelPage
+            brand={examBrand}
+            products={products}
+            courses={courses}
+            onBack={() => setCurrentView(ViewType.EXAM_HUB)}
+            onStartQuiz={handleStartQuizFromWheel}
+          />
+        );
 
       default:
         return null;

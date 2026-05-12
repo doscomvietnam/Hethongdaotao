@@ -12,6 +12,8 @@ export enum ViewType {
   FORGOT_PASSWORD = 'forgot-password',
   RESET_PASSWORD = 'reset-password',
   GUIDE = 'guide',
+  EXAM_HUB = 'exam-hub',
+  EXAM_WHEEL = 'exam-wheel',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';
