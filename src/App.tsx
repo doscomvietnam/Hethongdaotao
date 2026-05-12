@@ -436,8 +436,8 @@ function App() {
               const courseHasVideo = Boolean(course.videoUrl);
 
               if (courseHasQuiz) {
-                // Courses WITH quiz: video = 50%, submit quiz (kể cả không đạt) = +50%
-                const videoPart = Math.round((bestVideoProg / 100) * 50);
+                // Courses WITH quiz: video chiếm 50%, quiz chiếm 50%
+                const videoPart = Math.round(bestVideoProg / 2);
                 const quizSubmitted = Boolean(supaProgress.quiz_completed_at);
                 course.progress = videoPart + (quizSubmitted ? 50 : 0);
               } else if (courseHasVideo) {
@@ -458,7 +458,7 @@ function App() {
             } else if (localVideoProg > 0) {
               course.videoProgress = localVideoProg;
               const courseHasQuiz = Boolean(course.quizId);
-              course.progress = courseHasQuiz ? Math.round((localVideoProg / 100) * 50) : localVideoProg;
+              course.progress = courseHasQuiz ? Math.round(localVideoProg / 2) : localVideoProg;
             }
             // Slide-only courses with no progress record: progress stays 0, not completed
           }
@@ -634,7 +634,7 @@ function App() {
       const bestScore = Math.max(previousBestScore, result.score);
       // Submit quiz → +50% progress. Chỉ mark hoàn thành nếu video đủ 100%.
       const videoProg = course.videoProgress || 0;
-      const videoPart = Math.round((videoProg / 100) * 50);
+      const videoPart = Math.round(videoProg / 2);
       const newProgress = videoPart + 50;
       return {
         ...course,

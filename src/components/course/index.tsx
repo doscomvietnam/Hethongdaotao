@@ -212,7 +212,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogP
             const videoProgress = Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0);
             // Video = 50%, submit quiz (pass/fail) = +50%
             const courseHasQuiz = Boolean(course.quizId);
-            const videoPart = Math.round(videoProgress * 0.5);
+            const videoPart = Math.round(videoProgress / 2);
             const quizPart = course.lastQuizScore != null ? 50 : 0;
             const trainingProgress = !courseHasQuiz
               ? videoProgress
@@ -613,7 +613,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   // ── Course progress real-time: video = 50%, submit quiz (pass/fail) = +50%
   const computedCourseProgress = React.useMemo(() => {
     if (!hasQuiz) return videoWatchProgress;
-    const videoPart = Math.round(videoWatchProgress * 0.5);
+    const videoPart = Math.round(videoWatchProgress / 2);
     const quizPart = course.lastQuizScore != null ? 50 : 0;
     return Math.min(100, videoPart + quizPart);
   }, [videoWatchProgress, course.lastQuizScore, hasQuiz]);
