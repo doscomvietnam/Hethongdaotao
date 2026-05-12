@@ -368,7 +368,12 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
 
   const isDirectVideoFile = /\.(mp4|webm|ogg)(\?.*)?$/i.test(course.videoUrl || '');
   const isYouTube = /youtube\.com\/embed\/|youtu\.be\//.test(course.videoUrl || '');
-  const VIDEO_TOTAL_SECONDS = 600; // fallback cho iframe Drive/khác
+  // Ưu tiên: admin-input duration → fallback 600s (chỉ dùng cho generic iframe / Drive).
+  // YouTube/MP4 tự detect duration từ player.
+  const ADMIN_VIDEO_DURATION = course.videoDurationSeconds && course.videoDurationSeconds > 0
+    ? course.videoDurationSeconds
+    : 0;
+  const VIDEO_TOTAL_SECONDS = ADMIN_VIDEO_DURATION || 600;
 
   // ── Sync video progress to Supabase (debounced) ────────────────────────
   const syncToSupabase = React.useCallback((progress: number) => {
@@ -454,7 +459,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
           events: {
             onReady: () => {
               try {
-                const dur = player?.getDuration?.() || 0;
+                // Ưu tiên duration admin nhập, fallback auto detect
+                const dur = ADMIN_VIDEO_DURATION || player?.getDuration?.() || 0;
                 if (dur > 0) initWatchedSeconds(dur);
               } catch { /* ignore */ }
             },
@@ -463,7 +469,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
 
               // Lấy duration nếu chưa có
               try {
-                const dur = player?.getDuration?.() || 0;
+                const dur = ADMIN_VIDEO_DURATION || player?.getDuration?.() || 0;
                 if (dur > 0 && !durationInitializedRef.current) initWatchedSeconds(dur);
               } catch { /* ignore */ }
 
@@ -512,23 +518,25 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
     if (!videoEl) return;
 
     const handleLoadedMetadata = () => {
-      if (videoEl.duration && videoEl.duration > 0) {
-        initWatchedSeconds(videoEl.duration);
-      }
+      // Ưu tiên admin-input duration, fallback video element duration
+      const dur = ADMIN_VIDEO_DURATION || (videoEl.duration > 0 ? videoEl.duration : 0);
+      if (dur > 0) initWatchedSeconds(dur);
     };
     const handlePlay = () => setIsWatching(true);
     const handlePause = () => setIsWatching(false);
     const handleEnded = () => {
       setIsWatching(false);
-      if (videoEl.duration > 0) watchedSecondsRef.current = videoEl.duration;
+      const dur = ADMIN_VIDEO_DURATION || (videoEl.duration > 0 ? videoEl.duration : 0);
+      if (dur > 0) watchedSecondsRef.current = dur;
       setVideoWatchProgress(100);
       setVideoProgress(course.id, 100, userId);
       syncToSupabase(100);
     };
 
     // Init duration nếu đã loaded
-    if (videoEl.duration && videoEl.duration > 0) {
-      initWatchedSeconds(videoEl.duration);
+    const initialDur = ADMIN_VIDEO_DURATION || (videoEl.duration > 0 ? videoEl.duration : 0);
+    if (initialDur > 0) {
+      initWatchedSeconds(initialDur);
     }
 
     videoEl.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -806,6 +814,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                   }
                 </p>
               </div>
+
             </div>
           )}
 

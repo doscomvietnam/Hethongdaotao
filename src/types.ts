@@ -82,6 +82,7 @@ export interface Course {
   attempts: number;
   lastQuizScore?: number;
   videoProgress?: number;
+  videoDurationSeconds?: number;  // Thời lượng video (giây) — admin nhập, dùng tính % chính xác
   startDate?: string | null;  // ISO date string
   endDate?: string | null;    // ISO date string
 }

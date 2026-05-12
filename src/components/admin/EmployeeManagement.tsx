@@ -282,8 +282,8 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <Field label="Email" required hint={!isEditMode ? 'Dùng để đăng nhập — không sửa được sau khi tạo' : undefined}>
-              <TextInput type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} disabled={!!isEditMode} required />
+            <Field label="Email" required hint={isEditMode ? 'Sửa email sẽ đồng bộ cập nhật tài khoản đăng nhập' : 'Dùng để đăng nhập — có thể sửa lại sau'}>
+              <TextInput type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />
             </Field>
             <Field label="Họ và tên" required>
               <TextInput value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} required />

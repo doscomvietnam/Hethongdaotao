@@ -228,11 +228,17 @@ export async function createEmployeeWithAuth(
 }
 
 export async function updateEmployee(id: string, input: Partial<EmployeeInput>): Promise<void> {
-  // Loại id và email khỏi payload (email là khoá đăng nhập)
-  const { id: _ignoreId, email: _ignoreEmail, ...rest } = input as any;
+  const { id: _ignoreId, ...rest } = input as any;
+  const newEmail = rest.email?.trim().toLowerCase();
+  delete rest.email; // tách email ra xử lý riêng
   const payload = sanitize(rest);
 
-  // .select() để biết chắc có row nào bị update — nếu 0 row tức RLS chặn
+  // Nếu có email mới → thêm vào payload cập nhật bảng employees
+  if (newEmail) {
+    payload.email = newEmail;
+  }
+
+  // 1. Cập nhật bảng employees
   const { data, error } = await supabase
     .from('employees')
     .update(payload)
@@ -244,6 +250,59 @@ export async function updateEmployee(id: string, input: Partial<EmployeeInput>):
     throw new Error(
       'Không có bản ghi nào được cập nhật. Có thể do RLS policy chặn UPDATE — kiểm tra Supabase → Authentication → Policies cho bảng employees.'
     );
+  }
+
+  // 2. Nếu email thay đổi → đồng bộ lên auth.users qua Edge Function
+  if (newEmail && data[0]?.auth_user_id) {
+    try {
+      await updateAuthEmail(data[0].auth_user_id, newEmail);
+    } catch (authErr: any) {
+      console.warn('⚠️ Đã cập nhật employees nhưng lỗi cập nhật auth:', authErr);
+      throw new Error(
+        `Đã cập nhật email trong hồ sơ, nhưng chưa đồng bộ được tài khoản đăng nhập: ${authErr.message || authErr}. ` +
+        `Nhân viên có thể cần đăng nhập bằng email cũ. Vào Supabase Dashboard → Authentication → Users để sửa thủ công.`
+      );
+    }
+  }
+}
+
+/**
+ * Cập nhật email trong auth.users thông qua Supabase Admin API.
+ * Dùng service_role key từ Edge Function /api/update-auth-email.
+ * Fallback: gọi trực tiếp Supabase REST API nếu có service role key.
+ */
+async function updateAuthEmail(authUserId: string, newEmail: string): Promise<void> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+
+  // Thử gọi qua Vercel serverless function trước
+  try {
+    const res = await fetch('/api/update-auth-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ authUserId, newEmail }),
+    });
+    if (res.ok) return;
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  } catch (fetchErr: any) {
+    // Nếu serverless function không available (404, network error), thử REST API trực tiếp
+    // Chỉ hoạt động nếu SUPABASE_SERVICE_ROLE_KEY có trong env (dev mode)
+    const serviceKey = (import.meta.env as any).SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) throw fetchErr;
+
+    const res = await fetch(`${supabaseUrl}/auth/v1/admin/users/${authUserId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+      },
+      body: JSON.stringify({ email: newEmail }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.msg || body.error || `HTTP ${res.status}`);
+    }
   }
 }
 

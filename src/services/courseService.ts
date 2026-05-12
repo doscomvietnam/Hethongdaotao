@@ -1,6 +1,6 @@
 import type { Course } from "../types";
 import { supabase } from "./supabaseClient";
-import { convertGoogleDriveToDirectUrl, convertGoogleDriveToVideoEmbedUrl, convertGoogleDriveToDirectVideoUrl, convertGoogleDriveToSlideEmbedUrl } from "./mediaHelpers";
+import { convertGoogleDriveToDirectUrl, convertGoogleDriveToVideoEmbedUrl, convertGoogleDriveToSlideEmbedUrl } from "./mediaHelpers";
 
 /**
  * Map dữ liệu từ Supabase row sang Course interface
@@ -24,6 +24,7 @@ function mapCourseRow(item: any): Course {
         quizId: item.quiz_id || undefined,
         attempts: 0,
         lastQuizScore: undefined,
+        videoDurationSeconds: item.video_duration_seconds != null ? Number(item.video_duration_seconds) : undefined,
         startDate: item.start_date || null,
         endDate: item.end_date || null,
     };
@@ -80,6 +81,7 @@ export interface CourseInput {
     status?: string;
     start_date?: string | null; // ISO date (YYYY-MM-DD) hoặc null
     end_date?: string | null;   // ISO date (YYYY-MM-DD) hoặc null
+    video_duration_seconds?: number | string | null; // Thời lượng video tính bằng giây
 }
 
 export async function createCourse(input: CourseInput): Promise<void> {
@@ -101,6 +103,9 @@ export async function createCourse(input: CourseInput): Promise<void> {
         status: input.status || "active",
         start_date: input.start_date || null,
         end_date: input.end_date || null,
+        video_duration_seconds: input.video_duration_seconds != null && input.video_duration_seconds !== ''
+            ? Number(input.video_duration_seconds)
+            : null,
     };
     const { error } = await supabase.from("courses").insert(payload);
     if (error) throw error;
@@ -165,12 +170,16 @@ export async function updateCourse(courseId: string, input: Partial<CourseInput>
     const NULLABLE_FIELDS = [
         'product_id', 'quiz_id', 'department',
         'thumbnail_url', 'slide_url', 'video_url',
-        'start_date', 'end_date',
+        'start_date', 'end_date', 'video_duration_seconds',
     ];
     for (const key of NULLABLE_FIELDS) {
         if (key in rest && (rest[key] === '' || rest[key] === undefined)) {
             rest[key] = null;
         }
+    }
+    // Ép kiểu số cho video_duration_seconds
+    if (rest.video_duration_seconds != null && rest.video_duration_seconds !== '') {
+        rest.video_duration_seconds = Number(rest.video_duration_seconds);
     }
 
     const { data, error } = await supabase

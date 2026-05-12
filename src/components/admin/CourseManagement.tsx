@@ -66,6 +66,7 @@ const emptyForm: CourseInput = {
   status: 'active',
   start_date: '',
   end_date: '',
+  video_duration_seconds: '',
 };
 
 function normalize(s: string) {
@@ -245,6 +246,7 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
       status: row.status || 'active',
       start_date: row.start_date || '',
       end_date: row.end_date || '',
+      video_duration_seconds: row.video_duration_seconds ?? '',
     });
     resetQuizState();
     setHasDeadline(!!(row.start_date || row.end_date));
@@ -641,6 +643,19 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
 
           <Field label="URL Video" hint="Hỗ trợ YouTube (youtu.be/...) và Google Drive (/d/<id>/view)">
             <TextInput value={form.video_url || ''} onChange={e => setForm({ ...form, video_url: e.target.value })} placeholder="https://..." />
+          </Field>
+
+          <Field
+            label="Thời lượng video (giây) — tùy chọn"
+            hint="Không bắt buộc. YouTube/MP4 tự detect. Google Drive: user sẽ tự bấm 'Đã xem xong' để mark 100%. Chỉ điền nếu muốn ghi đè (VD: 300 = 5 phút)."
+          >
+            <TextInput
+              type="number"
+              min="1"
+              value={form.video_duration_seconds == null ? '' : String(form.video_duration_seconds)}
+              onChange={e => setForm({ ...form, video_duration_seconds: e.target.value })}
+              placeholder="Để trống = auto"
+            />
           </Field>
 
           <Field label="URL Slide / Tài liệu" hint="Google Drive, Lark, hoặc file public khác — sẽ render qua iframe">
