@@ -77,13 +77,12 @@ function buildSummaryKey(row: any): string {
 }
 
 // ── Build record fields cho bảng course_summary ─────────────────────────
-function buildRecordFields(row: any, index: number): Record<string, any> {
+function buildRecordFields(row: any, _index: number): Record<string, any> {
   const hasQuiz = Boolean(row.courses?.quiz_id);
   const hasVideo = Boolean(row.courses?.video_url);
   const videoProg = row.video_progress || 0;
 
   return {
-    'STT': index + 1,
     'summary_key': buildSummaryKey(row),
     'Họ và tên': row.employees?.full_name || '—',
     'Email': row.employees?.email || '—',
