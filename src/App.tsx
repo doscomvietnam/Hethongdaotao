@@ -81,11 +81,17 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.EXAM_WHEEL]: '/exam/wheel',
 };
 
-function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string } {
+function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
   const path = window.location.pathname.replace(/\/+$/, '') || '/dashboard';
   const segments = path.split('/').filter(Boolean); // e.g. ['products', 'abc123']
 
   switch (segments[0]) {
+    case 'login':
+      return { view: ViewType.LOGIN, authView: 'login' };
+    case 'forgot-password':
+      return { view: ViewType.FORGOT_PASSWORD, authView: 'forgot-password' };
+    case 'reset-password':
+      return { view: ViewType.RESET_PASSWORD, authView: 'reset-password' };
     case 'products':
       if (segments[1]) return { view: ViewType.PRODUCT_DETAIL, productId: segments[1] };
       return { view: ViewType.PRODUCT_LIBRARY };
@@ -124,7 +130,21 @@ function App() {
   const [authUser, setAuthUser] = React.useState<User | null>(null);
   const [employee, setEmployee] = React.useState<Employee | null>(null);
   const [authLoading, setAuthLoading] = React.useState(true);
-  const [authView, setAuthView] = React.useState<AuthView>('login');
+  const [authView, setAuthViewRaw] = React.useState<AuthView>(() => {
+    const urlState = parseUrlToState();
+    return urlState.authView || 'login';
+  });
+
+  // Wrapper: set authView + push URL
+  const setAuthView = React.useCallback((view: AuthView) => {
+    setAuthViewRaw(view);
+    const authPaths: Record<AuthView, string> = {
+      'login': '/login',
+      'forgot-password': '/forgot-password',
+      'reset-password': '/reset-password',
+    };
+    pushUrl(authPaths[view]);
+  }, []);
   const [mustChangePassword, setMustChangePassword] = React.useState(false);
   const [showChangePassword, setShowChangePassword] = React.useState(false);
 
@@ -295,11 +315,16 @@ function App() {
     setAuthUser(user);
     setEmployee(emp);
     setMustChangePassword(needsPasswordChange);
-    // Khôi phục view từ URL sau khi đăng nhập
+    // Sau khi đăng nhập → chuyển về dashboard (hoặc URL trước đó nếu không phải auth page)
     const urlState = parseUrlToState();
-    setCurrentView(urlState.view);
-    if (urlState.productId) setSelectedProductId(urlState.productId);
-    if (urlState.courseId) setSelectedCourseId(urlState.courseId);
+    const isAuthPage = urlState.authView !== undefined;
+    const targetView = isAuthPage ? ViewType.DASHBOARD : urlState.view;
+    setCurrentView(targetView);
+    if (!isAuthPage) {
+      if (urlState.productId) setSelectedProductId(urlState.productId);
+      if (urlState.courseId) setSelectedCourseId(urlState.courseId);
+    }
+    pushUrl(isAuthPage ? '/dashboard' : window.location.pathname);
   };
 
   const handleLogout = async () => {
@@ -310,8 +335,8 @@ function App() {
       setMustChangePassword(false);
       setShowChangePassword(false);
       setCurrentView(ViewType.DASHBOARD);
-      setAuthView('login');
-      pushUrl('/dashboard');
+      setAuthViewRaw('login');
+      pushUrl('/login');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -330,8 +355,6 @@ function App() {
   const handleResetPasswordSuccess = () => {
     // Sau khi reset password xong, chuyển về login
     setAuthView('login');
-    // Clear URL hash
-    window.history.replaceState(null, '', window.location.pathname);
   };
 
   // ============================================================
@@ -663,6 +686,12 @@ function App() {
   // RENDER: AUTH PAGES (Chưa đăng nhập)
   // ============================================================
   if (!authUser || !employee) {
+    // Đồng bộ URL với authView khi chưa đăng nhập
+    const currentPath = window.location.pathname.replace(/\/+$/, '');
+    if (authView === 'login' && currentPath !== '/login' && currentPath !== '/forgot-password' && currentPath !== '/reset-password') {
+      pushUrl('/login');
+    }
+
     let authPage: React.ReactNode;
     switch (authView) {
       case 'forgot-password':
