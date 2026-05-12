@@ -85,10 +85,41 @@ export interface CreateEmployeeWithAuthResult {
   needsEmailConfirm: boolean;
 }
 
+/** Helper: khôi phục session admin sau khi signUp/signIn thay đổi session */
+async function restoreAdminSession(session: { access_token: string; refresh_token: string }) {
+  try {
+    await supabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+  } catch (e) {
+    console.warn('Không khôi phục được session admin:', e);
+  }
+}
+
+/**
+ * Khi email đã tồn tại trong auth nhưng KHÔNG có trong employees (orphan từ lần tạo trước bị lỗi),
+ * thử đăng nhập bằng email + password để lấy lại auth user ID.
+ */
+async function tryRecoverOrphanedAuthUser(
+  email: string,
+  password: string,
+): Promise<{ userId: string; needsEmailConfirm: boolean } | null> {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.user) return null;
+    const confirmed = (data.user as any).email_confirmed_at || (data.user as any).confirmed_at;
+    return { userId: data.user.id, needsEmailConfirm: !confirmed };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Tạo nhân viên mới + tài khoản đăng nhập trong 1 lần.
- * - Lưu session admin → signUp tài khoản mới → khôi phục session admin → insert employee row.
- * - Trả về password để admin chuyển cho nhân viên.
+ * - Kiểm tra trùng email trong employees trước.
+ * - Nếu email đã có trong auth (orphan từ lần trước) → thử khôi phục thay vì báo lỗi.
+ * - Lưu session admin → signUp/recover → khôi phục session admin → insert employee row.
  */
 export async function createEmployeeWithAuth(
   input: EmployeeInput,
@@ -98,48 +129,73 @@ export async function createEmployeeWithAuth(
   if (!email) throw new Error('Email bắt buộc');
   if (!password || password.length < 6) throw new Error('Mật khẩu phải tối thiểu 6 ký tự');
 
-  // 1. Lưu session admin
+  // ── Bước 0: Kiểm tra email đã có trong bảng employees chưa ──
+  const { data: existingEmp } = await supabase
+    .from('employees')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle();
+  if (existingEmp) {
+    throw new Error(`Email "${email}" đã có trong danh sách nhân viên. Dùng email khác.`);
+  }
+
+  // ── Bước 1: Lưu session admin ──
   const { data: { session: adminSession } } = await supabase.auth.getSession();
   if (!adminSession) throw new Error('Phiên đăng nhập admin đã hết hạn — đăng nhập lại trước khi tạo nhân viên');
 
-  // 2. signUp user mới
+  let newUserId: string;
+  let needsEmailConfirm: boolean;
+
+  // ── Bước 2: signUp user mới ──
   const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
     email,
     password,
-    options: {
-      data: { full_name: input.full_name.trim() },
-    },
+    options: { data: { full_name: input.full_name.trim() } },
   });
 
-  if (signUpError) {
-    if (signUpError.message?.toLowerCase().includes('already registered') || signUpError.message?.toLowerCase().includes('already exists')) {
-      throw new Error(`Email "${email}" đã được đăng ký. Dùng email khác.`);
-    }
+  const isAlreadyRegistered =
+    signUpError?.message?.toLowerCase().includes('already registered') ||
+    signUpError?.message?.toLowerCase().includes('already exists');
+
+  // "Fake signUp": Supabase trả user nhưng identities rỗng khi email đã tồn tại (confirm email BẬT)
+  const identities = (signUpData?.user as any)?.identities;
+  const isFakeSignUp =
+    !signUpError && signUpData?.user &&
+    Array.isArray(identities) && identities.length === 0;
+
+  if (signUpError && !isAlreadyRegistered) {
     throw signUpError;
   }
-  if (!signUpData.user) {
+
+  if (isAlreadyRegistered || isFakeSignUp) {
+    // Email có trong auth nhưng KHÔNG có trong employees → orphan từ lần tạo trước bị lỗi.
+    // Thử đăng nhập để lấy lại auth user ID.
+    const recovered = await tryRecoverOrphanedAuthUser(email, password);
+    await restoreAdminSession(adminSession);
+
+    if (recovered) {
+      newUserId = recovered.userId;
+      needsEmailConfirm = recovered.needsEmailConfirm;
+    } else {
+      throw new Error(
+        `Email "${email}" đã có tài khoản đăng nhập (có thể từ lần tạo trước bị lỗi) nhưng mật khẩu không khớp. ` +
+        `Vào Supabase Dashboard → Authentication → Users, tìm và xoá user "${email}" rồi thử lại.`
+      );
+    }
+  } else if (!signUpData?.user) {
     throw new Error('Không tạo được tài khoản auth — email có thể đã tồn tại');
+  } else {
+    // signUp thành công bình thường
+    newUserId = signUpData.user.id;
+    const confirmed = (signUpData.user as any).email_confirmed_at
+                   || (signUpData.user as any).confirmed_at;
+    needsEmailConfirm = !confirmed;
   }
 
-  const newUserId = signUpData.user.id;
-  // Phát hiện chính xác: nếu Supabase đã set email_confirmed_at ngay → confirm email TẮT.
-  // (Không thể dùng !signUpData.session vì khi admin đang đăng nhập, signUp có thể không
-  //  trả session ngay cả khi confirm email tắt.)
-  const emailConfirmedAt = (signUpData.user as any).email_confirmed_at
-                        || (signUpData.user as any).confirmed_at;
-  const needsEmailConfirm = !emailConfirmedAt;
+  // ── Bước 3: Khôi phục session admin ──
+  await restoreAdminSession(adminSession);
 
-  // 3. Khôi phục session admin (signUp có thể đã thay session nếu email confirm tắt)
-  try {
-    await supabase.auth.setSession({
-      access_token: adminSession.access_token,
-      refresh_token: adminSession.refresh_token,
-    });
-  } catch (e) {
-    console.warn('Không khôi phục được session admin:', e);
-  }
-
-  // 4. Insert employees row với auth_user_id mới
+  // ── Bước 4: Insert employees row với auth_user_id ──
   const clean = sanitize(input);
   const payload = {
     ...clean,

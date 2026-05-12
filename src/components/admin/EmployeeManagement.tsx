@@ -96,7 +96,7 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
       // Manager: tự động điền phòng ban
       department: isManager ? managerDept : '',
     });
-    setPassword(generateRandomPassword(12));
+    setPassword('Doscom@2026');
     setShowPassword(false);
     setEditing({});
     setError(null);
@@ -154,7 +154,15 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
         setEditing(null);
         setCreatedResult(result); // mở modal credentials
       }
-    } catch (e: any) { setError(e?.message || 'Không lưu được'); }
+    } catch (e: any) {
+      console.error('[EmployeeManagement] Save error:', e);
+      const details = [e?.message, e?.details, e?.hint, e?.code].filter(Boolean).join(' — ');
+      let userMsg = details || 'Không lưu được nhân viên';
+      if (/row-level security/i.test(userMsg) || e?.code === '42501') {
+        userMsg = `RLS chặn thao tác. Chạy file supabase/fix_employees_rls.sql trên Supabase SQL Editor để cấp quyền admin. Chi tiết: ${userMsg}`;
+      }
+      setError(userMsg);
+    }
     finally { setSaving(false); }
   };
 
