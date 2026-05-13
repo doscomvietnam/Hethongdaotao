@@ -204,3 +204,4 @@ export async function deleteCourse(courseId: string): Promise<void> {
         throw new Error('Không xoá được — kiểm tra RLS policy DELETE cho bảng courses.');
     }
 }
+
