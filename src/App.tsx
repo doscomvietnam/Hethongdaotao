@@ -411,7 +411,8 @@ function App() {
             const bestVideoProg = Math.max(supaVideoProg, localVideoProg);
 
             // Sync localStorage video progress to Supabase if higher
-            if (localVideoProg > supaVideoProg && localVideoProg > 0) {
+            // Chỉ sync khi Supabase ĐÃ CÓ record (tránh tạo lại bản ghi đã bị admin xóa)
+            if (supaProgress && localVideoProg > supaVideoProg && localVideoProg > 0) {
               supabase.from('training_progress').upsert({
                 employee_id: employee.id,
                 course_id: course.id,
@@ -421,6 +422,21 @@ function App() {
               }, { onConflict: 'employee_id,course_id' }).then(({ error }) => {
                 if (error) console.error('Sync video progress error:', error);
               });
+            }
+
+            // Nếu Supabase không có record (admin đã xóa), xóa localStorage để reset
+            if (!supaProgress && localVideoProg > 0) {
+              delete localVideoData[course.id];
+              localStorage.setItem(localVideoKey, JSON.stringify(localVideoData));
+              // Xóa quiz attempts cũ để nhân viên có thể làm lại
+              try {
+                const quizAttemptsKey = `lms_quiz_attempts_${employee.auth_user_id}`;
+                const quizData = JSON.parse(localStorage.getItem(quizAttemptsKey) || '{}');
+                if (quizData[course.id]) {
+                  delete quizData[course.id];
+                  localStorage.setItem(quizAttemptsKey, JSON.stringify(quizData));
+                }
+              } catch { /* ignore */ }
             }
 
             // Sync Supabase video progress back to localStorage if higher
@@ -455,11 +471,8 @@ function App() {
               if (courseHasQuiz) {
                 course.isCompleted = bestVideoProg >= 100 && Boolean(supaProgress.quiz_completed_at);
               }
-            } else if (localVideoProg > 0) {
-              course.videoProgress = localVideoProg;
-              const courseHasQuiz = Boolean(course.quizId);
-              course.progress = courseHasQuiz ? Math.round(localVideoProg / 2) : localVideoProg;
             }
+            // Khi không có supaProgress và localStorage đã bị xóa ở trên → progress = 0
             // Slide-only courses with no progress record: progress stays 0, not completed
           }
         } catch (e) {
