@@ -71,6 +71,31 @@ function getStatus(row: any): string {
   }
 }
 
+function formatDateTime(dateInput: Date | string | number | null | undefined): string {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  const date = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  return `${hours}:${minutes}:${seconds} ${date}/${month}/${year}`;
+}
+
+function formatDateOnly(dateInput: Date | string | number | null | undefined): string {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const date = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  return `${date}/${month}/${year}`;
+}
+
 // ── Build summary_key ───────────────────────────────────────────────────
 function buildSummaryKey(row: any): string {
   return `${row.employee_id}_${row.course_id}`;
@@ -81,6 +106,7 @@ function buildRecordFields(row: any, _index: number): Record<string, any> {
   const hasQuiz = Boolean(row.courses?.quiz_id);
   const hasVideo = Boolean(row.courses?.video_url);
   const videoProg = row.video_progress || 0;
+  const isSlideOnly = !hasVideo && !hasQuiz;
 
   return {
     'summary_key': buildSummaryKey(row),
@@ -90,12 +116,16 @@ function buildRecordFields(row: any, _index: number): Record<string, any> {
     'Khóa học': row.courses?.course_name || '—',
     'Nhóm đào tạo': row.courses?.brand || '—',
     'Tiến độ video': hasVideo ? `${videoProg}%` : '—',
-    'Điểm quizz': hasQuiz ? String(row.quiz_score ?? '—') : '—',
+    'Điểm quizz': hasQuiz && row.quiz_score != null ? Number(row.quiz_score) : null,
     'Xếp loại': !hasQuiz ? '—' : (row.quiz_score != null ? (row.quiz_passed ? 'Đạt' : 'Không đạt') : 'Chưa làm'),
     'Thời gian làm bài': !hasQuiz ? '—' : (row.quiz_time_seconds != null ? `${Math.floor(row.quiz_time_seconds / 60)}p ${row.quiz_time_seconds % 60}s` : '—'),
     'Trạng thái': getStatus(row),
-    'Ngày cập nhật': row.updated_at ? new Date(row.updated_at).toLocaleString('vi-VN') : '—',
-    'Ngày hoàn thành': row.quiz_completed_at ? new Date(row.quiz_completed_at).toLocaleString('vi-VN') : '—',
+    'Ngày cập nhật': formatDateTime(row.updated_at),
+    'Ngày hoàn thành': row.quiz_completed_at
+      ? formatDateOnly(row.quiz_completed_at)
+      : (isSlideOnly && row.status === 'completed' && row.updated_at
+        ? formatDateOnly(row.updated_at)
+        : '—'),
   };
 }
 
@@ -205,4 +235,58 @@ export async function syncToLarkBase(
     totalRecords: total,
     timestamp,
   };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// Auto-sync 1 record sau khi user submit quiz
+// ══════════════════════════════════════════════════════════════════════════
+import { supabase } from './supabaseClient';
+
+/**
+ * Push 1 record (1 cặp employee × course) lên Lark Base.
+ * Gọi sau khi user submit quiz xong để Lark cập nhật real-time.
+ * Silent: lỗi chỉ log console, không throw — tránh phá UX submit quiz.
+ */
+export async function pushSingleRowToLark(employeeId: string, courseId: string): Promise<void> {
+  const webhookUrl = getLarkWebhookUrl();
+  if (!webhookUrl) {
+    console.log('[Lark auto-sync] Webhook chưa cấu hình → skip');
+    return;
+  }
+
+  try {
+    // Fetch row đầy đủ kèm join employees + courses
+    const { data, error } = await supabase
+      .from('training_progress')
+      .select(`
+        *,
+        employees!fk_employee(full_name, department, email),
+        courses!fk_course(course_name, brand, category, video_url, quiz_id)
+      `)
+      .eq('employee_id', employeeId)
+      .eq('course_id', courseId)
+      .single();
+
+    if (error || !data) {
+      console.warn('[Lark auto-sync] Không fetch được row:', error?.message);
+      return;
+    }
+
+    const fields = buildRecordFields(data, 0);
+    const res = await fetch('/api/lark-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl, payload: fields }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[Lark auto-sync] HTTP ${res.status}: ${text.slice(0, 200)}`);
+      return;
+    }
+
+    console.log(`[Lark auto-sync] OK: ${data.employees?.full_name} × ${data.courses?.course_name}`);
+  } catch (e: any) {
+    console.warn('[Lark auto-sync] Exception:', e?.message || e);
+  }
 }

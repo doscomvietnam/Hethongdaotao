@@ -19,7 +19,8 @@ import { Button, Badge, Progress } from '../ui';
 interface QuizResult {
   score: number;
   passed: boolean;
-  answers?: number[];
+  /** Map { question_id: selected_option_index }. -1 = chưa trả lời. Dùng để re-score khi admin đổi đáp án. */
+  answers?: Record<string, number>;
 }
 
 interface QuizViewProps {
@@ -64,12 +65,15 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
           
           // Calculate score with final answers
           let correctCount = 0;
+          const answersMap: Record<string, number> = {};
           finalAnswers.forEach((ans: number, idx: number) => {
-            if (ans === shuffledQuestions[idx].correctAnswer) correctCount++;
+            const q = shuffledQuestions[idx];
+            answersMap[q.id] = ans;
+            if (ans === q.correctAnswer) correctCount++;
           });
           const score = Math.round((correctCount / shuffledQuestions.length) * 100);
           const passed = score >= quiz.passScore;
-          onComplete({ score, passed, answers: finalAnswers });
+          onComplete({ score, passed, answers: answersMap });
           return 0;
         }
         return prev - 1;
@@ -149,6 +153,16 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
       if (ans === shuffledQuestions[idx].correctAnswer) correctCount++;
     });
     return Math.round((correctCount / shuffledQuestions.length) * 100);
+  };
+
+  // Build map { question_id → selected_option_index } để gửi lên Supabase.
+  // Câu chưa trả lời (state `answers` ngắn hơn shuffledQuestions) sẽ map về -1.
+  const buildAnswersMap = (): Record<string, number> => {
+    const map: Record<string, number> = {};
+    shuffledQuestions.forEach((q, idx) => {
+      map[q.id] = answers[idx] ?? -1;
+    });
+    return map;
   };
 
   // ── Tab Warning Overlay ───────────────────────────────────────────────
@@ -269,7 +283,7 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
             )}
 
             <div className="flex flex-col gap-4 pt-2">
-                <Button onClick={() => onComplete({ score, passed, answers })} size="lg" className="h-14 rounded-2xl bg-emerald-500 text-white font-black uppercase  tracking-[0.15em] text-xs shadow-2xl shadow-emerald-500/20 border-none">
+                <Button onClick={() => onComplete({ score, passed, answers: buildAnswersMap() })} size="lg" className="h-14 rounded-2xl bg-emerald-500 text-white font-black uppercase  tracking-[0.15em] text-xs shadow-2xl shadow-emerald-500/20 border-none">
                     HOÀN TẤT & LƯU KẾT QUẢ
                 </Button>
 
@@ -287,7 +301,7 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
                     // Nếu có handler save+exit-to-catalog, dùng nó (auto lưu kết quả).
                     // Fallback: chỉ exit (legacy).
                     if (onFinishAndExit) {
-                      onFinishAndExit({ score, passed, answers });
+                      onFinishAndExit({ score, passed, answers: buildAnswersMap() });
                     } else {
                       onExit();
                     }

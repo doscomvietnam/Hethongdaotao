@@ -172,6 +172,96 @@ export async function updateQuestion(questionId: string, input: Partial<Question
     }
 }
 
+// ── Re-score: tính lại điểm cho tất cả bài đã làm khi admin đổi đáp án ──
+export interface RecomputeResult {
+    quizId: string;
+    courseId: string;
+    affected: number;     // số bản ghi quiz_answers != null
+    updated: number;      // số bản ghi quiz_score thay đổi
+}
+
+/**
+ * Tính lại quiz_score + quiz_passed cho tất cả training_progress của course chứa
+ * câu hỏi này, dựa trên đáp án đã lưu (quiz_answers) và đáp án đúng hiện tại.
+ *
+ * Chỉ áp dụng cho bài làm có quiz_answers (làm SAU khi feature này deploy).
+ * Bài cũ (quiz_answers = null) sẽ được bỏ qua để giữ nguyên điểm gốc.
+ */
+export async function recomputeScoresForQuestion(questionId: string): Promise<RecomputeResult> {
+    // 1. Lấy quiz_id của câu hỏi
+    const { data: qRow, error: qErr } = await supabase
+        .from("quiz_questions")
+        .select("quiz_id")
+        .eq("question_id", questionId)
+        .single();
+    if (qErr || !qRow?.quiz_id) throw qErr || new Error('Không tìm thấy quiz cho câu hỏi');
+    const quizId = qRow.quiz_id;
+
+    // 2. Lấy thông tin quiz (course_id, pass_score) + tất cả câu hỏi active của quiz
+    const [quizRes, questionsRes] = await Promise.all([
+        supabase.from("quizzes").select("course_id, pass_score").eq("quiz_id", quizId).single(),
+        supabase.from("quiz_questions").select("question_id, correct_answer").eq("quiz_id", quizId).eq("status", "active"),
+    ]);
+    if (quizRes.error || !quizRes.data?.course_id) throw quizRes.error || new Error('Không tìm thấy course_id của quiz');
+    if (questionsRes.error) throw questionsRes.error;
+
+    const courseId = quizRes.data.course_id;
+    const passScore = parseInt(quizRes.data.pass_score) || 80;
+    const questions = questionsRes.data || [];
+    if (questions.length === 0) {
+        return { quizId, courseId, affected: 0, updated: 0 };
+    }
+
+    // Map: question_id → correct option index (0-3)
+    const correctMap: Record<string, number> = {};
+    for (const q of questions as any[]) {
+        correctMap[q.question_id] = letterToIndex(q.correct_answer || 'A');
+    }
+    const totalQuestions = questions.length;
+
+    // 3. Lấy mọi training_progress của course có quiz_answers
+    const { data: rows, error: rowsErr } = await supabase
+        .from("training_progress")
+        .select("employee_id, course_id, quiz_score, quiz_answers")
+        .eq("course_id", courseId)
+        .not("quiz_answers", "is", null);
+    if (rowsErr) throw rowsErr;
+
+    const affected = rows?.length || 0;
+    let updated = 0;
+
+    // 4. Loop tính lại từng bản ghi
+    for (const row of (rows || []) as any[]) {
+        const userAnswers = (row.quiz_answers || {}) as Record<string, number>;
+        let correctCount = 0;
+        for (const qid of Object.keys(correctMap)) {
+            if (userAnswers[qid] === correctMap[qid]) correctCount++;
+        }
+        const newScore = Math.round((correctCount / totalQuestions) * 100);
+        const newPassed = newScore >= passScore;
+
+        if (newScore === row.quiz_score) continue; // không đổi → skip update
+
+        const { error: upErr } = await supabase
+            .from("training_progress")
+            .update({
+                quiz_score: newScore,
+                quiz_passed: newPassed,
+                status: newPassed ? 'completed' : 'in_progress',
+                updated_at: new Date().toISOString(),
+            })
+            .eq("employee_id", row.employee_id)
+            .eq("course_id", row.course_id);
+        if (upErr) {
+            console.error(`Re-score failed for ${row.employee_id}/${row.course_id}:`, upErr);
+            continue;
+        }
+        updated++;
+    }
+
+    return { quizId, courseId, affected, updated };
+}
+
 export async function deleteQuestion(questionId: string): Promise<void> {
     const { data, error } = await supabase
         .from("quiz_questions")

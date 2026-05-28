@@ -11,9 +11,12 @@ import {
   createQuestion,
   updateQuestion,
   deleteQuestion,
+  recomputeScoresForQuestion,
   type QuizInput,
   type QuestionInput,
 } from '../../services/quizService';
+import { getAllTrainingProgress } from '../../services/trainingProgressService';
+import { syncToLarkBase, isLarkConfigured } from '../../services/larkSyncService';
 
 const emptyQuiz: QuizInput = { quiz_id: '', course_id: '', quiz_title: '', pass_score: '80', max_attempts: '1', status: 'active' };
 const emptyQuestion = (quizId: string): QuestionInput => ({
@@ -459,9 +462,34 @@ function QuestionListView({ quiz, onBack, onDataChanged }: { quiz: any; onBack: 
 
     setSaving(true);
     try {
+      // Detect đáp án đúng có đổi không (chỉ áp dụng khi edit, không phải tạo mới)
+      const answerChanged = isEditMode && editing?.correct_answer
+        && (editing.correct_answer || '').toUpperCase() !== form.correct_answer;
+
       if (isEditMode) {
         const { question_id, ...rest } = form;
         await updateQuestion(question_id, rest);
+
+        // Nếu đáp án đúng đổi → tính lại điểm cho tất cả user đã làm
+        if (answerChanged) {
+          try {
+            const result = await recomputeScoresForQuestion(form.question_id);
+            let msg = `Đã tính lại điểm: ${result.updated}/${result.affected} bản ghi thay đổi.`;
+
+            // Tự động sync Lark nếu đã cấu hình
+            if (isLarkConfigured() && result.updated > 0) {
+              const allProgress = await getAllTrainingProgress();
+              const courseRows = allProgress.filter((p: any) => p.course_id === result.courseId);
+              const syncRes = await syncToLarkBase(courseRows);
+              msg += syncRes.success
+                ? ` Đã sync Lark (${syncRes.recordsCreated + syncRes.recordsUpdated} bản ghi).`
+                : ` Sync Lark lỗi: ${syncRes.message}`;
+            }
+            alert(msg);
+          } catch (recErr: any) {
+            alert(`Lưu câu hỏi OK nhưng re-score lỗi: ${recErr?.message || recErr}`);
+          }
+        }
       } else {
         await createQuestion(form);
       }

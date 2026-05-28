@@ -45,7 +45,8 @@ export async function saveQuizResult(
   courseId: string,
   score: number,
   timeSeconds: number,
-  passed: boolean
+  passed: boolean,
+  answers?: Record<string, number>,
 ): Promise<boolean> {
   try {
     const { error } = await supabase
@@ -57,6 +58,7 @@ export async function saveQuizResult(
         quiz_time_seconds: timeSeconds,
         quiz_completed_at: new Date().toISOString(),
         quiz_passed: passed,
+        quiz_answers: answers ?? null,
         status: passed ? 'completed' : 'in_progress',
         updated_at: new Date().toISOString(),
       }, { onConflict: 'employee_id,course_id' });
@@ -384,6 +386,31 @@ export async function exportFilteredReportExcel(filteredRows: any[], ctx?: Expor
   buildAndDownloadExcel(XLSX, filteredRows, prefix, { filterGrade, searchQuery });
 }
 
+function formatDateTime(dateInput: Date | string | number | null | undefined): string {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  const date = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  return `${hours}:${minutes}:${seconds} ${date}/${month}/${year}`;
+}
+
+function formatDateOnly(dateInput: Date | string | number | null | undefined): string {
+  if (!dateInput) return '—';
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '—';
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const date = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  return `${date}/${month}/${year}`;
+}
+
 // ── Shared: build worksheet and download ────────────────────────────────
 function buildAndDownloadExcel(
   XLSX: any,
@@ -435,9 +462,9 @@ function buildAndDownloadExcel(
       !hasQuiz ? '—' : (r.quiz_score != null ? (r.quiz_passed ? 'Đạt' : 'Không đạt') : 'Chưa làm'),
       !hasVideo ? '—' : videoProg,
       r.quiz_completed_at
-        ? new Date(r.quiz_completed_at).toLocaleString('vi-VN')
+        ? formatDateOnly(r.quiz_completed_at)
         : (isSlideOnly && r.status === 'completed' && r.updated_at
-          ? new Date(r.updated_at).toLocaleString('vi-VN')
+          ? formatDateOnly(r.updated_at)
           : '—'),
       statusText,
     ];

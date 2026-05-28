@@ -18,10 +18,19 @@ interface DashboardProps {
   courses: Course[];
   summary?: any;
   onCourseClick: (course: Course) => void;
+  employeeId?: string;
+  department?: string;
 }
 
-export const Dashboard = ({ courses, onCourseClick }: DashboardProps) => {
-  return <EmployeeDashboardView courses={courses} onCourseClick={onCourseClick} />;
+export const Dashboard = ({ courses, onCourseClick, employeeId, department }: DashboardProps) => {
+  return (
+    <EmployeeDashboardView
+      courses={courses}
+      onCourseClick={onCourseClick}
+      employeeId={employeeId}
+      department={department}
+    />
+  );
 };
 
 // ── Admin/Manager Dashboard ─────────────────────────────────────────────

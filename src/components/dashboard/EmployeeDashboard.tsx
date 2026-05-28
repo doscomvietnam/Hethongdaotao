@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
+import { getYesterdayOverdueForUser } from '../../services/dailyAttendanceService';
 
 // ── Helper: level info ──────────────────────────────────────────────────
 function getLevelInfo(rate: number) {
@@ -52,10 +53,21 @@ function SectionHeader({ icon: Icon, title, subtitle, color = 'text-emerald-500'
 interface EmployeeDashboardProps {
   courses: Course[];
   onCourseClick: (course: Course) => void;
+  employeeId?: string;
+  department?: string;
 }
 
-export function EmployeeDashboardView({ courses, onCourseClick }: EmployeeDashboardProps) {
+export function EmployeeDashboardView({ courses, onCourseClick, employeeId, department }: EmployeeDashboardProps) {
   const now = new Date();
+
+  // Cảnh báo vắng làm bài hôm qua (8h30-18h, trừ Chủ nhật, miễn trừ nếu hoàn thành tất cả khóa)
+  const [overdueInfo, setOverdueInfo] = React.useState<{ overdue: boolean; missedDate?: string }>({ overdue: false });
+  React.useEffect(() => {
+    if (!employeeId) return;
+    getYesterdayOverdueForUser(employeeId, department || '')
+      .then(setOverdueInfo)
+      .catch((e) => console.error('Overdue check failed:', e));
+  }, [employeeId, department]);
 
   const completedCourses = courses.filter(c => c.progress === 100 || c.isCompleted);
   const ongoingCourses = courses.filter(c => c.progress > 0 && c.progress < 100 && !c.isCompleted);
@@ -97,6 +109,21 @@ export function EmployeeDashboardView({ courses, onCourseClick }: EmployeeDashbo
         <h1 className="text-2xl lg:text-3xl xl:text-4xl font-black tracking-tighter text-white uppercase leading-none">TỔNG QUAN HỌC TẬP</h1>
         <p className="text-zinc-600 font-bold uppercase tracking-[0.3em] text-[10px]">Phát triển năng lực cốt lõi cùng Doscom Academy</p>
       </header>
+
+      {/* Banner: vắng làm bài hôm qua */}
+      {overdueInfo.overdue && (
+        <div className="flex items-start gap-4 p-5 rounded-2xl bg-red-500/10 border border-red-500/30 ring-1 ring-red-500/20">
+          <div className="w-11 h-11 rounded-xl bg-red-500/20 ring-1 ring-red-500/40 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-black text-red-300 uppercase tracking-widest mb-1">Bạn đã bỏ lỡ bài kiểm tra hôm qua</p>
+            <p className="text-xs font-bold text-red-200/80 leading-relaxed">
+              Ngày <span className="font-mono text-red-300">{overdueInfo.missedDate}</span> bạn không có điểm quiz nào được ghi nhận. Vui lòng hoàn thành ít nhất 1 bài hôm nay để không bị tính quá hạn.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-7 gap-3 lg:gap-4">

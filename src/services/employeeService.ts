@@ -233,6 +233,16 @@ export async function updateEmployee(id: string, input: Partial<EmployeeInput>):
   delete rest.email; // tách email ra xử lý riêng
   const payload = sanitize(rest);
 
+  // Lấy email hiện tại để kiểm tra xem có thực sự thay đổi không
+  const { data: currentEmp } = await supabase
+    .from('employees')
+    .select('email')
+    .eq('id', id)
+    .maybeSingle();
+
+  const oldEmail = currentEmp?.email?.trim().toLowerCase();
+  const isEmailChanged = newEmail && newEmail !== oldEmail;
+
   // Nếu có email mới → thêm vào payload cập nhật bảng employees
   if (newEmail) {
     payload.email = newEmail;
@@ -253,7 +263,7 @@ export async function updateEmployee(id: string, input: Partial<EmployeeInput>):
   }
 
   // 2. Nếu email thay đổi → đồng bộ lên auth.users qua Edge Function
-  if (newEmail && data[0]?.auth_user_id) {
+  if (isEmailChanged && data[0]?.auth_user_id) {
     try {
       await updateAuthEmail(data[0].auth_user_id, newEmail);
     } catch (authErr: any) {

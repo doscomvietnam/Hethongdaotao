@@ -13,6 +13,15 @@ import {
 import type {
   DashboardKPI, DeptStat, LearningStatus, CourseRanking, OverdueItem, ActivityItem,
 } from '../../services/dashboardDataService';
+import {
+  getOverdueEmployeesForDate,
+  getOverdueEmployeesByDay,
+  getYesterdayDateStrVN,
+  exportOverdueEmployeesExcel,
+  exportOverdueByDayExcel,
+  DEFAULT_EXPORT_START_DATE,
+  type OverdueEmployeeRow,
+} from '../../services/dailyAttendanceService';
 
 // ── Shared sub-components ───────────────────────────────────────────────
 function KpiCard({ label, value, icon: Icon, color, bg, ring }: {
@@ -100,6 +109,28 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
   const [webhookUrl, setWebhookUrl] = React.useState('');
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   const [showToast, setShowToast] = React.useState(false);
+
+  // Vắng làm bài (8h30-18h, trừ Chủ nhật, bỏ qua user đã hoàn thành tất cả khóa).
+  // Admin có thể chọn ngày tùy ý để xem lịch sử. Mặc định = hôm qua.
+  const [missedDate, setMissedDate] = React.useState<string>(getYesterdayDateStrVN());
+  const [missedYesterday, setMissedYesterday] = React.useState<OverdueEmployeeRow[]>([]);
+  const [missedLoading, setMissedLoading] = React.useState(true);
+  const [exportingAll, setExportingAll] = React.useState(false);
+  const isMissedSunday = React.useMemo(
+    () => new Date(`${missedDate}T00:00:00.000Z`).getUTCDay() === 0,
+    [missedDate],
+  );
+  const todayDateStr = React.useMemo(() => {
+    const nowVN = new Date(Date.now() + 7 * 60 * 60 * 1000);
+    return nowVN.toISOString().slice(0, 10);
+  }, []);
+  React.useEffect(() => {
+    setMissedLoading(true);
+    getOverdueEmployeesForDate(missedDate)
+      .then(setMissedYesterday)
+      .catch((e) => console.error('Missed date fetch error:', e))
+      .finally(() => setMissedLoading(false));
+  }, [missedDate]);
 
   // Check if Lark is configured (env or localStorage)
   const envWebhookUrl = import.meta.env.VITE_LARK_WEBHOOK_URL || '';
@@ -444,6 +475,108 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
           </div>
         </Card>
       </div>
+
+      {/* Vắng làm bài — daily attendance check (8h30-18h, trừ CN). Admin chọn ngày tùy ý. */}
+      <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <SectionHeader
+            icon={UserX}
+            title="Vắng làm bài"
+            subtitle={
+              isMissedSunday
+                ? 'Ngày đã chọn là Chủ nhật — không tính'
+                : missedLoading
+                  ? 'Đang kiểm tra...'
+                  : `${missedYesterday.length} nhân viên không có điểm quiz trong ngày này`
+            }
+            color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30"
+          />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Ngày</label>
+            <input
+              type="date"
+              value={missedDate}
+              max={todayDateStr}
+              onChange={(e) => setMissedDate(e.target.value)}
+              className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-bold text-zinc-200 focus:border-red-500/40 focus:outline-none focus:ring-1 focus:ring-red-500/30 transition-colors"
+            />
+            <button
+              type="button"
+              onClick={() => setMissedDate(getYesterdayDateStrVN())}
+              className="text-[10px] font-black text-zinc-500 hover:text-red-400 uppercase tracking-widest px-2 py-2 transition-colors"
+              title="Đặt lại về hôm qua"
+            >
+              ↺ Hôm qua
+            </button>
+            <button
+              type="button"
+              onClick={() => exportOverdueEmployeesExcel(missedYesterday, missedDate)}
+              disabled={missedLoading || isMissedSunday || missedYesterday.length === 0}
+              className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:cursor-not-allowed text-red-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 hover:border-red-500/40 transition-colors"
+              title="Xuất danh sách ngày đã chọn ra Excel"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Xuất Excel
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setExportingAll(true);
+                try {
+                  const groups = await getOverdueEmployeesByDay(DEFAULT_EXPORT_START_DATE);
+                  if (groups.length === 0) {
+                    alert(`Không có ngày làm việc nào từ ${DEFAULT_EXPORT_START_DATE} đến hôm qua.`);
+                  } else {
+                    await exportOverdueByDayExcel(groups, DEFAULT_EXPORT_START_DATE);
+                  }
+                } catch (e: any) {
+                  alert('Lỗi xuất Excel: ' + (e?.message || e));
+                } finally {
+                  setExportingAll(false);
+                }
+              }}
+              disabled={exportingAll}
+              className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:cursor-not-allowed text-amber-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+              title={`Xuất từ ${DEFAULT_EXPORT_START_DATE} đến hôm qua, mỗi ngày 1 sheet`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              {exportingAll ? 'Đang xuất...' : 'Xuất tất cả'}
+            </button>
+          </div>
+        </div>
+        {isMissedSunday ? (
+          <div className="text-center py-10">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500/20 mx-auto mb-3" />
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Chủ nhật là ngày nghỉ — không kiểm tra</p>
+          </div>
+        ) : missedLoading ? (
+          <div className="text-center py-10">
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Đang tải dữ liệu...</p>
+          </div>
+        ) : missedYesterday.length === 0 ? (
+          <div className="text-center py-10">
+            <CheckCircle2 className="w-10 h-10 text-emerald-500/20 mx-auto mb-3" />
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Toàn bộ nhân viên đã làm bài ngày này!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 max-h-[400px] overflow-y-auto scrollbar-hide">
+            {missedYesterday.map((m) => (
+              <div key={m.employee_id} className="flex items-center gap-3 p-3 rounded-xl bg-red-500/[0.03] border border-red-500/10 hover:border-red-500/20 transition-all">
+                <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                  <UserX className="w-4 h-4 text-red-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black text-zinc-200 truncate">{m.full_name}</p>
+                  <p className="text-[9px] text-zinc-500 font-bold truncate">{m.department}</p>
+                </div>
+                <Badge variant="warning" className="text-[8px] px-2 py-0.5 flex-shrink-0 font-mono">
+                  {m.missedDate}
+                </Badge>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {/* Row: Overdue list + Recent activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

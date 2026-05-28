@@ -25,6 +25,7 @@ import { supabase } from "./services/supabaseClient";
 import { getQuizById, getQuizByCourseId } from "./services/quizService";
 import { getDashboardSummary } from "./services/dashboardService";
 import { saveQuizResult as saveQuizToSupabase } from "./services/trainingProgressService";
+import { pushSingleRowToLark } from "./services/larkSyncService";
 import {
   getSession,
   getEmployeeProfile,
@@ -55,7 +56,7 @@ function saveQuizAttempt(courseId: string, userId: string) {
 interface QuizResult {
   score: number;
   passed: boolean;
-  answers?: number[];
+  answers?: Record<string, number>;
 }
 
 // ============================================================
@@ -633,12 +634,14 @@ function App() {
     let supabaseSaved = false;
     if (employee?.id) {
       const quizTimeSeconds = quizStartRef.current ? Math.round((Date.now() - quizStartRef.current) / 1000) : 0;
-      supabaseSaved = await saveQuizToSupabase(employee.id, selectedCourseId, result.score, quizTimeSeconds, result.passed);
+      supabaseSaved = await saveQuizToSupabase(employee.id, selectedCourseId, result.score, quizTimeSeconds, result.passed, result.answers);
       quizStartRef.current = null;
     }
 
     if (supabaseSaved) {
       saveQuizAttempt(selectedCourseId, userId);
+      // Auto-sync record vừa lưu lên Lark (fire-and-forget, không await để không chặn UI)
+      void pushSingleRowToLark(employee!.id, selectedCourseId);
     }
 
     const updatedCourses = courses.map((course) => {
@@ -774,6 +777,8 @@ function App() {
               courses={courses}
               summary={dashboardSummary}
               onCourseClick={(course: Course) => handleOpenCourse(course.id)}
+              employeeId={employee.id}
+              department={employee.department || ''}
             />
           );
         }
