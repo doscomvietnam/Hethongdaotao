@@ -26,6 +26,7 @@ const emptyForm: EmployeeInput = {
   role: 'employee',
   department: '',
   position: '',
+  start_date: '',
   phone: '',
   birth_date: '',
   gender: undefined,
@@ -111,6 +112,7 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
       role: row.role,
       department: row.department || '',
       position: row.position || '',
+      start_date: row.start_date || '',
       phone: row.phone || '',
       avatar_url: row.avatar_url || '',
       birth_date: row.birth_date || '',
@@ -208,16 +210,16 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-zinc-900 bg-zinc-950/50">
-                {['Họ tên', 'Email', 'Vai trò', 'Phòng ban', 'Vị trí', 'Trạng thái', ''].map(h => (
+                {['Họ tên', 'Email', 'Vai trò', 'Phòng ban', 'Vị trí', 'Ngày vào làm', 'Trạng thái', ''].map(h => (
                   <th key={h} className="px-4 py-5 text-[10px] font-black text-zinc-600 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={7} className="px-6 py-20 text-center"><Loader2 className="w-6 h-6 text-emerald-500 animate-spin mx-auto" /></td></tr>
+                <tr><td colSpan={8} className="px-6 py-20 text-center"><Loader2 className="w-6 h-6 text-emerald-500 animate-spin mx-auto" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-6 py-20 text-center text-zinc-700 text-xs font-bold uppercase tracking-widest">
+                <tr><td colSpan={8} className="px-6 py-20 text-center text-zinc-700 text-xs font-bold uppercase tracking-widest">
                   <Users className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
                   Chưa có nhân viên nào
                 </td></tr>
@@ -234,6 +236,9 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
                   </td>
                   <td className="px-4 py-4 text-xs font-bold text-zinc-400 whitespace-nowrap">{row.department || '—'}</td>
                   <td className="px-4 py-4 text-xs font-bold text-zinc-400 max-w-[180px] truncate" title={row.position || ''}>{row.position || '—'}</td>
+                  <td className="px-4 py-4 text-xs font-bold text-zinc-400 whitespace-nowrap">
+                    {row.start_date ? new Date(row.start_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
+                  </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className={`inline-block whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg ${row.employment_status === 'active' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-800 text-zinc-500'}`}>{row.employment_status === 'active' ? 'Đang làm' : 'Đã nghỉ'}</span>
                   </td>
@@ -392,6 +397,9 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <Field label="Ngày vào làm">
+              <TextInput type="date" value={form.start_date || ''} onChange={e => setForm({ ...form, start_date: e.target.value })} />
+            </Field>
             <Field label="Số điện thoại">
               <TextInput value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
             </Field>

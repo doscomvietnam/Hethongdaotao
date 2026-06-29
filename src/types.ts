@@ -33,6 +33,7 @@ export interface Employee {
   birth_date?: string;
   gender?: 'Nam' | 'Nữ';
   work_location?: string;
+  start_date?: string;
   employment_status: 'active' | 'inactive';
   must_change_password: boolean;
   onboarding_available_date?: string | null;

@@ -14,6 +14,7 @@ export interface EmployeeInput {
   role: EmployeeRole;
   department?: string;
   position?: string;
+  start_date?: string;
   phone?: string;
   avatar_url?: string;
   birth_date?: string;
