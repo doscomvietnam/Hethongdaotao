@@ -89,12 +89,32 @@ interface CourseCatalogProps {
   courses: Course[];
   userId: string;
   onCourseClick: (course: Course) => void;
+  initialGroup?: 'product' | 'general' | null;
 }
 
-export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogProps) => {
+const PRODUCT_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma'];
+const GENERAL_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Claude'];
+const ALL_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Doscom', 'Noma', 'Claude'];
+const PRODUCT_BRAND_SET = new Set(['Doscom', 'Noma']);
+const GENERAL_BRAND_SET = new Set(['Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Claude']);
+
+export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
   const [activeSub, setActiveSub] = React.useState<string>('Tất cả');
-  const brands: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma', 'Nội bộ', 'Claude'];
+  const brands = initialGroup === 'product' ? PRODUCT_BRANDS : initialGroup === 'general' ? GENERAL_BRANDS : ALL_BRANDS;
+
+  // Pre-filter courses theo nhóm trước khi áp dụng brand filter
+  const groupCourses = React.useMemo(() => {
+    if (initialGroup === 'product') return courses.filter(c => PRODUCT_BRAND_SET.has(c.brand));
+    if (initialGroup === 'general') return courses.filter(c => GENERAL_BRAND_SET.has(c.brand));
+    return courses;
+  }, [courses, initialGroup]);
+
+  // Reset về Tất cả khi đổi nhóm khóa học
+  React.useEffect(() => {
+    setActiveBrand('Tất cả');
+    setActiveSub('Tất cả');
+  }, [initialGroup]);
 
   // Reset chip cấp 2 khi đổi tab thương hiệu
   React.useEffect(() => {
@@ -106,8 +126,8 @@ export const CourseCatalog = ({ courses, userId, onCourseClick }: CourseCatalogP
   const subLabel = isInternal ? 'Phòng ban' : 'Dòng khóa học';
 
   const coursesByBrand = activeBrand === 'Tất cả'
-    ? courses
-    : courses.filter(c => c.brand === activeBrand);
+    ? groupCourses
+    : groupCourses.filter(c => c.brand === activeBrand);
 
   // 5 phòng ban nội bộ luôn hiện chip dù chưa có khóa học nào
   const INTERNAL_DEPARTMENTS = [
@@ -842,8 +862,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
           )}
         </section>
 
-        {/* BÀI KIỂM TRA — chỉ hiện khi course có quiz */}
-        {hasQuiz && (
+        {/* BÀI KIỂM TRA — chỉ hiện khi course có quiz và không phải Doscom */}
+        {hasQuiz && course.brand !== 'Doscom' && (
           <section className="space-y-10">
             <div className="flex items-center gap-4">
               <Trophy className="w-8 h-8 text-emerald-500" />
@@ -859,7 +879,6 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                   <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
                 </div>
                 <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">Mỗi người chỉ được làm bài 1 lần duy nhất.</span></p>
-
               </div>
 
               <div className="grid grid-cols-2 gap-6 relative z-10">
@@ -954,9 +973,10 @@ interface CourseModuleProps {
   onSelectCourse?: (course: Course) => void;
   onBack?: () => void;
   onStartQuiz?: (quizId?: string) => void;
+  initialGroup?: 'product' | 'general' | null;
 }
 
-export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz }: CourseModuleProps) {
+export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz, initialGroup }: CourseModuleProps) {
   if (mode === 'detail' && course) {
     return (
       <CourseDetail
@@ -973,6 +993,7 @@ export default function CourseModule({ mode, courses = [], course, userId = '', 
       courses={courses}
       userId={userId}
       onCourseClick={onSelectCourse || (() => { })}
+      initialGroup={initialGroup}
     />
   );
 }

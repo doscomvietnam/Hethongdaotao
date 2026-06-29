@@ -50,9 +50,9 @@ export const Badge = ({ className, variant = 'default', ...props }: React.HTMLAt
 
 export const Progress = ({ value = 0, className }: { value?: number, className?: string }) => (
   <div className={cn('w-full bg-zinc-900 rounded-full h-2 overflow-hidden', className)}>
-    <div 
-      className="h-full bg-emerald-500 shadow-[0_0_15px_#10B981] transition-all duration-1000" 
-      style={{ width: `${value}%` }} 
+    <div
+      className="h-full bg-emerald-500 shadow-[0_0_15px_#10B981] transition-all duration-1000"
+      style={{ width: `${value}%` }}
     />
   </div>
 );

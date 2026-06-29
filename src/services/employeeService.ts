@@ -196,6 +196,11 @@ export async function createEmployeeWithAuth(
   await restoreAdminSession(adminSession);
 
   // ── Bước 4: Insert employees row với auth_user_id ──
+  // Tự động đặt ngày mở kiểm tra onboarding = hôm nay + 3 ngày
+  const onboardingDate = new Date();
+  onboardingDate.setDate(onboardingDate.getDate() + 3);
+  const onboardingAvailableDate = onboardingDate.toISOString().slice(0, 10);
+
   const clean = sanitize(input);
   const payload = {
     ...clean,
@@ -204,6 +209,7 @@ export async function createEmployeeWithAuth(
     employment_status: input.employment_status || 'active',
     must_change_password: input.must_change_password ?? true,
     auth_user_id: newUserId,
+    onboarding_available_date: onboardingAvailableDate,
   };
 
   const { data: empData, error: insertError } = await supabase

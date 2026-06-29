@@ -432,3 +432,158 @@ export async function getManagerDashboardData(department: string) {
 
   return { kpi, teamMembers, overdueItems: overdueItems.slice(0, 20), recentActivity, quizByCourse, deptCourses };
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// LEADERBOARD DATA (Daily Test based)
+// ══════════════════════════════════════════════════════════════════════════
+export interface LeaderboardEmployee {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  value: number;
+  extra?: number;
+}
+
+export interface LeaderboardInactiveEmployee extends LeaderboardEmployee {
+  lastTestDate: string | null;
+}
+
+export interface LeaderboardData {
+  topScorers: LeaderboardEmployee[];
+  topConsistent: LeaderboardEmployee[];
+  topInactive: LeaderboardInactiveEmployee[];
+}
+
+const LEADERBOARD_START_DATE = '2026-05-20'; // ngày ra mắt hệ thống
+
+// Trả về {startDate, endDate} YYYY-MM-DD cho tháng đã chọn, hoặc từ launch đến hôm nay
+export function getLeaderboardDateRange(month: string | null): { startDate: string; endDate: string; label: string } {
+  if (!month) {
+    const todayStr = normDate(new Date(Date.now() + 7 * 3600 * 1000).toISOString());
+    return { startDate: LEADERBOARD_START_DATE, endDate: todayStr, label: `Từ 20/05/2026` };
+  }
+  const [y, m] = month.split('-').map(Number);
+  const start = `${month}-01`;
+  const lastDay = new Date(y, m, 0).getDate(); // ngày cuối tháng
+  const end = `${month}-${String(lastDay).padStart(2, '0')}`;
+  const label = `Tháng ${m}/${y}`;
+  return { startDate: start, endDate: end, label };
+}
+
+// Helper normalise ở module scope để dùng trong getLeaderboardDateRange
+function normDate(d: string) { return String(d).slice(0, 10); }
+
+export async function getLeaderboardData(startDate: string, endDate: string): Promise<LeaderboardData> {
+  const [progressRes, employeesRes, dailyTestRes] = await Promise.all([
+    supabase
+      .from('training_progress')
+      .select('employee_id, quiz_score, quiz_completed_at, updated_at, status, video_progress'),
+    supabase
+      .from('employees')
+      .select('id, full_name, department')
+      .eq('employment_status', 'active'),
+    supabase
+      .from('daily_tests')
+      .select('employee_id, score_percent, test_date')
+      .eq('status', 'submitted')
+      .gte('test_date', startDate)
+      .lte('test_date', endDate),
+  ]);
+
+  const allProgress = progressRes.data || [];
+  const employees = employeesRes.data || [];
+  const dailyTests = dailyTestRes.data || [];
+
+  // Lọc theo khoảng ngày (dùng VN timezone UTC+7)
+  function normDateVN(ts: string): string {
+    if (!ts) return '';
+    return new Date(new Date(ts).getTime() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  const progress = allProgress.filter(p => {
+    const d = normDateVN(p.updated_at || '');
+    return d >= startDate && d <= endDate;
+  });
+
+  // Build per-employee stats từ training_progress trong khoảng thời gian đã chọn
+  const empMap = new Map<string, { scores: number[]; completedCount: number; activeDays: Set<string>; lastDate: string | null }>();
+  for (const p of progress) {
+    if (!empMap.has(p.employee_id)) {
+      empMap.set(p.employee_id, { scores: [], completedCount: 0, activeDays: new Set(), lastDate: null });
+    }
+    const em = empMap.get(p.employee_id)!;
+    if (p.quiz_score != null) em.scores.push(p.quiz_score);
+    const isDone = p.quiz_completed_at != null || (p.video_progress || 0) >= 100 || p.status === 'completed';
+    if (isDone) em.completedCount++;
+    const d = normDateVN(p.updated_at || '');
+    if (d) {
+      em.activeDays.add(d);
+      if (!em.lastDate || d > em.lastDate) em.lastDate = d;
+    }
+  }
+
+  // Build per-employee stats từ daily_tests (test_date đã là VN date, không cần convert)
+  const dailyMap = new Map<string, { scores: number[]; lastDate: string | null }>();
+  for (const dt of dailyTests) {
+    if (!dailyMap.has(dt.employee_id)) dailyMap.set(dt.employee_id, { scores: [], lastDate: null });
+    const dm = dailyMap.get(dt.employee_id)!;
+    if (dt.score_percent != null) dm.scores.push(dt.score_percent);
+    if (dt.test_date && (!dm.lastDate || dt.test_date > dm.lastDate)) dm.lastDate = dt.test_date;
+  }
+
+  // Top 10 điểm cao — avg của cả quiz khóa học + daily test trong kỳ
+  const scorers: LeaderboardEmployee[] = [];
+  for (const emp of employees) {
+    const em = empMap.get(emp.id);
+    const dm = dailyMap.get(emp.id);
+    const allScores = [...(em?.scores || []), ...(dm?.scores || [])];
+    if (allScores.length === 0) continue;
+    const avg = allScores.reduce((a, b) => a + b, 0) / allScores.length;
+    scorers.push({
+      employeeId: emp.id,
+      employeeName: emp.full_name,
+      department: emp.department || '—',
+      value: Math.round(avg * 10) / 10,
+      extra: allScores.length, // tổng số bài (quiz + daily test)
+    });
+  }
+  const topScorers = scorers.sort((a, b) => b.value - a.value).slice(0, 10);
+
+  // Top 10 chuyên cần — tổng số bài quiz khóa học + daily test đã làm trong kỳ
+  const consistent: LeaderboardEmployee[] = [];
+  for (const emp of employees) {
+    const em = empMap.get(emp.id);
+    const dm = dailyMap.get(emp.id);
+    const count = (em?.scores.length || 0) + (dm?.scores.length || 0);
+    if (count === 0) continue;
+    consistent.push({
+      employeeId: emp.id,
+      employeeName: emp.full_name,
+      department: emp.department || '—',
+      value: count,
+    });
+  }
+  const topConsistent = consistent.sort((a, b) => b.value - a.value).slice(0, 10);
+
+  // Top 10 không làm bài — ít bài quiz + daily test nhất trong kỳ
+  const inactive: LeaderboardInactiveEmployee[] = [];
+  for (const emp of employees) {
+    const em = empMap.get(emp.id);
+    const dm = dailyMap.get(emp.id);
+    const totalDone = (em?.scores.length || 0) + (dm?.scores.length || 0);
+    // Lấy ngày làm bài gần nhất từ cả 2 nguồn
+    const dates = [em?.lastDate || null, dm?.lastDate || null].filter(Boolean) as string[];
+    const lastDate = dates.length > 0 ? dates.sort().reverse()[0] : null;
+    inactive.push({
+      employeeId: emp.id,
+      employeeName: emp.full_name,
+      department: emp.department || '—',
+      value: totalDone,
+      lastTestDate: lastDate,
+    });
+  }
+  const topInactive = inactive
+    .sort((a, b) => a.value - b.value)
+    .slice(0, 10);
+
+  return { topScorers, topConsistent, topInactive };
+}

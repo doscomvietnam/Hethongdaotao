@@ -1,18 +1,26 @@
 import * as React from 'react';
 import {
   Users, BookOpen, TrendingUp, AlertCircle, Clock, Download,
-  Search, BarChart3, CheckCircle2, Trophy, ArrowUpRight,
-  Flame, Star, Award, Target, Activity, XCircle, UserX, Play,
-  RefreshCw, Settings, X, ExternalLink, BookX,
+  BarChart3, CheckCircle2, Trophy, ArrowUpRight,
+  Target, Activity, XCircle, UserX, Play,
+  RefreshCw, Settings, X, ExternalLink, Flame, CalendarCheck,
 } from 'lucide-react';
-import { Card, Badge, Progress } from '../ui';
+import { Card, Badge } from '../ui';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts';
 import type {
   DashboardKPI, DeptStat, LearningStatus, CourseRanking, OverdueItem, ActivityItem,
+  LeaderboardData,
 } from '../../services/dashboardDataService';
+import { getLeaderboardData, getLeaderboardDateRange } from '../../services/dashboardDataService';
+import {
+  syncLeaderboardToLark,
+  setLarkLeaderboardWebhookUrl,
+  getLarkLeaderboardWebhookUrl,
+  getLastLbSyncTimestamp,
+} from '../../services/larkSyncService';
 import {
   getOverdueEmployeesForDate,
   getOverdueEmployeesByDay,
@@ -110,6 +118,41 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   const [showToast, setShowToast] = React.useState(false);
 
+  // Leaderboard data — lọc theo tháng (null = từ ngày ra mắt đến nay)
+  const currentMonthStr = React.useMemo(() => {
+    const vnNow = new Date(Date.now() + 7 * 3600 * 1000);
+    return vnNow.toISOString().slice(0, 7); // 'YYYY-MM'
+  }, []);
+  const [leaderboardMonth, setLeaderboardMonth] = React.useState<string>('');
+  const [leaderboard, setLeaderboard] = React.useState<LeaderboardData | null>(null);
+  const [leaderboardLoading, setLeaderboardLoading] = React.useState(true);
+
+  // Leaderboard Lark sync state
+  const [lbSyncing, setLbSyncing] = React.useState(false);
+  const [lbSyncStage, setLbSyncStage] = React.useState('');
+  const [lbSyncProgress, setLbSyncProgress] = React.useState(0);
+  const [lbSyncResult, setLbSyncResult] = React.useState<{ success: boolean; message: string; recordsCreated: number; totalRecords: number } | null>(null);
+  const [showLbToast, setShowLbToast] = React.useState(false);
+  const [showLbConfig, setShowLbConfig] = React.useState(false);
+  const [lbWebhookUrl, setLbWebhookUrl] = React.useState('');
+  const [lbLastSyncAt, setLbLastSyncAt] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    try {
+      setLbWebhookUrl(getLarkLeaderboardWebhookUrl());
+      setLbLastSyncAt(getLastLbSyncTimestamp());
+    } catch { }
+  }, []);
+
+  React.useEffect(() => {
+    setLeaderboardLoading(true);
+    const { startDate, endDate } = getLeaderboardDateRange(leaderboardMonth || null);
+    getLeaderboardData(startDate, endDate)
+      .then(setLeaderboard)
+      .catch(e => console.error('Leaderboard fetch error:', e))
+      .finally(() => setLeaderboardLoading(false));
+  }, [leaderboardMonth]);
+
   // Vắng làm bài (8h30-18h, trừ Chủ nhật, bỏ qua user đã hoàn thành tất cả khóa).
   // Admin có thể chọn ngày tùy ý để xem lịch sử. Mặc định = hôm qua.
   const [missedDate, setMissedDate] = React.useState<string>(getYesterdayDateStrVN());
@@ -173,6 +216,35 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
     setShowLarkConfig(false);
   };
 
+  const handleSaveLbConfig = () => {
+    setLarkLeaderboardWebhookUrl(lbWebhookUrl);
+    setShowLbConfig(false);
+  };
+
+  const handleLbLarkSync = async () => {
+    if (!lbWebhookUrl) { setShowLbConfig(true); return; }
+    if (!leaderboard) return;
+    setLbSyncing(true);
+    setLbSyncResult(null);
+    setShowLbToast(false);
+    const { label } = getLeaderboardDateRange(leaderboardMonth || null);
+    try {
+      const result = await syncLeaderboardToLark(leaderboard, label, (stage, pct) => {
+        setLbSyncStage(stage);
+        setLbSyncProgress(pct);
+      });
+      setLbSyncResult({ success: result.success, message: result.message, recordsCreated: result.recordsCreated, totalRecords: result.totalRecords });
+      setLbLastSyncAt(getLastLbSyncTimestamp());
+      setShowLbToast(true);
+    } catch (e: any) {
+      setLbSyncResult({ success: false, message: e.message || 'Lỗi đồng bộ', recordsCreated: 0, totalRecords: 0 });
+      setShowLbToast(true);
+    } finally {
+      setLbSyncing(false);
+      setTimeout(() => setShowLbToast(false), 6000);
+    }
+  };
+
   if (loading || !data) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -190,9 +262,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
     { label: 'TỔNG NHÂN VIÊN', value: kpi.totalEmployees, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20' },
     { label: 'KHÓA HỌC ACTIVE', value: kpi.totalCourses, icon: BookOpen, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
     { label: 'TỶ LỆ HOÀN THÀNH', value: `${kpi.completionRate}%`, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
-    { label: 'KHÓA CHƯA AI HỌC', value: kpi.untouchedCoursesCount, icon: BookX, color: 'text-zinc-400', bg: 'bg-zinc-500/10', ring: 'ring-zinc-500/20' },
     { label: 'NHÂN VIÊN CHƯA HỌC', value: kpi.inactiveEmployeesCount, icon: UserX, color: 'text-zinc-400', bg: 'bg-zinc-500/10', ring: 'ring-zinc-500/20' },
-    { label: 'QUÁ HẠN', value: kpi.overdueCount, icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/10', ring: 'ring-red-500/20' },
     { label: 'ĐIỂM QUIZ TB', value: kpi.avgQuizScore || '—', icon: Target, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
     { label: 'LƯỢT FAIL QUIZ', value: kpi.failedQuizCount, icon: XCircle, color: 'text-rose-400', bg: 'bg-rose-500/10', ring: 'ring-rose-500/20' },
   ];
@@ -355,30 +425,127 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
         </div>
       )}
 
-      {/* Header */}
-      <header className="flex items-center justify-between">
-        <div className="space-y-2">
-          <h1 className="text-2xl lg:text-3xl xl:text-4xl font-black tracking-tighter text-white uppercase leading-none">BẢNG QUẢN TRỊ ĐÀO TẠO</h1>
-          <p className="text-zinc-600 font-bold uppercase tracking-[0.3em] text-[10px]">Tổng quan hiệu suất toàn hệ thống Doscom Enterprise</p>
+      {/* Leaderboard Webhook Config Modal */}
+      {showLbConfig && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#0C0C0E] border border-zinc-800 rounded-2xl w-[480px] p-8 shadow-2xl relative">
+            <button onClick={() => setShowLbConfig(false)} className="absolute top-4 right-4 p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-all">
+              <X className="w-4 h-4" />
+            </button>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 ring-1 ring-amber-500/30 flex items-center justify-center">
+                <Trophy className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-black text-white text-lg uppercase tracking-tight">Cấu hình Lark — Bảng Xếp Hạng</h3>
+                <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Webhook riêng cho Top 10 nhân viên</p>
+              </div>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="text-[10px] text-zinc-500 font-black uppercase tracking-widest block mb-2">Leaderboard Webhook URL</label>
+                <input
+                  type="url" value={lbWebhookUrl} onChange={e => setLbWebhookUrl(e.target.value)}
+                  placeholder="https://anycross.larksuite.com/..."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-700 focus:outline-none focus:border-amber-500/40 font-mono"
+                />
+              </div>
+              <div className="p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl">
+                <p className="text-[9px] text-amber-400 font-black uppercase tracking-widest mb-1">Cấu trúc dữ liệu gửi</p>
+                <p className="text-[9px] text-zinc-500 font-mono leading-relaxed">{'{ leaderboard_key, Hạng, Loại, Kỳ, Họ và tên, Phòng ban, Điểm TB (%), Số bài, Số ngày học, Ngày làm bài cuối }'}</p>
+              </div>
+              <button
+                onClick={handleSaveLbConfig}
+                disabled={!lbWebhookUrl}
+                className="w-full py-3 bg-amber-500 text-black rounded-xl font-black text-xs uppercase tracking-widest hover:bg-amber-400 transition-all disabled:opacity-50"
+              >
+                Lưu Webhook URL
+              </button>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Lark sync button */}
+      )}
+
+      {/* Leaderboard sync progress bar */}
+      {lbSyncing && (
+        <div className="fixed top-0 left-0 right-0 z-[60]">
+          <div className="h-1 bg-zinc-900">
+            <div className="h-full bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 transition-all duration-500 ease-out" style={{ width: `${lbSyncProgress}%` }} />
+          </div>
+          <div className="bg-[#0C0C0E]/95 backdrop-blur-md border-b border-zinc-800/50 px-6 py-2.5 flex items-center gap-3">
+            <div className="w-5 h-5 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+            <span className="text-[10px] text-zinc-300 font-bold uppercase tracking-widest">{lbSyncStage}</span>
+            <span className="text-[10px] text-zinc-600 font-bold ml-auto tabular-nums">{lbSyncProgress}%</span>
+          </div>
+        </div>
+      )}
+
+      {/* Leaderboard sync result toast */}
+      {showLbToast && lbSyncResult && (
+        <div className="fixed bottom-6 right-6 z-[60] animate-in slide-in-from-bottom-4 fade-in duration-400">
+          <div className={`w-[320px] rounded-2xl border shadow-2xl overflow-hidden ${lbSyncResult.success ? 'bg-[#0C0C0E] border-amber-500/20' : 'bg-[#0C0C0E] border-red-500/20'}`}>
+            <div className={`px-5 py-3.5 flex items-center gap-3 ${lbSyncResult.success ? 'bg-amber-500/5' : 'bg-red-500/5'}`}>
+              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${lbSyncResult.success ? 'bg-amber-500/10' : 'bg-red-500/10'}`}>
+                {lbSyncResult.success ? <Trophy className="w-4 h-4 text-amber-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
+              </div>
+              <div className="flex-1">
+                <p className={`text-xs font-black uppercase tracking-wide ${lbSyncResult.success ? 'text-amber-400' : 'text-red-400'}`}>
+                  {lbSyncResult.message === 'sync_success' ? 'Leaderboard đã đồng bộ' : lbSyncResult.message === 'no_data' ? 'Không có dữ liệu' : 'Đồng bộ chưa hoàn tất'}
+                </p>
+                <p className="text-[9px] text-zinc-600 font-bold mt-0.5">
+                  {lbSyncResult.success ? `${lbSyncResult.recordsCreated}/${lbSyncResult.totalRecords} records → Lark` : lbSyncResult.message}
+                </p>
+              </div>
+              <button onClick={() => setShowLbToast(false)} className="p-1 rounded-lg text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800 transition-all">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-2xl lg:text-3xl font-bold text-white tracking-tight">Bảng quản trị đào tạo</h1>
+          <p className="text-zinc-500 text-sm">Tổng quan hiệu suất toàn hệ thống Doscom Enterprise</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Lark sync button — training progress */}
           <button onClick={handleLarkSync} disabled={syncing}
-            className="flex items-center gap-2 px-5 py-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/20 transition-all disabled:opacity-50"
-            title={lastSyncAt ? `Lần sync cuối: ${new Date(lastSyncAt).toLocaleString('vi-VN')}\nXóa dữ liệu cũ + gửi lại toàn bộ` : 'Đồng bộ toàn bộ dữ liệu lên Lark Base'}>
+            className="flex items-center gap-2 px-3 sm:px-5 py-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-400 text-[10px] font-black uppercase tracking-widest hover:bg-blue-500/20 transition-all disabled:opacity-50"
+            title={lastSyncAt ? `Lần sync cuối: ${new Date(lastSyncAt).toLocaleString('vi-VN')}` : 'Đồng bộ tiến độ đào tạo lên Lark Base'}>
             <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'ĐANG ĐỒNG BỘ...' : 'ĐỒNG BỘ LARK'}
+            <span className="hidden sm:inline">{syncing ? 'ĐANG ĐỒNG BỘ...' : 'ĐỒNG BỘ LARK'}</span>
+          </button>
+          {/* Leaderboard Lark sync button */}
+          <button
+            onClick={handleLbLarkSync}
+            disabled={lbSyncing || !leaderboard}
+            className="flex items-center gap-2 px-3 sm:px-5 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-400 text-[10px] font-black uppercase tracking-widest hover:bg-amber-500/20 transition-all disabled:opacity-50"
+            title={lbLastSyncAt ? `Sync BXH cuối: ${new Date(lbLastSyncAt).toLocaleString('vi-VN')}` : 'Đồng bộ Top 10 bảng xếp hạng lên Lark'}
+          >
+            <Trophy className={`w-4 h-4 ${lbSyncing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{lbSyncing ? 'ĐANG SYNC...' : 'SYNC BXH'}</span>
+          </button>
+          {/* Leaderboard webhook config */}
+          <button
+            onClick={() => setShowLbConfig(true)}
+            className="p-3 rounded-xl text-zinc-500 hover:text-amber-400 hover:bg-amber-500/10 border border-zinc-800 hover:border-amber-500/30 transition-all"
+            title="Cấu hình Leaderboard Webhook URL"
+          >
+            <Settings className="w-4 h-4" />
           </button>
           <button onClick={onExport} disabled={exporting}
-            className="flex items-center gap-2 px-5 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all disabled:opacity-50">
+            className="flex items-center gap-2 px-3 sm:px-5 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-400 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-500/20 transition-all disabled:opacity-50">
             <Download className="w-4 h-4" />
-            {exporting ? 'ĐANG XUẤT...' : 'XUẤT EXCEL'}
+            <span className="hidden sm:inline">{exporting ? 'ĐANG XUẤT...' : 'XUẤT EXCEL'}</span>
           </button>
         </div>
       </header>
 
-      {/* KPI Cards — 4 cards / row trên laptop, 8 / row trên màn ≥ 1536px */}
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 lg:gap-4">
+      {/* KPI Cards — 3 cards / row trên laptop, 6 / row trên màn ≥ 1536px */}
+      <div className="grid grid-cols-2 md:grid-cols-3 2xl:grid-cols-6 gap-3 lg:gap-4">
         {kpiCards.map((kpi, i) => <KpiCard key={i} {...kpi} />)}
       </div>
 
@@ -474,6 +641,146 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
             ))}
           </div>
         </Card>
+      </div>
+
+      {/* Leaderboards: Top điểm cao / Làm bài đều / Không học */}
+      <div className="space-y-4">
+        {/* Month picker header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-black text-white text-lg uppercase tracking-tight leading-none">BẢNG XẾP HẠNG</h3>
+            <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest mt-1">
+              {leaderboardMonth
+                ? `Tháng ${leaderboardMonth.split('-')[1]}/${leaderboardMonth.split('-')[0]}`
+                : 'Từ ngày ra mắt đến nay'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setLeaderboardMonth('')}
+              className={`text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl border transition-colors ${leaderboardMonth === '' ? 'text-amber-400 border-amber-500/40 bg-amber-500/10' : 'text-zinc-500 border-zinc-800 hover:text-amber-400 hover:border-amber-500/30'}`}
+            >
+              Tất cả
+            </button>
+            <input
+              type="month"
+              value={leaderboardMonth}
+              min="2026-05"
+              max={currentMonthStr}
+              onChange={e => setLeaderboardMonth(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-bold text-zinc-200 focus:border-amber-500/40 focus:outline-none focus:ring-1 focus:ring-amber-500/30 transition-colors"
+            />
+            <button
+              onClick={() => setLeaderboardMonth(currentMonthStr)}
+              className="text-[10px] font-black text-zinc-500 hover:text-amber-400 uppercase tracking-widest px-2 py-2 transition-colors"
+              title="Tháng hiện tại"
+            >
+              ↺ Tháng này
+            </button>
+          </div>
+        </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Top 10 điểm cao */}
+        <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+          <SectionHeader icon={Trophy} title="Top 10 Điểm Cao" subtitle="Điểm trung bình cao nhất" color="text-amber-400" bg="bg-amber-500/10" ring="ring-amber-500/30" />
+          {leaderboardLoading ? (
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
+          ) : !leaderboard || leaderboard.topScorers.length === 0 ? (
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Chưa có dữ liệu</p>
+          ) : (
+            <div className="space-y-2">
+              {leaderboard.topScorers.map((emp, i) => (
+                <div key={emp.employeeId} className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
+                    i === 0 ? 'bg-amber-500/20 text-amber-400' : i === 1 ? 'bg-zinc-600/20 text-zinc-300' : i === 2 ? 'bg-orange-700/20 text-orange-400' : 'bg-zinc-900 text-zinc-600'
+                  }`}>
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-black text-amber-400 tabular-nums">{emp.value}%</p>
+                    {emp.extra != null && <p className="text-[9px] text-zinc-600 font-bold">{emp.extra} bài</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Top 10 làm bài thường xuyên */}
+        <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+          <SectionHeader icon={CalendarCheck} title="Top 10 Chuyên Cần" subtitle="Tổng số bài quiz + kiểm tra nhiều nhất" color="text-emerald-400" bg="bg-emerald-500/10" ring="ring-emerald-500/30" />
+          {leaderboardLoading ? (
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
+          ) : !leaderboard || leaderboard.topConsistent.length === 0 ? (
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Chưa có dữ liệu</p>
+          ) : (
+            <div className="space-y-2">
+              {leaderboard.topConsistent.map((emp, i) => (
+                <div key={emp.employeeId} className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
+                    i === 0 ? 'bg-emerald-500/20 text-emerald-400' : i === 1 ? 'bg-zinc-600/20 text-zinc-300' : i === 2 ? 'bg-orange-700/20 text-orange-400' : 'bg-zinc-900 text-zinc-600'
+                  }`}>
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-black text-emerald-400 tabular-nums">{emp.value}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold">bài</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Top 10 không làm bài */}
+        <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+          <SectionHeader icon={Flame} title="Top 10 Không Làm Bài" subtitle="Ít bài quiz + kiểm tra nhất trong kỳ" color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
+          {leaderboardLoading ? (
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
+          ) : !leaderboard || leaderboard.topInactive.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mx-auto mb-2" />
+              <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Tất cả đều tham gia đầy đủ!</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {leaderboard.topInactive.map((emp, i) => (
+                <div key={emp.employeeId} className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-[10px] font-black text-red-400 flex-shrink-0">
+                    #{i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    {emp.value === 0 ? (
+                      <>
+                        <p className="text-xs font-black text-red-500">0</p>
+                        <p className="text-[9px] text-zinc-600 font-bold">Chưa làm</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-black text-orange-400 tabular-nums">{emp.value}</p>
+                        <p className="text-[9px] text-zinc-600 font-bold">bài</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
       </div>
 
       {/* Vắng làm bài — daily attendance check (8h30-18h, trừ CN). Admin chọn ngày tùy ý. */}

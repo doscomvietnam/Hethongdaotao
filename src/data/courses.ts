@@ -2,6 +2,50 @@ import { Course } from "../types";
 
 export const COURSES: Course[] = [
     {
+        id: 'c-overview',
+        title: 'Tổng Quan Về Công Ty',
+        brand: 'Tổng Quan Về Công Ty',
+        category: 'Đào Tạo',
+        thumbnail: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=800',
+        videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+        progress: 0,
+        isCompleted: false,
+        attempts: 0
+    },
+    {
+        id: 'c-onboarding',
+        title: 'Đào Tạo Onboarding',
+        brand: 'Đào Tạo Onboarding',
+        category: 'Đào Tạo',
+        thumbnail: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&q=80&w=800',
+        videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+        progress: 0,
+        isCompleted: false,
+        attempts: 0
+    },
+    {
+        id: 'c-regulations',
+        title: 'Nội Quy - Quy Chế',
+        brand: 'Nội Quy - Quy Chế',
+        category: 'Đào Tạo',
+        thumbnail: 'https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&q=80&w=800',
+        videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+        progress: 0,
+        isCompleted: false,
+        attempts: 0
+    },
+    {
+        id: 'c-culture',
+        title: 'Văn Hóa Công Ty',
+        brand: 'Văn Hóa Công Ty',
+        category: 'Đào Tạo',
+        thumbnail: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=800',
+        videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+        progress: 0,
+        isCompleted: false,
+        attempts: 0
+    },
+    {
         id: 'c-da-01',
         productId: 'p-da-01',
         title: 'Đào Tạo Kỹ Thuật Camera AI DA-01',
@@ -28,17 +72,4 @@ export const COURSES: Course[] = [
         attempts: 1,
         lastQuizScore: 60
     },
-    {
-        id: 'c-warranty',
-        title: 'Quy Trình Xử Lý Bảo Hành 2024',
-        brand: 'Nội bộ',
-        category: 'Quy Trình',
-        thumbnail: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=800',
-        videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-        progress: 100,
-        isCompleted: true,
-        quizId: 'q-warranty',
-        attempts: 1,
-        lastQuizScore: 90
-    }
 ];

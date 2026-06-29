@@ -41,7 +41,7 @@ function letterToCorrect(s: string): 'A' | 'B' | 'C' | 'D' {
   return (['A', 'B', 'C', 'D'] as const).includes(v as any) ? (v as any) : 'A';
 }
 
-const BRANDS = ['Doscom', 'Noma', 'Nội bộ', 'Claude'];
+const BRANDS = ['Nội bộ', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Doscom', 'Noma', 'Claude'];
 const STATUSES = [
   { value: 'active', label: 'Đang hoạt động' },
   { value: 'inactive', label: 'Tạm ẩn' },

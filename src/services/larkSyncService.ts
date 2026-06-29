@@ -290,3 +290,167 @@ export async function pushSingleRowToLark(employeeId: string, courseId: string):
     console.warn('[Lark auto-sync] Exception:', e?.message || e);
   }
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// LEADERBOARD SYNC — Top 10 nhân viên → Lark Base
+// ══════════════════════════════════════════════════════════════════════════
+
+const ENV_LEADERBOARD_WEBHOOK_URL = import.meta.env.VITE_LARK_LEADERBOARD_WEBHOOK_URL || '';
+const LAST_LB_SYNC_KEY = 'lark_leaderboard_last_sync_at';
+const LARK_LB_CONFIG = { WEBHOOK_URL: '' };
+
+export function setLarkLeaderboardWebhookUrl(url: string) {
+  LARK_LB_CONFIG.WEBHOOK_URL = url;
+  try { localStorage.setItem('lark_leaderboard_webhook_url', url); } catch { }
+}
+
+export function getLarkLeaderboardWebhookUrl(): string {
+  if (!LARK_LB_CONFIG.WEBHOOK_URL) {
+    try {
+      LARK_LB_CONFIG.WEBHOOK_URL =
+        localStorage.getItem('lark_leaderboard_webhook_url') || ENV_LEADERBOARD_WEBHOOK_URL;
+    } catch {
+      LARK_LB_CONFIG.WEBHOOK_URL = ENV_LEADERBOARD_WEBHOOK_URL;
+    }
+  }
+  return LARK_LB_CONFIG.WEBHOOK_URL;
+}
+
+export function isLarkLeaderboardConfigured(): boolean {
+  return Boolean(getLarkLeaderboardWebhookUrl());
+}
+
+export function getLastLbSyncTimestamp(): string | null {
+  try { return localStorage.getItem(LAST_LB_SYNC_KEY); } catch { return null; }
+}
+
+function setLastLbSyncTimestamp(iso: string) {
+  try { localStorage.setItem(LAST_LB_SYNC_KEY, iso); } catch { }
+}
+
+// Local types — mirrors LeaderboardData từ dashboardDataService (tránh circular import)
+interface LbEmployee { employeeId: string; employeeName: string; department: string; value: number; extra?: number; }
+interface LbInactiveEmployee extends LbEmployee { lastTestDate: string | null; }
+interface LbData {
+  topScorers: LbEmployee[];
+  topConsistent: LbEmployee[];
+  topInactive: LbInactiveEmployee[];
+}
+
+export async function syncLeaderboardToLark(
+  data: LbData,
+  periodLabel: string,
+  onProgress?: SyncProgressCallback,
+): Promise<SyncResult> {
+  const syncStartedAt = new Date().toISOString();
+  const timestamp = new Date().toLocaleString('vi-VN');
+  const webhookUrl = getLarkLeaderboardWebhookUrl();
+
+  if (!webhookUrl) {
+    return {
+      success: false, message: 'Chưa cấu hình Leaderboard Webhook URL.',
+      recordsCreated: 0, recordsUpdated: 0, recordsSkipped: 0,
+      totalRecords: 0, timestamp,
+    };
+  }
+
+  // Build all records for 3 categories
+  const records: Record<string, any>[] = [];
+
+  data.topScorers.forEach((emp, i) => {
+    records.push({
+      leaderboard_key: `top_score_${i + 1}_${periodLabel}`,
+      'Hạng': i + 1,
+      'Loại': 'Top Điểm Cao',
+      'Kỳ': periodLabel,
+      'Họ và tên': emp.employeeName,
+      'Phòng ban': emp.department,
+      'Điểm TB (%)': emp.value,
+      'Số bài': emp.extra ?? null,
+      'Số ngày học': null,
+      'Ngày làm bài cuối': null,
+    });
+  });
+
+  data.topConsistent.forEach((emp, i) => {
+    records.push({
+      leaderboard_key: `top_consistent_${i + 1}_${periodLabel}`,
+      'Hạng': i + 1,
+      'Loại': 'Top Chuyên Cần',
+      'Kỳ': periodLabel,
+      'Họ và tên': emp.employeeName,
+      'Phòng ban': emp.department,
+      'Điểm TB (%)': null,
+      'Số bài': null,
+      'Số ngày học': emp.value,
+      'Ngày làm bài cuối': null,
+    });
+  });
+
+  data.topInactive.forEach((emp, i) => {
+    records.push({
+      leaderboard_key: `top_inactive_${i + 1}_${periodLabel}`,
+      'Hạng': i + 1,
+      'Loại': 'Top Không Học',
+      'Kỳ': periodLabel,
+      'Họ và tên': emp.employeeName,
+      'Phòng ban': emp.department,
+      'Điểm TB (%)': null,
+      'Số bài': null,
+      'Số ngày học': emp.value,
+      'Ngày làm bài cuối': emp.lastTestDate ?? null,
+    });
+  });
+
+  const total = records.length;
+  if (total === 0) {
+    return {
+      success: true, message: 'no_data',
+      recordsCreated: 0, recordsUpdated: 0, recordsSkipped: 0,
+      totalRecords: 0, timestamp,
+    };
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < total; i++) {
+    const progressPct = 5 + Math.round(((i + 1) / total) * 90);
+    onProgress?.(`Đang đồng bộ ${i + 1}/${total}...`, progressPct);
+
+    try {
+      const res = await fetch('/api/lark-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl, payload: records[i] }),
+      });
+      const text = await res.text().catch(() => '');
+      if (!res.ok) {
+        failedCount++;
+        errors.push(`Record ${i + 1}: HTTP ${res.status} ${text.slice(0, 200)}`);
+      } else {
+        sentCount++;
+      }
+    } catch (err: any) {
+      failedCount++;
+      errors.push(`Record ${i + 1}: ${err.message || 'network error'}`);
+    }
+
+    if (i < total - 1) await new Promise(r => setTimeout(r, 100));
+  }
+
+  if (sentCount > 0) setLastLbSyncTimestamp(syncStartedAt);
+  onProgress?.('Hoàn thành!', 100);
+  if (errors.length > 0) console.warn('[LB Lark Sync] Failures:', errors.slice(0, 10));
+
+  return {
+    success: failedCount === 0,
+    message: failedCount === 0 ? 'sync_success' : 'partial_sync',
+    recordsCreated: sentCount,
+    recordsUpdated: 0,
+    recordsSkipped: failedCount,
+    totalRecords: total,
+    timestamp,
+  };
+}

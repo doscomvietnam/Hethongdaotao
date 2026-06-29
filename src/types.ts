@@ -14,6 +14,8 @@ export enum ViewType {
   GUIDE = 'guide',
   EXAM_HUB = 'exam-hub',
   EXAM_WHEEL = 'exam-wheel',
+  DAILY_TEST = 'daily-test',
+  ONBOARDING_TEST = 'onboarding-test',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';
@@ -33,11 +35,45 @@ export interface Employee {
   work_location?: string;
   employment_status: 'active' | 'inactive';
   must_change_password: boolean;
+  onboarding_available_date?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
-export type Brand = 'Doscom' | 'Noma' | 'Nội bộ' | 'Claude';
+export interface OnboardingQuestion {
+  id: string;
+  position: number;
+  questionId: string;
+  questionText: string;
+  options: string[];
+  correctOptionIndex: number;
+  employeeAnswer?: number;
+  isCorrect?: boolean;
+}
+
+export interface OnboardingTestSession {
+  testId: string;
+  employeeId: string;
+  status: 'pending' | 'submitted';
+  totalQuestions: number;
+  passThreshold: number;
+  questions: OnboardingQuestion[];
+  correctCount?: number;
+  scorePercent?: number;
+  passed?: boolean;
+  submittedAt?: string;
+  timeSeconds?: number;
+}
+
+export interface OnboardingTestResult {
+  correctCount: number;
+  totalQuestions: number;
+  scorePercent: number;
+  passed: boolean;
+  passThreshold: number;
+}
+
+export type Brand = 'Tổng Quan Về Công Ty' | 'Đào Tạo Onboarding' | 'Nội Quy - Quy Chế' | 'Văn Hóa Công Ty' | 'Nội bộ' | 'Doscom' | 'Noma' | 'Claude';
 
 export interface Product {
   id: string;
@@ -92,5 +128,72 @@ export interface QuizAttempt {
   score: number;
   timestamp: number;
   passed: boolean;
+}
+
+// ─── Daily Knowledge Test ────────────────────────────────────────────────────
+
+export interface DailyQuestion {
+  id: string;             // daily_test_questions.id
+  position: number;
+  questionId: string;     // daily_questions.question_id
+  bankType: 'noma_product' | 'general' | 'onboarding';
+  questionText: string;
+  options: string[];      // 4 options đã shuffle
+  correctOptionIndex: number; // 0-3 sau shuffle
+  employeeAnswer?: number;    // 0-3, set khi đã nộp
+  isCorrect?: boolean;        // set khi đã nộp
+}
+
+export interface DailyTestSession {
+  testId: string;
+  employeeId: string;
+  testDate: string;           // YYYY-MM-DD
+  department: string;
+  totalQuestions: number;
+  passThreshold: number;
+  status: 'pending' | 'submitted';
+  questions: DailyQuestion[];
+  correctCount?: number;
+  scorePercent?: number;
+  passed?: boolean;
+  submittedAt?: string;
+  timeSeconds?: number;
+  resetCount: number;
+}
+
+export interface DailyTestResult {
+  correctCount: number;
+  totalQuestions: number;
+  scorePercent: number;
+  passed: boolean;
+  passThreshold: number;
+}
+
+export interface DailyTestHistoryItem {
+  testId: string;
+  testDate: string;
+  department: string;
+  totalQuestions: number;
+  passThreshold: number;
+  correctCount: number;
+  scorePercent: number;
+  passed: boolean;
+  submittedAt: string;
+  timeSeconds: number;
+}
+
+export interface DailyTestAdminRow {
+  employeeId: string;
+  fullName: string;
+  department: string;
+  email: string;
+  testDate: string;
+  status: 'pending' | 'submitted' | 'not_created';
+  passed?: boolean;
+  scorePercent?: number;
+  correctCount?: number;
+  totalQuestions?: number;
+  testId?: string;
+  resetCount?: number;
 }
 

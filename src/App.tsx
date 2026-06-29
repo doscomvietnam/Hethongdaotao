@@ -9,6 +9,9 @@ import ProfilePage from "./components/profile/ProfilePage";
 import GuidePage from "./components/guide";
 import ExamHubPage from "./components/exam/ExamHubPage";
 import ExamWheelPage from "./components/exam/ExamWheelPage";
+import DailyTestView from "./components/daily-test/DailyTestView";
+import OnboardingTestPage from "./components/onboarding-test/OnboardingTestPage";
+import OnboardingTestView from "./components/onboarding-test/OnboardingTestView";
 
 import LoginPage from "./components/auth/LoginPage";
 import ForgotPasswordPage from "./components/auth/ForgotPasswordPage";
@@ -80,6 +83,8 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.GUIDE]: '/guide',
   [ViewType.EXAM_HUB]: '/exam',
   [ViewType.EXAM_WHEEL]: '/exam/wheel',
+  [ViewType.DAILY_TEST]: '/daily-test',
+  [ViewType.ONBOARDING_TEST]: '/onboarding-test',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -112,6 +117,10 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
     case 'exam':
       if (segments[1] === 'wheel') return { view: ViewType.EXAM_WHEEL };
       return { view: ViewType.EXAM_HUB };
+    case 'daily-test':
+      return { view: ViewType.DAILY_TEST };
+    case 'onboarding-test':
+      return { view: ViewType.ONBOARDING_TEST };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -164,9 +173,15 @@ function App() {
   const [activeQuiz, setActiveQuiz] = React.useState<Quiz | null>(null);
   const quizStartRef = React.useRef<number | null>(null);
 
+  // Course group filter (product / general / null = all)
+  const [courseGroup, setCourseGroup] = React.useState<'product' | 'general' | null>(null);
+
   // Exam wheel state
   const [examBrand, setExamBrand] = React.useState<'Doscom' | 'Noma' | null>(null);
   const [quizReturnView, setQuizReturnView] = React.useState<ViewType | null>(null);
+
+  // Onboarding test: true = đang trong màn làm bài, false = hub page
+  const [onboardingTestActive, setOnboardingTestActive] = React.useState(false);
 
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -543,6 +558,10 @@ function App() {
       case "exam-wheel":
         setCurrentView(ViewType.EXAM_WHEEL);
         break;
+      case "onboarding-test":
+        setOnboardingTestActive(false);
+        setCurrentView(ViewType.ONBOARDING_TEST);
+        break;
       default:
         setCurrentView(ViewType.DASHBOARD);
         initData(true);
@@ -820,6 +839,7 @@ function App() {
             userId={employee.auth_user_id}
             employeeId={employee.id}
             onSelectCourse={(course: Course) => handleOpenCourse(course.id)}
+            initialGroup={courseGroup}
           />
         );
 
@@ -928,6 +948,9 @@ function App() {
               setExamBrand(brand);
               setCurrentView(ViewType.EXAM_WHEEL);
             }}
+            onStartDailyTest={() => setCurrentView(ViewType.DAILY_TEST)}
+            employeeId={employee.id}
+            department={employee.department || ''}
           />
         );
 
@@ -947,6 +970,36 @@ function App() {
           />
         );
 
+      case ViewType.DAILY_TEST:
+        return (
+          <DailyTestView
+            employeeId={employee.id}
+            department={employee.department || ''}
+            onBack={() => setCurrentView(ViewType.EXAM_HUB)}
+          />
+        );
+
+      case ViewType.ONBOARDING_TEST: {
+        const isAdminRole = employee.role === 'admin' || employee.role === 'manager';
+        const onboardingDate = employee.onboarding_available_date
+          || (isAdminRole ? new Date().toISOString().slice(0, 10) : null);
+        if (onboardingTestActive) {
+          return (
+            <OnboardingTestView
+              employeeId={employee.id}
+              onBack={() => setOnboardingTestActive(false)}
+            />
+          );
+        }
+        return (
+          <OnboardingTestPage
+            employeeId={employee.id}
+            onboardingAvailableDate={onboardingDate}
+            onStartTest={() => setOnboardingTestActive(true)}
+          />
+        );
+      }
+
       default:
         return null;
     }
@@ -964,6 +1017,8 @@ function App() {
         products={products}
         onCourseClick={(courseId: string) => handleOpenCourse(courseId)}
         onProductClick={(productId: string) => handleOpenProduct(productId)}
+        courseGroup={courseGroup}
+        onSetCourseGroup={setCourseGroup}
       >
         {renderContent()}
       </Layout>
