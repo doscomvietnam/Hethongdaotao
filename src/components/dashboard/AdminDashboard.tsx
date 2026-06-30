@@ -197,6 +197,10 @@ function QuizActivity3Months() {
                   <th key={m.key} className="text-center py-2 px-3 text-[9px] text-zinc-500 font-black uppercase tracking-widest">
                     <div>{m.label}</div>
                     <div className="text-zinc-700 font-bold normal-case tracking-normal">{m.workdays} ngày làm việc</div>
+                    <div className="flex gap-1 justify-center mt-0.5">
+                      <span className="text-[8px] text-zinc-600 font-bold bg-zinc-900 rounded px-1">HT%</span>
+                      <span className="text-[8px] text-zinc-600 font-bold bg-zinc-900 rounded px-1">Điểm</span>
+                    </div>
                   </th>
                 ))}
                 <th className="text-center py-2 px-3 text-[9px] text-zinc-500 font-black uppercase tracking-widest">
@@ -220,28 +224,59 @@ function QuizActivity3Months() {
                     const wd = workdayMap[m.month] ?? 0;
                     const pct = wd > 0 ? Math.round(m.passed / wd * 100) : 0;
                     return (
-                      <td key={m.month} className="py-2 px-3 text-center">
+                      <td key={m.month} className="py-2 px-3 text-center align-top">
                         {wd === 0 ? (
                           <span className="text-zinc-700 font-bold">—</span>
                         ) : (
-                          <div className={`inline-flex flex-col items-center rounded-lg px-2.5 py-1 ${cellBg(m.passed, wd)}`}>
-                            <span className={`font-black text-xs ${cellColor(m.passed, wd)}`}>
-                              {pct}%
-                            </span>
-                            <span className="text-[9px] text-zinc-500 font-bold">{m.passed}/{wd} ngày</span>
+                          <div className="inline-flex flex-col items-center gap-1">
+                            {/* Tỷ lệ hoàn thành ngày */}
+                            <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${cellBg(m.passed, wd)}`}>
+                              <span className={`font-black text-xs ${cellColor(m.passed, wd)}`}>{pct}%</span>
+                              <span className="text-[9px] text-zinc-500 font-bold">{m.passed}/{wd} ngày</span>
+                            </div>
+                            {/* Điểm TB tháng */}
+                            {m.monthAvgScore != null ? (
+                              <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${m.monthScorePassed ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                                <span className={`font-black text-xs ${m.monthScorePassed ? 'text-emerald-400' : 'text-red-400'}`}>
+                                  {m.monthAvgScore}%
+                                </span>
+                                <span className="text-[9px] font-bold text-zinc-500">
+                                  {m.monthScorePassed ? '✓ Đạt' : '✗ Chưa đạt'}
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center rounded-lg px-2 py-1 bg-zinc-900/40">
+                                <span className="text-zinc-600 text-[9px] font-bold">—</span>
+                                <span className="text-zinc-700 text-[9px] font-bold">Chưa có điểm</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </td>
                     );
                   })}
-                  <td className="py-2 px-3 text-center">
-                    <div className={`inline-flex flex-col items-center rounded-lg px-2.5 py-1 ${cellBg(emp.totalPassed, totalWorkdays)}`}>
-                      <span className={`font-black text-xs ${cellColor(emp.totalPassed, totalWorkdays)}`}>
-                        {totalWorkdays > 0 ? Math.round(emp.totalPassed / totalWorkdays * 100) : 0}%
-                      </span>
-                      <span className="text-[9px] text-zinc-500 font-bold">
-                        {emp.totalPassed}/{totalWorkdays} ngày
-                      </span>
+                  <td className="py-2 px-3 text-center align-top">
+                    <div className="inline-flex flex-col items-center gap-1">
+                      <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${cellBg(emp.totalPassed, totalWorkdays)}`}>
+                        <span className={`font-black text-xs ${cellColor(emp.totalPassed, totalWorkdays)}`}>
+                          {totalWorkdays > 0 ? Math.round(emp.totalPassed / totalWorkdays * 100) : 0}%
+                        </span>
+                        <span className="text-[9px] text-zinc-500 font-bold">{emp.totalPassed}/{totalWorkdays} ngày</span>
+                      </div>
+                      {(emp.totalCourseCount + emp.totalDone) > 0 && (() => {
+                        const allMonthScores = emp.months.flatMap(m =>
+                          m.monthAvgScore != null ? [m.monthAvgScore] : []
+                        );
+                        const overallAvg = allMonthScores.length
+                          ? Math.round(allMonthScores.reduce((a, b) => a + b, 0) / allMonthScores.length)
+                          : null;
+                        return overallAvg != null ? (
+                          <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${overallAvg >= 80 ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
+                            <span className={`font-black text-xs ${overallAvg >= 80 ? 'text-emerald-400' : 'text-red-400'}`}>{overallAvg}%</span>
+                            <span className="text-[9px] font-bold text-zinc-500">{overallAvg >= 80 ? '✓ Đạt' : '✗ Chưa đạt'}</span>
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </td>
                 </tr>
@@ -253,12 +288,16 @@ function QuizActivity3Months() {
 
       {/* Legend */}
       <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-zinc-900">
-        <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Mức đánh giá:</span>
-        <span className="text-[9px] text-emerald-400 font-bold">≥90% — Hoàn thành tốt</span>
-        <span className="text-[9px] text-sky-400 font-bold">80–89% — Hoàn thành</span>
-        <span className="text-[9px] text-amber-400 font-bold">60–79% — Chưa hoàn thành</span>
-        <span className="text-[9px] text-red-400 font-bold">&lt;60% — Không hoàn thành nghiêm trọng</span>
-        <span className="text-[9px] text-zinc-500 ml-auto font-bold">% = ngày đạt / tổng ngày làm việc tháng</span>
+        <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Hoàn thành (HT%):</span>
+        <span className="text-[9px] text-emerald-400 font-bold">≥90% Tốt</span>
+        <span className="text-[9px] text-sky-400 font-bold">80–89% Đạt</span>
+        <span className="text-[9px] text-amber-400 font-bold">60–79% Chưa HT</span>
+        <span className="text-[9px] text-red-400 font-bold">&lt;60% Nghiêm trọng</span>
+        <span className="text-[9px] text-zinc-700 font-bold">|</span>
+        <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Điểm tháng:</span>
+        <span className="text-[9px] text-emerald-400 font-bold">✓ ≥80% Đạt</span>
+        <span className="text-[9px] text-red-400 font-bold">✗ &lt;80% Chưa đạt</span>
+        <span className="text-[9px] text-zinc-500 ml-auto font-bold">HT% = ngày đạt / ngày làm việc · Điểm = TB kiểm tra hằng ngày + khóa học</span>
       </div>
     </Card>
   );

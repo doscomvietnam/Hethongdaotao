@@ -634,9 +634,15 @@ export async function getOnboardingLeaderboard(): Promise<OnboardingLeaderboardE
 export interface MonthStat {
   month: string;
   label: string;
+  // Bài kiểm tra hằng ngày
   done: number;
   passed: number;
-  avgScore: number | null;
+  // Bài kiểm tra khóa học
+  courseCount: number;
+  coursePassed: number;
+  // Điểm TB tổng hợp tháng (daily + course)
+  monthAvgScore: number | null;
+  monthScorePassed: boolean; // avgScore >= 80
 }
 
 export interface EmployeeQuizActivity {
@@ -646,6 +652,8 @@ export interface EmployeeQuizActivity {
   months: MonthStat[];
   totalDone: number;
   totalPassed: number;
+  totalCourseCount: number;
+  totalCoursePassed: number;
 }
 
 function countWorkdays(yearMonth: string, upToDay?: number): number {
@@ -682,7 +690,7 @@ export async function getQuizActivity3Months(): Promise<{
 
   const startDate = monthKeys[0].key + '-01';
 
-  const [testsRes, empsRes] = await Promise.all([
+  const [testsRes, coursesRes, empsRes] = await Promise.all([
     supabase
       .from('daily_tests')
       .select('employee_id, test_date, score_percent, passed')
@@ -690,39 +698,69 @@ export async function getQuizActivity3Months(): Promise<{
       .gte('test_date', startDate)
       .lte('test_date', todayStr),
     supabase
+      .from('training_progress')
+      .select('employee_id, quiz_score, quiz_passed, quiz_completed_at')
+      .not('quiz_completed_at', 'is', null)
+      .gte('quiz_completed_at', startDate),
+    supabase
       .from('employees')
       .select('id, full_name, department, skip_daily_quiz')
       .eq('employment_status', 'active'),
   ]);
 
   const tests = testsRes.data || [];
+  const courseTests = coursesRes.data || [];
   const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
 
-  // Group tests by employee → month
-  const byEmp = new Map<string, Map<string, { done: number; passed: number; scores: number[] }>>();
+  type MonthBucket = { done: number; passed: number; scores: number[]; courseCount: number; coursePassed: number; courseScores: number[] };
+
+  // Group daily tests by employee → month
+  const byEmp = new Map<string, Map<string, MonthBucket>>();
+  const initBucket = (): MonthBucket => ({ done: 0, passed: 0, scores: [], courseCount: 0, coursePassed: 0, courseScores: [] });
+
   for (const t of tests) {
     const mo = (t.test_date as string).slice(0, 7);
     if (!byEmp.has(t.employee_id)) byEmp.set(t.employee_id, new Map());
     const em = byEmp.get(t.employee_id)!;
-    if (!em.has(mo)) em.set(mo, { done: 0, passed: 0, scores: [] });
+    if (!em.has(mo)) em.set(mo, initBucket());
     const s = em.get(mo)!;
     s.done++;
     if (t.passed) s.passed++;
     if (t.score_percent != null) s.scores.push(Number(t.score_percent));
   }
 
+  // Group course quiz results by employee → Vietnam month
+  for (const p of courseTests) {
+    if (!p.quiz_completed_at) continue;
+    // Convert UTC timestamp → Vietnam date (UTC+7)
+    const mo = new Date(new Date(p.quiz_completed_at).getTime() + 7 * 3600 * 1000)
+      .toISOString().slice(0, 7);
+    if (!byEmp.has(p.employee_id)) byEmp.set(p.employee_id, new Map());
+    const em = byEmp.get(p.employee_id)!;
+    if (!em.has(mo)) em.set(mo, initBucket());
+    const s = em.get(mo)!;
+    s.courseCount++;
+    if (p.quiz_passed) s.coursePassed++;
+    if (p.quiz_score != null) s.courseScores.push(Number(p.quiz_score));
+  }
+
   const activities: EmployeeQuizActivity[] = employees.map((emp: any) => {
     const empTests = byEmp.get(emp.id);
     const months: MonthStat[] = monthKeys.map(({ key, label }) => {
-      const s = empTests?.get(key) ?? { done: 0, passed: 0, scores: [] };
+      const s = empTests?.get(key) ?? initBucket();
+      const allScores = [...s.scores, ...s.courseScores];
+      const monthAvgScore = allScores.length
+        ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
+        : null;
       return {
         month: key,
         label,
         done: s.done,
         passed: s.passed,
-        avgScore: s.scores.length
-          ? Math.round(s.scores.reduce((a, b) => a + b, 0) / s.scores.length)
-          : null,
+        courseCount: s.courseCount,
+        coursePassed: s.coursePassed,
+        monthAvgScore,
+        monthScorePassed: monthAvgScore != null && monthAvgScore >= 80,
       };
     });
     return {
@@ -732,6 +770,8 @@ export async function getQuizActivity3Months(): Promise<{
       months,
       totalDone: months.reduce((a, m) => a + m.done, 0),
       totalPassed: months.reduce((a, m) => a + m.passed, 0),
+      totalCourseCount: months.reduce((a, m) => a + m.courseCount, 0),
+      totalCoursePassed: months.reduce((a, m) => a + m.coursePassed, 0),
     };
   });
 
