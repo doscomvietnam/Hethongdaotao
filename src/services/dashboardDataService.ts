@@ -693,25 +693,19 @@ export async function getQuizActivity3Months(): Promise<{
   const [testsRes, coursesRes, empsRes] = await Promise.all([
     supabase
       .from('daily_tests')
-      .select('employee_id, test_date, score_percent, passed')
+      .select('employee_id, test_date, score_percent')
       .eq('status', 'submitted')
       .gte('test_date', startDate)
       .lte('test_date', todayStr),
     supabase
       .from('training_progress')
       .select('employee_id, quiz_score, quiz_passed, quiz_completed_at')
-      .not('quiz_completed_at', 'is', null)
       .gte('quiz_completed_at', startDate),
     supabase
       .from('employees')
       .select('id, full_name, department, skip_daily_quiz')
       .eq('employment_status', 'active'),
   ]);
-
-  if (testsRes.error) console.error('[3M] daily_tests error:', testsRes.error);
-  if (coursesRes.error) console.error('[3M] training_progress error:', coursesRes.error);
-  if (empsRes.error) console.error('[3M] employees error:', empsRes.error);
-  console.log('[3M] daily_tests count:', testsRes.data?.length, '| startDate:', startDate, '| todayStr:', todayStr);
 
   const tests = testsRes.data || [];
   const courseTests = coursesRes.data || [];
@@ -730,18 +724,17 @@ export async function getQuizActivity3Months(): Promise<{
     if (!em.has(mo)) em.set(mo, initBucket());
     const s = em.get(mo)!;
     s.done++;
-    // Dùng passed nếu có, fallback score_percent >= 80 nếu passed là null
-    const isPassed = t.passed != null ? Boolean(t.passed) : (t.score_percent != null && Number(t.score_percent) >= 80);
-    if (isPassed) s.passed++;
+    if (t.score_percent != null && Number(t.score_percent) >= 80) s.passed++;
     if (t.score_percent != null) s.scores.push(Number(t.score_percent));
   }
 
   // Group course quiz results by employee → Vietnam month
   for (const p of courseTests) {
     if (!p.quiz_completed_at) continue;
+    const ts = new Date(p.quiz_completed_at).getTime();
+    if (isNaN(ts)) continue;
     // Convert UTC timestamp → Vietnam date (UTC+7)
-    const mo = new Date(new Date(p.quiz_completed_at).getTime() + 7 * 3600 * 1000)
-      .toISOString().slice(0, 7);
+    const mo = new Date(ts + 7 * 3600 * 1000).toISOString().slice(0, 7);
     if (!byEmp.has(p.employee_id)) byEmp.set(p.employee_id, new Map());
     const em = byEmp.get(p.employee_id)!;
     if (!em.has(mo)) em.set(mo, initBucket());
