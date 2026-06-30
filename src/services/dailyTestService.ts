@@ -2,12 +2,11 @@
  * Daily Knowledge Test Service
  *
  * Quy tắc:
- * - Marketing/Kinh doanh: 15 câu từ ngân hàng nội quy/văn hóa công ty = 15 câu, đạt >= 12
- * - Còn lại: 10 câu từ ngân hàng nội quy/văn hóa công ty = 10 câu, đạt >= 8
+ * - Marketing/Kinh doanh: 10 câu sản phẩm Noma (quiz_questions) + 5 câu nội quy (daily_questions bank=general) = 15 câu, đạt >= 12
+ * - Còn lại: 10 câu từ ngân hàng onboarding = 10 câu, đạt >= 8
  * - Mỗi nhân viên 1 bài/ngày (key: employee_id + test_date theo Asia/Ho_Chi_Minh)
  * - Snapshot câu hỏi lưu ngay khi tạo, không random lại khi refresh
  * - Ưu tiên không lặp câu trong 3 ngày gần nhất (soft constraint)
- * - Dùng chung ngân hàng câu hỏi với onboarding test (bank_type = 'onboarding')
  */
 import { supabase } from './supabaseClient';
 import type {
@@ -46,7 +45,7 @@ function isSalesMarketing(department: string): boolean {
 
 export function getDeptConfig(department: string): DeptConfig {
   if (isSalesMarketing(department)) {
-    return { nomaCount: 0, generalCount: 15, totalQuestions: 15, passThreshold: 12, quizDurationSeconds: 900 };
+    return { nomaCount: 10, generalCount: 5, totalQuestions: 15, passThreshold: 12, quizDurationSeconds: 900 };
   }
   return { nomaCount: 0, generalCount: 10, totalQuestions: 10, passThreshold: 8, quizDurationSeconds: 600 };
 }
@@ -107,6 +106,55 @@ async function selectGeneralQuestions(count: number, excludeIds: string[]): Prom
   if (data.length < count) {
     throw new Error(`Ngân hàng câu hỏi không đủ: cần ${count}, có ${data.length}`);
   }
+
+  const fresh = data.filter((q: any) => !excludeIds.includes(q.question_id));
+  const used  = data.filter((q: any) =>  excludeIds.includes(q.question_id));
+  const pool  = fresh.length >= count
+    ? shuffle(fresh).slice(0, count)
+    : [...shuffle(fresh), ...shuffle(used)].slice(0, count);
+
+  return pool;
+}
+
+// 10 câu sản phẩm Noma random từ quiz_questions
+async function selectNomaProductQuestions(count: number, excludeIds: string[]): Promise<any[]> {
+  const { data: nomaCourses } = await supabase
+    .from('courses')
+    .select('quiz_id')
+    .eq('brand', 'Noma')
+    .not('quiz_id', 'is', null);
+
+  if (!nomaCourses?.length) throw new Error('Không tìm thấy khóa học Noma.');
+  const quizIds = nomaCourses.map((c: any) => c.quiz_id);
+
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .select('*')
+    .in('quiz_id', quizIds)
+    .eq('status', 'active');
+
+  if (error || !data) throw new Error(`Không thể tải câu hỏi sản phẩm Noma: ${error?.message}`);
+  if (data.length < count) throw new Error(`Ngân hàng câu hỏi Noma không đủ: cần ${count}, có ${data.length}`);
+
+  const fresh = data.filter((q: any) => !excludeIds.includes(q.question_id));
+  const used  = data.filter((q: any) =>  excludeIds.includes(q.question_id));
+  const pool  = fresh.length >= count
+    ? shuffle(fresh).slice(0, count)
+    : [...shuffle(fresh), ...shuffle(used)].slice(0, count);
+
+  return pool.map((q: any) => ({ ...q, bank_type: 'noma_product' }));
+}
+
+// 5 câu nội quy quy chế từ daily_questions bank=general
+async function selectNormsQuestions(count: number, excludeIds: string[]): Promise<any[]> {
+  const { data, error } = await supabase
+    .from('daily_questions')
+    .select('*')
+    .eq('bank_type', 'general')
+    .eq('is_active', true);
+
+  if (error || !data) throw new Error(`Không thể tải câu hỏi nội quy: ${error?.message}`);
+  if (data.length < count) throw new Error(`Ngân hàng câu hỏi nội quy không đủ: cần ${count}, có ${data.length}`);
 
   const fresh = data.filter((q: any) => !excludeIds.includes(q.question_id));
   const used  = data.filter((q: any) =>  excludeIds.includes(q.question_id));
@@ -194,14 +242,25 @@ async function createNewTest(
   const config = getDeptConfig(department);
 
   try {
-    // Lấy câu đã dùng trong 3 ngày gần nhất (anti-repeat, soft)
-    const recentOnboarding = await getRecentUsedQuestionIds(employeeId, 'onboarding');
+    let allRows: any[];
 
-    // Chọn câu hỏi từ ngân hàng onboarding
-    const onboardingRows = await selectGeneralQuestions(config.generalCount, recentOnboarding);
-
-    // Shuffle thứ tự câu
-    const allRows = shuffle(onboardingRows);
+    if (config.nomaCount > 0) {
+      // Marketing / Kinh doanh: 10 câu sản phẩm Noma + 5 câu nội quy general
+      const [recentNoma, recentNorms] = await Promise.all([
+        getRecentUsedQuestionIds(employeeId, 'noma_product'),
+        getRecentUsedQuestionIds(employeeId, 'general'),
+      ]);
+      const [nomaRows, normsRows] = await Promise.all([
+        selectNomaProductQuestions(config.nomaCount, recentNoma),
+        selectNormsQuestions(config.generalCount, recentNorms),
+      ]);
+      allRows = shuffle([...nomaRows, ...normsRows]);
+    } else {
+      // Các phòng khác: 10 câu onboarding
+      const recentOnboarding = await getRecentUsedQuestionIds(employeeId, 'onboarding');
+      const onboardingRows = await selectGeneralQuestions(config.generalCount, recentOnboarding);
+      allRows = shuffle(onboardingRows);
+    }
 
     // Insert bài kiểm tra
     const { data: testRow, error: testErr } = await supabase
