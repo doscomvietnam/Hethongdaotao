@@ -48,7 +48,7 @@ function LoadingScreen() {
     <div className="fixed inset-0 bg-[#09090B] z-[60] flex items-center justify-center">
       <div className="text-center space-y-4">
         <div className="mx-auto h-12 w-12 animate-spin rounded-full border-2 border-emerald-400 border-t-transparent" />
-        <p className="text-sm font-black uppercase tracking-[0.2em] text-zinc-500">Đang tải bài kiểm tra...</p>
+        <p className="text-sm font-black uppercase tracking-[0.2em] text-zinc-500">Đang tải quiz...</p>
       </div>
     </div>
   );
@@ -62,7 +62,7 @@ function ErrorScreen({ message, onBack }: { message: string; onBack: () => void 
           <AlertTriangle size={48} className="text-amber-500" />
         </div>
         <div className="space-y-3">
-          <h2 className="text-2xl font-black text-white uppercase tracking-tight">Không thể tải bài kiểm tra</h2>
+          <h2 className="text-2xl font-black text-white uppercase tracking-tight">Không thể tải quiz</h2>
           <p className="text-sm text-zinc-400 font-bold leading-relaxed">{message}</p>
         </div>
         <Button onClick={onBack} className="w-full h-14 rounded-2xl bg-zinc-800 text-white font-black uppercase tracking-widest text-xs border-none">
@@ -161,7 +161,7 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
               {passed ? 'HOÀN THÀNH XUẤT SẮC' : 'CHƯA ĐẠT YÊU CẦU'}
             </h1>
             <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mt-2">
-              Kiểm tra hằng ngày — {formatDate(session.testDate)}
+              Quiz hằng ngày — {formatDate(session.testDate)}
             </p>
           </div>
 
@@ -224,7 +224,7 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
         </div>
 
         <Button onClick={onBack} className="w-full h-14 rounded-2xl bg-zinc-800 text-white font-black uppercase tracking-widest text-xs border-none hover:bg-zinc-700">
-          Quay lại menu kiểm tra
+          Quay lại menu quiz
         </Button>
 
         {/* History */}
@@ -357,7 +357,7 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: QuizScreenProps) 
           </div>
           <Button onClick={mustForceSubmit ? handleForceSubmit : () => setShowTabWarning(false)}
             className={`w-full h-14 rounded-2xl font-black uppercase tracking-widest text-xs border-none ${mustForceSubmit ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white`}>
-            {mustForceSubmit ? 'Xem kết quả' : 'Quay lại bài kiểm tra'}
+            {mustForceSubmit ? 'Xem kết quả' : 'Quay lại quiz'}
           </Button>
         </motion.div>
       </div>
@@ -374,7 +374,7 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: QuizScreenProps) 
           </div>
           <div className="space-y-3">
             <h2 className="text-2xl font-black text-amber-500 uppercase">Xác nhận thoát?</h2>
-            <p className="text-sm text-zinc-400 font-bold">Bài kiểm tra sẽ được lưu lại, bạn có thể làm tiếp sau.</p>
+            <p className="text-sm text-zinc-400 font-bold">Quiz sẽ được lưu lại, bạn có thể làm tiếp sau.</p>
           </div>
           <div className="flex flex-col gap-3">
             <Button onClick={() => setShowExitConfirm(false)} className="w-full h-14 rounded-2xl bg-emerald-500 text-white font-black uppercase tracking-widest text-xs border-none">
@@ -591,7 +591,7 @@ export default function DailyTestView({ employeeId, department, onBack }: DailyT
 
   if (loading) return <LoadingScreen />;
   if (error) return <ErrorScreen message={error} onBack={onBack} />;
-  if (!session) return <ErrorScreen message="Không tải được bài kiểm tra." onBack={onBack} />;
+  if (!session) return <ErrorScreen message="Không tải được quiz." onBack={onBack} />;
 
   // Đã nộp (trước đó hoặc vừa nộp)
   if (session.status === 'submitted') {

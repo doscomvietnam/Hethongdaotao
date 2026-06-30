@@ -251,7 +251,7 @@ export default function DailyTestManagement({ currentEmployeeId }: DailyTestMana
                 <AlertTriangle className="w-5 h-5 text-amber-400" />
               </div>
               <div>
-                <h3 className="font-black text-white text-lg">Reset bài kiểm tra</h3>
+                <h3 className="font-black text-white text-lg">Reset quiz</h3>
                 <p className="text-zinc-500 text-xs">{resetDialog.employeeName}</p>
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function DailyTestManagement({ currentEmployeeId }: DailyTestMana
                 rows={3}
                 value={resetDialog.reason}
                 onChange={e => setResetDialog(d => ({ ...d, reason: e.target.value }))}
-                placeholder="Nhập lý do reset bài kiểm tra..."
+                placeholder="Nhập lý do reset quiz..."
                 className="w-full bg-zinc-800 border border-zinc-700 text-white text-sm rounded-xl px-4 py-3 focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none placeholder-zinc-600"
               />
               {resetError && <p className="text-red-400 text-xs">{resetError}</p>}

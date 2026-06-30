@@ -117,7 +117,7 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
             <AlertCircle className="w-5 h-5 text-red-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-black text-red-300 uppercase tracking-widest mb-1">Bạn đã bỏ lỡ bài kiểm tra hôm qua</p>
+            <p className="text-[11px] font-black text-red-300 uppercase tracking-widest mb-1">Bạn đã bỏ lỡ quiz hôm qua</p>
             <p className="text-xs font-bold text-red-200/80 leading-relaxed">
               Ngày <span className="font-mono text-red-300">{overdueInfo.missedDate}</span> bạn không có điểm quiz nào được ghi nhận. Vui lòng hoàn thành ít nhất 1 bài hôm nay để không bị tính quá hạn.
             </p>
