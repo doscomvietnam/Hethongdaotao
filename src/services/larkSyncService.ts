@@ -51,6 +51,30 @@ function setLastSyncTimestamp(iso: string) {
 export function setLarkCredentials(_a: string, _b: string) { }
 export function getLarkCredentials() { return { appId: '', appSecret: '' }; }
 
+// ── Retry helper ─────────────────────────────────────────────────────────
+// Gửi 1 record lên /api/lark-webhook, retry tối đa 3 lần (0s → 1s → 2s).
+// Throw nếu tất cả lần thử đều thất bại.
+async function larkPost(webhookUrl: string, payload: object): Promise<void> {
+  const delays = [0, 1000, 2000];
+  let lastErr = '';
+  for (const delay of delays) {
+    if (delay > 0) await new Promise(r => setTimeout(r, delay));
+    try {
+      const res = await fetch('/api/lark-webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhookUrl, payload }),
+      });
+      if (res.ok) return;
+      const text = await res.text().catch(() => '');
+      lastErr = `HTTP ${res.status}: ${text.slice(0, 150)}`;
+    } catch (e: any) {
+      lastErr = e?.message || 'network error';
+    }
+  }
+  throw new Error(lastErr);
+}
+
 // ── Helper: determine status ────────────────────────────────────────────
 function getStatus(row: any): string {
   const hasVideo = Boolean(row.courses?.video_url);
@@ -191,21 +215,8 @@ export async function syncToLarkBase(
     onProgress?.(`Đang đồng bộ ${i + 1}/${total}...`, progressPct);
 
     try {
-      const res = await fetch('/api/lark-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhookUrl, payload: fields }),
-      });
-
-      // Đọc body dạng text trước để tránh JSON.parse trên body rỗng
-      const text = await res.text().catch(() => '');
-
-      if (!res.ok) {
-        failedCount++;
-        errors.push(`Record ${i + 1}: HTTP ${res.status} ${text.slice(0, 200)}`);
-      } else {
-        sentCount++;
-      }
+      await larkPost(webhookUrl, fields);
+      sentCount++;
     } catch (err: any) {
       failedCount++;
       errors.push(`Record ${i + 1}: ${err.message || 'network error'}`);
@@ -273,18 +284,7 @@ export async function pushSingleRowToLark(employeeId: string, courseId: string):
     }
 
     const fields = buildRecordFields(data, 0);
-    const res = await fetch('/api/lark-webhook', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webhookUrl, payload: fields }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.warn(`[Lark auto-sync] HTTP ${res.status}: ${text.slice(0, 200)}`);
-      return;
-    }
-
+    await larkPost(webhookUrl, fields);
     console.log(`[Lark auto-sync] OK: ${data.employees?.full_name} × ${data.courses?.course_name}`);
   } catch (e: any) {
     console.warn('[Lark auto-sync] Exception:', e?.message || e);
@@ -341,18 +341,7 @@ export async function pushDailyTestToLark(
       'Ngày hoàn thành': formatDateOnly(testDate),
     };
 
-    const res = await fetch('/api/lark-webhook', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webhookUrl, payload: fields }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.warn(`[Lark daily-quiz] HTTP ${res.status}: ${text.slice(0, 200)}`);
-      return;
-    }
-
+    await larkPost(webhookUrl, fields);
     console.log(`[Lark daily-quiz] OK: ${emp.full_name} × Quiz ${testDate} — ${scorePercent}%`);
   } catch (e: any) {
     console.warn('[Lark daily-quiz] Exception:', e?.message || e);
@@ -408,18 +397,7 @@ export async function pushOnboardingTestToLark(
       'Ngày hoàn thành': formatDateOnly(new Date()),
     };
 
-    const res = await fetch('/api/lark-webhook', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ webhookUrl, payload: fields }),
-    });
-
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.warn(`[Lark onboarding] HTTP ${res.status}: ${text.slice(0, 200)}`);
-      return;
-    }
-
+    await larkPost(webhookUrl, fields);
     console.log(`[Lark onboarding] OK: ${emp.full_name} — ${scorePercent}%`);
   } catch (e: any) {
     console.warn('[Lark onboarding] Exception:', e?.message || e);
@@ -555,18 +533,8 @@ export async function syncLeaderboardToLark(
     onProgress?.(`Đang đồng bộ ${i + 1}/${total}...`, progressPct);
 
     try {
-      const res = await fetch('/api/lark-webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhookUrl, payload: records[i] }),
-      });
-      const text = await res.text().catch(() => '');
-      if (!res.ok) {
-        failedCount++;
-        errors.push(`Record ${i + 1}: HTTP ${res.status} ${text.slice(0, 200)}`);
-      } else {
-        sentCount++;
-      }
+      await larkPost(webhookUrl, records[i]);
+      sentCount++;
     } catch (err: any) {
       failedCount++;
       errors.push(`Record ${i + 1}: ${err.message || 'network error'}`);

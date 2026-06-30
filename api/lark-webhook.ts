@@ -31,7 +31,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // Validate URL is a Lark Anycross URL
     const url = new URL(webhookUrl);
-    if (!url.hostname.includes('larksuite.com') && !url.hostname.includes('feishu.cn')) {
+    if (!url.hostname.endsWith('.larksuite.com') && url.hostname !== 'larksuite.com' &&
+        !url.hostname.endsWith('.feishu.cn') && url.hostname !== 'feishu.cn') {
       return res.status(400).json({ error: 'Invalid webhook URL — must be a Lark/Feishu domain' });
     }
 
