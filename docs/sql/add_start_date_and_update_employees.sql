@@ -19,7 +19,6 @@ UPDATE employees SET department = 'Marketing',          position = 'Nhân viên 
 UPDATE employees SET department = 'Marketing',          position = 'Leader Content',                       start_date = '2024-01-15' WHERE full_name = 'Hoàng Thị Yến';
 UPDATE employees SET department = 'Marketing',          position = 'Leader Media',                         start_date = '2025-01-07' WHERE full_name = 'An Bảo Long';
 UPDATE employees SET department = 'Kinh doanh',         position = 'Nhân viên kỹ thuật',                   start_date = '2022-11-22' WHERE full_name = 'Bùi Văn Thức';
-UPDATE employees SET department = 'Kinh doanh',         position = 'Quản lý cửa hàng chi nhánh HCM',      start_date = '2023-12-25' WHERE full_name = 'Nguyễn Quốc Huy';
 UPDATE employees SET department = 'Marketing',          position = 'Nhân viên vận hành sàn TMĐT',          start_date = '2024-07-12' WHERE full_name = 'Mai Đức Hiệp';
 UPDATE employees SET department = 'Marketing',          position = 'Nhân viên thiết kế',                   start_date = '2025-11-25' WHERE full_name = 'Nguyễn Trọng Bảo';
 UPDATE employees SET department = 'Kinh doanh',         position = 'Nhân viên Kinh doanh',                 start_date = '2024-07-01' WHERE full_name = 'Tống Thị Huyền';
@@ -27,7 +26,6 @@ UPDATE employees SET department = 'Tổng hợp',           position = 'Phó Lea
 UPDATE employees SET department = 'Marketing',          position = 'Leader TMĐT',                          start_date = '2025-03-17' WHERE full_name = 'Trần Văn Tình';
 UPDATE employees SET department = 'Kinh doanh',         position = 'Nhân viên chăm sóc khách hàng',        start_date = '2025-04-01' WHERE full_name = 'Nguyễn Thanh Trúc';
 UPDATE employees SET department = 'Kinh doanh',         position = 'Nhân viên kỹ thuật',                   start_date = '2025-04-21' WHERE full_name = 'Bùi Trung Sơn';
-UPDATE employees SET department = 'Kho',                position = 'Nhân viên kho',                        start_date = '2025-05-05' WHERE full_name = 'Nguyễn Trọng Tuấn';
 UPDATE employees SET department = 'Marketing',          position = 'Nhân viên vận hành sàn TMĐT',          start_date = '2025-07-02' WHERE full_name = 'Trần Thị Thu';
 UPDATE employees SET department = 'Marketing',          position = 'Nhân viên thiết kế',                   start_date = '2025-07-28' WHERE full_name = 'Đào Hường';
 UPDATE employees SET department = 'Kinh doanh',         position = 'Nhân viên chăm sóc khách hàng',        start_date = '2025-08-15' WHERE full_name = 'Trần Thùy Dương';
