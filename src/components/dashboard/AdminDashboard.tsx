@@ -232,7 +232,10 @@ function QuizActivity3Months() {
                             {/* Tỷ lệ hoàn thành ngày */}
                             <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${cellBg(m.passed, wd)}`}>
                               <span className={`font-black text-xs ${cellColor(m.passed, wd)}`}>{pct}%</span>
-                              <span className="text-[9px] text-zinc-500 font-bold">{m.passed}/{wd} ngày</span>
+                              <span className="text-[9px] text-zinc-500 font-bold">{m.passed}/{wd} ngày đạt</span>
+                              {m.done > m.passed && (
+                                <span className="text-[8px] text-zinc-600 font-bold">({m.done} đã làm)</span>
+                              )}
                             </div>
                             {/* Điểm TB tháng */}
                             {m.monthAvgScore != null ? (

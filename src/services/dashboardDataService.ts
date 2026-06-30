@@ -708,6 +708,11 @@ export async function getQuizActivity3Months(): Promise<{
       .eq('employment_status', 'active'),
   ]);
 
+  if (testsRes.error) console.error('[3M] daily_tests error:', testsRes.error);
+  if (coursesRes.error) console.error('[3M] training_progress error:', coursesRes.error);
+  if (empsRes.error) console.error('[3M] employees error:', empsRes.error);
+  console.log('[3M] daily_tests count:', testsRes.data?.length, '| startDate:', startDate, '| todayStr:', todayStr);
+
   const tests = testsRes.data || [];
   const courseTests = coursesRes.data || [];
   const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
@@ -725,7 +730,9 @@ export async function getQuizActivity3Months(): Promise<{
     if (!em.has(mo)) em.set(mo, initBucket());
     const s = em.get(mo)!;
     s.done++;
-    if (t.passed) s.passed++;
+    // Dùng passed nếu có, fallback score_percent >= 80 nếu passed là null
+    const isPassed = t.passed != null ? Boolean(t.passed) : (t.score_percent != null && Number(t.score_percent) >= 80);
+    if (isPassed) s.passed++;
     if (t.score_percent != null) s.scores.push(Number(t.score_percent));
   }
 
