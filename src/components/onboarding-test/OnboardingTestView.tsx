@@ -7,6 +7,7 @@ import {
 import { Button, Badge } from '../ui';
 import type { OnboardingTestSession } from '../../types';
 import { getOrCreateOnboardingTest, submitOnboardingTest } from '../../services/onboardingTestService';
+import { pushOnboardingTestToLark } from '../../services/larkSyncService';
 
 const QUIZ_DURATION = 1200; // 20 phút
 
@@ -457,6 +458,8 @@ export default function OnboardingTestView({ employeeId, onBack }: OnboardingTes
       setSubmitting(false);
       return;
     }
+    // Đổ điểm onboarding lên Lark cùng cột Điểm quizz (fire-and-forget)
+    void pushOnboardingTestToLark(employeeId, result.scorePercent, result.passed, timeSpent);
     const { session: updated } = await getOrCreateOnboardingTest(employeeId);
     setSession(updated);
     setSubmitting(false);

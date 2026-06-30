@@ -360,6 +360,73 @@ export async function pushDailyTestToLark(
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ONBOARDING TEST SYNC — Đổ điểm test onboarding vào cùng cột Điểm quizz
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Push kết quả test onboarding lên Lark Base cùng cột Điểm quizz.
+ * summary_key = {employee_id}_onboarding — mỗi nhân viên chỉ có 1 bản ghi.
+ * Silent: lỗi chỉ log console, không throw.
+ */
+export async function pushOnboardingTestToLark(
+  employeeId: string,
+  scorePercent: number,
+  passed: boolean,
+  timeSeconds: number,
+): Promise<void> {
+  const webhookUrl = getLarkWebhookUrl();
+  if (!webhookUrl) {
+    console.log('[Lark onboarding] Webhook chưa cấu hình → skip');
+    return;
+  }
+
+  try {
+    const { data: emp } = await supabase
+      .from('employees')
+      .select('full_name, email, department')
+      .eq('id', employeeId)
+      .single();
+
+    if (!emp) {
+      console.warn('[Lark onboarding] Không tìm thấy nhân viên:', employeeId);
+      return;
+    }
+
+    const fields = {
+      'summary_key': `${employeeId}_onboarding`,
+      'Họ và tên': emp.full_name || '—',
+      'Email': emp.email || '—',
+      'Phòng ban': emp.department || '—',
+      'Khóa học': 'Test Onboarding',
+      'Nhóm đào tạo': 'Onboarding',
+      'Tiến độ video': '—',
+      'Điểm quizz': Number(scorePercent),
+      'Xếp loại': passed ? 'Đạt' : 'Không đạt',
+      'Thời gian làm bài': `${Math.floor(timeSeconds / 60)}p ${timeSeconds % 60}s`,
+      'Trạng thái': 'Hoàn thành',
+      'Ngày cập nhật': formatDateTime(new Date()),
+      'Ngày hoàn thành': formatDateOnly(new Date()),
+    };
+
+    const res = await fetch('/api/lark-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl, payload: fields }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[Lark onboarding] HTTP ${res.status}: ${text.slice(0, 200)}`);
+      return;
+    }
+
+    console.log(`[Lark onboarding] OK: ${emp.full_name} — ${scorePercent}%`);
+  } catch (e: any) {
+    console.warn('[Lark onboarding] Exception:', e?.message || e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // LEADERBOARD SYNC — Top 10 nhân viên → Lark Base
 // ══════════════════════════════════════════════════════════════════════════
 
