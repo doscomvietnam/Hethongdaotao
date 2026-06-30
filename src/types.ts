@@ -37,6 +37,7 @@ export interface Employee {
   employment_status: 'active' | 'inactive';
   must_change_password: boolean;
   onboarding_available_date?: string | null;
+  skip_daily_quiz?: boolean;
   created_at?: string;
   updated_at?: string;
 }

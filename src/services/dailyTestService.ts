@@ -475,7 +475,7 @@ export async function getDailyTestReport(date?: string): Promise<DailyTestAdminR
   // Lấy tất cả nhân viên active
   const { data: employees } = await supabase
     .from('employees')
-    .select('id, full_name, department, email')
+    .select('id, full_name, department, email, skip_daily_quiz')
     .eq('employment_status', 'active');
 
   if (!employees?.length) return [];
@@ -492,6 +492,8 @@ export async function getDailyTestReport(date?: string): Promise<DailyTestAdminR
   return employees.map((emp: any) => {
     const t = testMap.get(emp.id);
     if (!t) {
+      // Nhân viên được miễn quiz → không hiển thị trong báo cáo nếu chưa làm
+      if (emp.skip_daily_quiz) return null;
       return {
         employeeId: emp.id,
         fullName: emp.full_name || '—',
@@ -515,7 +517,7 @@ export async function getDailyTestReport(date?: string): Promise<DailyTestAdminR
       testId: t.test_id,
       resetCount: t.reset_count || 0,
     };
-  }).sort((a, b) =>
+  }).filter((r): r is DailyTestAdminRow => r !== null).sort((a, b) =>
     (a.department || '').localeCompare(b.department || '', 'vi') ||
     (a.fullName || '').localeCompare(b.fullName || '', 'vi'),
   );
