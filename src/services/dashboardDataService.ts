@@ -587,3 +587,45 @@ export async function getLeaderboardData(startDate: string, endDate: string): Pr
 
   return { topScorers, topConsistent, topInactive };
 }
+
+// ── Onboarding Leaderboard ────────────────────────────────────────────────
+export interface OnboardingLeaderboardEntry {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  correctCount: number;
+  scorePercent: number;
+  passed: boolean;
+  timeSeconds: number;
+  submittedAt: string;
+}
+
+export async function getOnboardingLeaderboard(): Promise<OnboardingLeaderboardEntry[]> {
+  const { data, error } = await supabase
+    .from('onboarding_tests')
+    .select(`
+      employee_id,
+      correct_count,
+      score_percent,
+      passed,
+      time_seconds,
+      submitted_at,
+      employees(full_name, department)
+    `)
+    .eq('status', 'submitted')
+    .order('score_percent', { ascending: false })
+    .order('time_seconds', { ascending: true })
+    .limit(10);
+
+  if (error) throw error;
+  return (data || []).map((row: any) => ({
+    employeeId: row.employee_id,
+    employeeName: row.employees?.full_name || '—',
+    department: row.employees?.department || '—',
+    correctCount: row.correct_count ?? 0,
+    scorePercent: Number(row.score_percent ?? 0),
+    passed: row.passed ?? false,
+    timeSeconds: row.time_seconds ?? 0,
+    submittedAt: row.submitted_at,
+  }));
+}

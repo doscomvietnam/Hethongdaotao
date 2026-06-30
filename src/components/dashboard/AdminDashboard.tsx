@@ -14,7 +14,8 @@ import type {
   DashboardKPI, DeptStat, LearningStatus, CourseRanking, OverdueItem, ActivityItem,
   LeaderboardData,
 } from '../../services/dashboardDataService';
-import { getLeaderboardData, getLeaderboardDateRange } from '../../services/dashboardDataService';
+import { getLeaderboardData, getLeaderboardDateRange, getOnboardingLeaderboard } from '../../services/dashboardDataService';
+import type { OnboardingLeaderboardEntry } from '../../services/dashboardDataService';
 import {
   syncLeaderboardToLark,
   setLarkLeaderboardWebhookUrl,
@@ -152,6 +153,16 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
       .catch(e => console.error('Leaderboard fetch error:', e))
       .finally(() => setLeaderboardLoading(false));
   }, [leaderboardMonth]);
+
+  // Onboarding leaderboard
+  const [onboardingLb, setOnboardingLb] = React.useState<OnboardingLeaderboardEntry[]>([]);
+  const [onboardingLbLoading, setOnboardingLbLoading] = React.useState(true);
+  React.useEffect(() => {
+    getOnboardingLeaderboard()
+      .then(setOnboardingLb)
+      .catch(e => console.error('Onboarding leaderboard error:', e))
+      .finally(() => setOnboardingLbLoading(false));
+  }, []);
 
   // Vắng làm bài (8h30-18h, trừ Chủ nhật, bỏ qua user đã hoàn thành tất cả khóa).
   // Admin có thể chọn ngày tùy ý để xem lịch sử. Mặc định = hôm qua.
@@ -782,6 +793,60 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
         </Card>
       </div>
       </div>
+
+      {/* Top 10 Onboarding Test */}
+      <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+        <SectionHeader
+          icon={Trophy}
+          title="Top 10 Onboarding Test"
+          subtitle="Nhân viên đạt điểm cao nhất bài kiểm tra onboarding (cùng điểm → thời gian ngắn hơn xếp trên)"
+          color="text-violet-400"
+          bg="bg-violet-500/10"
+          ring="ring-violet-500/30"
+        />
+        {onboardingLbLoading ? (
+          <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-10">Đang tải...</p>
+        ) : onboardingLb.length === 0 ? (
+          <div className="text-center py-10">
+            <Trophy className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Chưa có nhân viên nào nộp bài</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {onboardingLb.map((emp, i) => {
+              const totalQ = 30;
+              const mm = Math.floor(emp.timeSeconds / 60);
+              const ss = emp.timeSeconds % 60;
+              const timeStr = `${mm}:${String(ss).padStart(2, '0')}`;
+              return (
+                <div key={emp.employeeId} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-[10px] font-black flex-shrink-0 ${
+                    i === 0 ? 'bg-violet-500/20 text-violet-300' : i === 1 ? 'bg-zinc-600/20 text-zinc-300' : i === 2 ? 'bg-orange-700/20 text-orange-400' : 'bg-zinc-900 text-zinc-600'
+                  }`}>
+                    {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0 space-y-0.5">
+                    <p className="text-sm font-black text-violet-400 tabular-nums leading-none">
+                      {emp.correctCount}/{totalQ} <span className="text-[10px] text-zinc-500">câu</span>
+                    </p>
+                    <p className="text-[9px] text-zinc-500 font-bold tabular-nums">{timeStr} phút</p>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {emp.passed
+                      ? <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Đạt</span>
+                      : <span className="text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Chưa đạt</span>
+                    }
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
 
       {/* Vắng làm bài — daily attendance check (8h30-18h, trừ CN). Admin chọn ngày tùy ý. */}
       <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
