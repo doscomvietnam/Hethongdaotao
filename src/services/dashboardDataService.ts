@@ -662,18 +662,22 @@ export async function getQuizActivity3Months(): Promise<{
   activities: EmployeeQuizActivity[];
   monthLabels: { key: string; label: string; workdays: number }[];
 }> {
+  // Dùng toISOString() để lấy ngày/tháng Việt Nam chính xác (tránh .getMonth() bị lệch timezone)
   const vnNow = new Date(Date.now() + 7 * 3600 * 1000);
-  const todayStr = vnNow.toISOString().slice(0, 10);
+  const todayStr = vnNow.toISOString().slice(0, 10); // "2026-06-30"
+  const todayDay = Number(todayStr.slice(8, 10));
+  const cy = Number(todayStr.slice(0, 4));
+  const cm = Number(todayStr.slice(5, 7));
 
   const monthKeys: { key: string; label: string; workdays: number }[] = [];
   for (let i = 2; i >= 0; i--) {
-    const d = new Date(vnNow.getFullYear(), vnNow.getMonth() - i, 1);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    let m = cm - i;
+    let y = cy;
+    if (m <= 0) { m += 12; y -= 1; }
+    const key = `${y}-${String(m).padStart(2, '0')}`;
     const isCurrent = i === 0;
-    const workdays = isCurrent
-      ? countWorkdays(key, vnNow.getDate())
-      : countWorkdays(key);
-    monthKeys.push({ key, label: `Tháng ${d.getMonth() + 1}`, workdays });
+    const workdays = isCurrent ? countWorkdays(key, todayDay) : countWorkdays(key);
+    monthKeys.push({ key, label: `Tháng ${m}`, workdays });
   }
 
   const startDate = monthKeys[0].key + '-01';

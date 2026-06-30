@@ -80,8 +80,8 @@ function timeAgo(iso: string): string {
 
 const ACTION_META: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   completed: { label: 'Hoàn thành', color: 'text-emerald-500', icon: CheckCircle2 },
-  quiz_pass: { label: 'Đạt quiz', color: 'text-blue-400', icon: Trophy },
-  quiz_fail: { label: 'Fail quiz', color: 'text-red-400', icon: XCircle },
+  quiz_pass: { label: 'Đạt kiểm tra', color: 'text-blue-400', icon: Trophy },
+  quiz_fail: { label: 'Không đạt kiểm tra', color: 'text-red-400', icon: XCircle },
   started: { label: 'Bắt đầu học', color: 'text-amber-400', icon: Play },
 };
 
@@ -149,7 +149,7 @@ function QuizActivity3Months() {
     <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
       <SectionHeader
         icon={CalendarDays}
-        title="Hoạt động Quiz 3 tháng"
+        title="Hoạt động Kiểm Tra 3 tháng"
         subtitle="Tỷ lệ hoàn thành = số ngày đạt / tổng ngày làm việc trong tháng"
         color="text-sky-400"
         bg="bg-sky-500/10"
@@ -453,8 +453,8 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
     { label: 'KHÓA HỌC ACTIVE', value: kpi.totalCourses, icon: BookOpen, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
     { label: 'TỶ LỆ HOÀN THÀNH', value: `${kpi.completionRate}%`, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
     { label: 'NHÂN VIÊN CHƯA HỌC', value: kpi.inactiveEmployeesCount, icon: UserX, color: 'text-zinc-400', bg: 'bg-zinc-500/10', ring: 'ring-zinc-500/20' },
-    { label: 'ĐIỂM QUIZ TB', value: kpi.avgQuizScore || '—', icon: Target, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
-    { label: 'LƯỢT FAIL QUIZ', value: kpi.failedQuizCount, icon: XCircle, color: 'text-rose-400', bg: 'bg-rose-500/10', ring: 'ring-rose-500/20' },
+    { label: 'ĐIỂM KIỂM TRA TB', value: kpi.avgQuizScore || '—', icon: Target, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
+    { label: 'LƯỢT KHÔNG ĐẠT', value: kpi.failedQuizCount, icon: XCircle, color: 'text-rose-400', bg: 'bg-rose-500/10', ring: 'ring-rose-500/20' },
   ];
 
   const statusData = [
@@ -811,7 +811,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
         </Card>
 
         <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-          <SectionHeader icon={XCircle} title="Top fail quiz cao" subtitle="Khóa học có tỷ lệ fail quiz nhiều nhất" color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
+          <SectionHeader icon={XCircle} title="Top không đạt cao" subtitle="Khóa học có tỷ lệ không đạt nhiều nhất" color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
           <div className="space-y-3">
             {topFailed.length === 0 ? (
               <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Không có khóa nào bị fail</p>
@@ -903,7 +903,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
 
         {/* Top 10 làm bài thường xuyên */}
         <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-          <SectionHeader icon={CalendarCheck} title="Top 10 Chuyên Cần" subtitle="Tổng số bài quiz + kiểm tra nhiều nhất" color="text-emerald-400" bg="bg-emerald-500/10" ring="ring-emerald-500/30" />
+          <SectionHeader icon={CalendarCheck} title="Top 10 Chuyên Cần" subtitle="Tổng số bài kiểm tra nhiều nhất" color="text-emerald-400" bg="bg-emerald-500/10" ring="ring-emerald-500/30" />
           {leaderboardLoading ? (
             <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
           ) : !leaderboard || leaderboard.topConsistent.length === 0 ? (
@@ -933,7 +933,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
 
         {/* Top 10 không làm bài */}
         <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-          <SectionHeader icon={Flame} title="Top 10 Không Làm Bài" subtitle="Ít bài quiz + kiểm tra nhất trong kỳ" color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
+          <SectionHeader icon={Flame} title="Top 10 Không Làm Bài" subtitle="Ít bài kiểm tra nhất trong kỳ" color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
           {leaderboardLoading ? (
             <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
           ) : !leaderboard || leaderboard.topInactive.length === 0 ? (
@@ -1038,7 +1038,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
                 ? 'Ngày đã chọn là Chủ nhật — không tính'
                 : missedLoading
                   ? 'Đang kiểm tra...'
-                  : `${missedYesterday.length} nhân viên không có điểm quiz trong ngày này`
+                  : `${missedYesterday.length} nhân viên chưa làm kiểm tra trong ngày này`
             }
             color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30"
           />
