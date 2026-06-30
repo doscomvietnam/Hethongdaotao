@@ -120,8 +120,8 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
     <aside
       className={cn(
         'border-r border-zinc-900 bg-[#0C0C0E] h-screen flex flex-col overflow-hidden transition-all duration-300 ease-in-out',
-        'fixed top-0 left-0 z-50 w-72 md:sticky md:top-0 md:z-20',
-        collapsed ? 'md:w-20' : 'md:w-72',
+        'fixed top-0 left-0 z-50 w-80 md:sticky md:top-0 md:z-20',
+        collapsed ? 'md:w-20' : 'md:w-80',
         mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
       )}
     >
