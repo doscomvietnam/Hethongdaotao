@@ -3,7 +3,7 @@ import {
   Users, BookOpen, TrendingUp, AlertCircle, Clock, Download,
   BarChart3, CheckCircle2, Trophy, ArrowUpRight,
   Target, Activity, XCircle, UserX, Play,
-  RefreshCw, Settings, X, ExternalLink, Flame, CalendarCheck,
+  RefreshCw, Settings, X, ExternalLink, Flame, CalendarCheck, CalendarDays,
 } from 'lucide-react';
 import { Card, Badge } from '../ui';
 import {
@@ -12,9 +12,9 @@ import {
 } from 'recharts';
 import type {
   DashboardKPI, DeptStat, LearningStatus, CourseRanking, OverdueItem, ActivityItem,
-  LeaderboardData,
+  LeaderboardData, EmployeeQuizActivity, MonthStat,
 } from '../../services/dashboardDataService';
-import { getLeaderboardData, getLeaderboardDateRange, getOnboardingLeaderboard } from '../../services/dashboardDataService';
+import { getLeaderboardData, getLeaderboardDateRange, getOnboardingLeaderboard, getQuizActivity3Months } from '../../services/dashboardDataService';
 import type { OnboardingLeaderboardEntry } from '../../services/dashboardDataService';
 import {
   syncLeaderboardToLark,
@@ -84,6 +84,176 @@ const ACTION_META: Record<string, { label: string; color: string; icon: React.El
   quiz_fail: { label: 'Fail quiz', color: 'text-red-400', icon: XCircle },
   started: { label: 'Bắt đầu học', color: 'text-amber-400', icon: Play },
 };
+
+// ══════════════════════════════════════════════════════════════════════════
+// QUIZ ACTIVITY — 3 THÁNG
+// ══════════════════════════════════════════════════════════════════════════
+function cellColor(done: number, passed: number): string {
+  if (done === 0) return 'text-zinc-600';
+  const rate = passed / done;
+  if (rate >= 0.7) return 'text-emerald-400';
+  if (rate >= 0.4) return 'text-amber-400';
+  return 'text-red-400';
+}
+
+function cellBg(done: number, passed: number): string {
+  if (done === 0) return 'bg-zinc-900/40';
+  const rate = passed / done;
+  if (rate >= 0.7) return 'bg-emerald-500/10';
+  if (rate >= 0.4) return 'bg-amber-500/10';
+  return 'bg-red-500/10';
+}
+
+function QuizActivity3Months() {
+  const [activities, setActivities] = React.useState<EmployeeQuizActivity[]>([]);
+  const [monthLabels, setMonthLabels] = React.useState<{ key: string; label: string; workdays: number }[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [deptFilter, setDeptFilter] = React.useState<string>('');
+  const [search, setSearch] = React.useState('');
+
+  React.useEffect(() => {
+    getQuizActivity3Months()
+      .then(({ activities, monthLabels }) => {
+        setActivities(activities);
+        setMonthLabels(monthLabels);
+      })
+      .catch(e => console.error('QuizActivity3M error:', e))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const departments = React.useMemo(() => {
+    const depts = [...new Set(activities.map(a => a.department))].sort((a, b) => a.localeCompare(b, 'vi'));
+    return depts;
+  }, [activities]);
+
+  const filtered = React.useMemo(() => {
+    return activities.filter(a => {
+      if (deptFilter && a.department !== deptFilter) return false;
+      if (search && !a.employeeName.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [activities, deptFilter, search]);
+
+  const totalWorkdays = monthLabels.reduce((a, m) => a + m.workdays, 0);
+
+  return (
+    <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+      <SectionHeader
+        icon={CalendarDays}
+        title="Hoạt động Quiz 3 tháng"
+        subtitle="Số ngày làm bài / số ngày đạt của từng nhân viên"
+        color="text-sky-400"
+        bg="bg-sky-500/10"
+        ring="ring-sky-500/30"
+      />
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <input
+          type="text"
+          placeholder="Tìm tên..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-sky-500/50 w-40"
+        />
+        <button
+          onClick={() => setDeptFilter('')}
+          className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${deptFilter === '' ? 'bg-sky-500 text-white' : 'text-zinc-500 hover:text-zinc-300 bg-zinc-900'}`}
+        >
+          Tất cả
+        </button>
+        {departments.map(dept => (
+          <button
+            key={dept}
+            onClick={() => setDeptFilter(dept === deptFilter ? '' : dept)}
+            className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${deptFilter === dept ? 'bg-sky-500 text-white' : 'text-zinc-500 hover:text-zinc-300 bg-zinc-900'}`}
+          >
+            {dept}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <RefreshCw className="w-6 h-6 text-zinc-700 animate-spin" />
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-zinc-800">
+                <th className="text-left py-2 px-3 text-[9px] text-zinc-500 font-black uppercase tracking-widest w-48">Nhân viên</th>
+                <th className="text-left py-2 px-3 text-[9px] text-zinc-500 font-black uppercase tracking-widest w-28">Phòng ban</th>
+                {monthLabels.map(m => (
+                  <th key={m.key} className="text-center py-2 px-3 text-[9px] text-zinc-500 font-black uppercase tracking-widest">
+                    <div>{m.label}</div>
+                    <div className="text-zinc-700 font-bold normal-case tracking-normal">{m.workdays} ngày làm việc</div>
+                  </th>
+                ))}
+                <th className="text-center py-2 px-3 text-[9px] text-zinc-500 font-black uppercase tracking-widest">
+                  <div>Tổng 3 tháng</div>
+                  <div className="text-zinc-700 font-bold normal-case tracking-normal">{totalWorkdays} ngày</div>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-900">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-zinc-600 text-[10px] font-bold uppercase tracking-widest">
+                    Không có dữ liệu
+                  </td>
+                </tr>
+              ) : filtered.map(emp => (
+                <tr key={emp.employeeId} className="hover:bg-zinc-900/30 transition-colors">
+                  <td className="py-2 px-3 font-bold text-zinc-200 truncate max-w-[12rem]">{emp.employeeName}</td>
+                  <td className="py-2 px-3 text-zinc-500 text-[10px] font-bold truncate">{emp.department}</td>
+                  {emp.months.map((m: MonthStat) => (
+                    <td key={m.month} className="py-2 px-3 text-center">
+                      {m.done === 0 ? (
+                        <span className="text-zinc-700 font-bold">—</span>
+                      ) : (
+                        <div className={`inline-flex flex-col items-center rounded-lg px-2.5 py-1 ${cellBg(m.done, m.passed)}`}>
+                          <span className={`font-black text-xs ${cellColor(m.done, m.passed)}`}>
+                            {m.passed}/{m.done}
+                          </span>
+                          {m.avgScore !== null && (
+                            <span className="text-[9px] text-zinc-500 font-bold">{m.avgScore}%</span>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  ))}
+                  <td className="py-2 px-3 text-center">
+                    <div className={`inline-flex flex-col items-center rounded-lg px-2.5 py-1 ${cellBg(emp.totalDone, emp.totalPassed)}`}>
+                      <span className={`font-black text-xs ${cellColor(emp.totalDone, emp.totalPassed)}`}>
+                        {emp.totalPassed}/{emp.totalDone}
+                      </span>
+                      {emp.totalDone > 0 && (
+                        <span className="text-[9px] text-zinc-500 font-bold">
+                          {Math.round(emp.totalPassed / emp.totalDone * 100)}% đạt
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-4 mt-4 pt-4 border-t border-zinc-900">
+        <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Chú thích:</span>
+        <span className="text-[9px] text-emerald-400 font-bold">≥70% đạt</span>
+        <span className="text-[9px] text-amber-400 font-bold">40–69% đạt</span>
+        <span className="text-[9px] text-red-400 font-bold">&lt;40% đạt</span>
+        <span className="text-[9px] text-zinc-600 font-bold">— Chưa làm</span>
+        <span className="text-[9px] text-zinc-500 ml-auto font-bold">Cột: đạt / làm · Dòng điểm TB%</span>
+      </div>
+    </Card>
+  );
+}
 
 // ══════════════════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD
@@ -981,6 +1151,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
         {/* Recent activity */}
         <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
           <SectionHeader icon={Activity} title="Hoạt động gần đây" subtitle="Cập nhật mới nhất từ hệ thống" color="text-purple-400" bg="bg-purple-500/10" ring="ring-purple-500/30" />
+
           <div className="space-y-2 max-h-[360px] overflow-y-auto scrollbar-hide">
             {recentActivity.length === 0 ? (
               <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-10">Chưa có hoạt động</p>
@@ -1009,6 +1180,9 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
           </div>
         </Card>
       </div>
+
+      {/* Quiz activity 3 tháng */}
+      <QuizActivity3Months />
     </div>
   );
 }

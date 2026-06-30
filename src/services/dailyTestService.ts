@@ -517,7 +517,7 @@ export async function getDailyTestReport(date?: string): Promise<DailyTestAdminR
       testId: t.test_id,
       resetCount: t.reset_count || 0,
     };
-  }).filter((r): r is DailyTestAdminRow => r !== null).sort((a, b) =>
+  }).filter((r): r is NonNullable<typeof r> => r !== null).sort((a, b) =>
     (a.department || '').localeCompare(b.department || '', 'vi') ||
     (a.fullName || '').localeCompare(b.fullName || '', 'vi'),
   );

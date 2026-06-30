@@ -629,3 +629,111 @@ export async function getOnboardingLeaderboard(): Promise<OnboardingLeaderboardE
     submittedAt: row.submitted_at,
   }));
 }
+
+// ── Quiz Activity — 3 tháng ───────────────────────────────────────────────
+export interface MonthStat {
+  month: string;
+  label: string;
+  done: number;
+  passed: number;
+  avgScore: number | null;
+}
+
+export interface EmployeeQuizActivity {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  months: MonthStat[];
+  totalDone: number;
+  totalPassed: number;
+}
+
+function countWorkdays(yearMonth: string, upToDay?: number): number {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const last = upToDay ?? new Date(y, m, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= last; d++) {
+    if (new Date(y, m - 1, d).getDay() !== 0) count++;
+  }
+  return count;
+}
+
+export async function getQuizActivity3Months(): Promise<{
+  activities: EmployeeQuizActivity[];
+  monthLabels: { key: string; label: string; workdays: number }[];
+}> {
+  const vnNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const todayStr = vnNow.toISOString().slice(0, 10);
+
+  const monthKeys: { key: string; label: string; workdays: number }[] = [];
+  for (let i = 2; i >= 0; i--) {
+    const d = new Date(vnNow.getFullYear(), vnNow.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const isCurrent = i === 0;
+    const workdays = isCurrent
+      ? countWorkdays(key, vnNow.getDate())
+      : countWorkdays(key);
+    monthKeys.push({ key, label: `Tháng ${d.getMonth() + 1}`, workdays });
+  }
+
+  const startDate = monthKeys[0].key + '-01';
+
+  const [testsRes, empsRes] = await Promise.all([
+    supabase
+      .from('daily_tests')
+      .select('employee_id, test_date, score_percent, passed')
+      .eq('status', 'submitted')
+      .gte('test_date', startDate)
+      .lte('test_date', todayStr),
+    supabase
+      .from('employees')
+      .select('id, full_name, department, skip_daily_quiz')
+      .eq('employment_status', 'active'),
+  ]);
+
+  const tests = testsRes.data || [];
+  const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
+
+  // Group tests by employee → month
+  const byEmp = new Map<string, Map<string, { done: number; passed: number; scores: number[] }>>();
+  for (const t of tests) {
+    const mo = (t.test_date as string).slice(0, 7);
+    if (!byEmp.has(t.employee_id)) byEmp.set(t.employee_id, new Map());
+    const em = byEmp.get(t.employee_id)!;
+    if (!em.has(mo)) em.set(mo, { done: 0, passed: 0, scores: [] });
+    const s = em.get(mo)!;
+    s.done++;
+    if (t.passed) s.passed++;
+    if (t.score_percent != null) s.scores.push(Number(t.score_percent));
+  }
+
+  const activities: EmployeeQuizActivity[] = employees.map((emp: any) => {
+    const empTests = byEmp.get(emp.id);
+    const months: MonthStat[] = monthKeys.map(({ key, label }) => {
+      const s = empTests?.get(key) ?? { done: 0, passed: 0, scores: [] };
+      return {
+        month: key,
+        label,
+        done: s.done,
+        passed: s.passed,
+        avgScore: s.scores.length
+          ? Math.round(s.scores.reduce((a, b) => a + b, 0) / s.scores.length)
+          : null,
+      };
+    });
+    return {
+      employeeId: emp.id,
+      employeeName: emp.full_name || '—',
+      department: emp.department || '—',
+      months,
+      totalDone: months.reduce((a, m) => a + m.done, 0),
+      totalPassed: months.reduce((a, m) => a + m.passed, 0),
+    };
+  });
+
+  activities.sort((a, b) =>
+    a.department.localeCompare(b.department, 'vi') || b.totalDone - a.totalDone,
+  );
+
+  return { activities, monthLabels: monthKeys };
+}
