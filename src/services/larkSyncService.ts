@@ -292,6 +292,74 @@ export async function pushSingleRowToLark(employeeId: string, courseId: string):
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// DAILY QUIZ SYNC — Đổ điểm quiz hằng ngày vào cùng cột Điểm quizz trên Lark
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Push kết quả quiz hằng ngày lên Lark Base cùng cột Điểm quizz với khóa học.
+ * summary_key = {employee_id}_daily_quiz_{testDate} — an toàn retry, không tạo trùng.
+ * Silent: lỗi chỉ log console, không throw.
+ */
+export async function pushDailyTestToLark(
+  employeeId: string,
+  testDate: string,
+  scorePercent: number,
+  passed: boolean,
+  timeSeconds: number,
+): Promise<void> {
+  const webhookUrl = getLarkWebhookUrl();
+  if (!webhookUrl) {
+    console.log('[Lark daily-quiz] Webhook chưa cấu hình → skip');
+    return;
+  }
+
+  try {
+    const { data: emp } = await supabase
+      .from('employees')
+      .select('full_name, email, department')
+      .eq('id', employeeId)
+      .single();
+
+    if (!emp) {
+      console.warn('[Lark daily-quiz] Không tìm thấy nhân viên:', employeeId);
+      return;
+    }
+
+    const fields = {
+      'summary_key': `${employeeId}_daily_quiz_${testDate}`,
+      'Họ và tên': emp.full_name || '—',
+      'Email': emp.email || '—',
+      'Phòng ban': emp.department || '—',
+      'Khóa học': 'Quiz hằng ngày',
+      'Nhóm đào tạo': 'Daily Quiz',
+      'Tiến độ video': '—',
+      'Điểm quizz': Number(scorePercent),
+      'Xếp loại': passed ? 'Đạt' : 'Không đạt',
+      'Thời gian làm bài': `${Math.floor(timeSeconds / 60)}p ${timeSeconds % 60}s`,
+      'Trạng thái': 'Hoàn thành',
+      'Ngày cập nhật': formatDateTime(new Date()),
+      'Ngày hoàn thành': formatDateOnly(testDate),
+    };
+
+    const res = await fetch('/api/lark-webhook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ webhookUrl, payload: fields }),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.warn(`[Lark daily-quiz] HTTP ${res.status}: ${text.slice(0, 200)}`);
+      return;
+    }
+
+    console.log(`[Lark daily-quiz] OK: ${emp.full_name} × Quiz ${testDate} — ${scorePercent}%`);
+  } catch (e: any) {
+    console.warn('[Lark daily-quiz] Exception:', e?.message || e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // LEADERBOARD SYNC — Top 10 nhân viên → Lark Base
 // ══════════════════════════════════════════════════════════════════════════
 

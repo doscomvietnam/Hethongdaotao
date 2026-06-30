@@ -14,6 +14,7 @@ import {
   getDeptConfig,
   getTodayVNDateStr,
 } from '../../services/dailyTestService';
+import { pushDailyTestToLark } from '../../services/larkSyncService';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -582,6 +583,8 @@ export default function DailyTestView({ employeeId, department, onBack }: DailyT
       setSubmitting(false);
       return;
     }
+    // Đổ điểm quiz lên Lark cùng cột Điểm quizz (fire-and-forget)
+    void pushDailyTestToLark(employeeId, session.testDate, result.scorePercent, result.passed, timeSpent);
     // Reload session để có dữ liệu đầy đủ (kể cả chi tiết đáp án từng câu)
     const { session: updated } = await getOrCreateDailyTest(employeeId, department);
     setSession(updated);
