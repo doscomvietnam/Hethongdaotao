@@ -630,13 +630,16 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   const totalAttempts = Math.max(course.attempts, localAttempts);
   const hasUsedAttempt = totalAttempts >= 1;
 
+  // Quiz section chỉ hiện với brand không phải Doscom/Noma (dùng menu Kiểm tra thay thế)
+  const showQuizSection = hasQuiz && !['Doscom', 'Noma'].includes(course.brand || '');
+
   // ── Course progress real-time: video = 50%, submit quiz (pass/fail) = +50%
   const computedCourseProgress = React.useMemo(() => {
-    if (!hasQuiz) return videoWatchProgress;
+    if (!showQuizSection) return videoWatchProgress;
     const videoPart = Math.round(videoWatchProgress / 2);
     const quizPart = course.lastQuizScore != null ? 50 : 0;
     return Math.min(100, videoPart + quizPart);
-  }, [videoWatchProgress, course.lastQuizScore, hasQuiz]);
+  }, [videoWatchProgress, course.lastQuizScore, showQuizSection]);
 
   // ── Quiz access: phải xem video ≥ 50% mới mở bài test ─────────────
   const VIDEO_GATE_THRESHOLD = 50;
@@ -702,17 +705,17 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
             <div className="flex flex-col items-end gap-5">
               <div className="flex justify-between items-center w-full min-w-[320px] mb-1">
                 <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ">
-                  {hasQuiz ? 'Tiến độ khóa học' : 'Tiến độ xem video'}
+                  {showQuizSection ? 'Tiến độ khóa học' : 'Tiến độ xem video'}
                 </span>
-                <span className="text-emerald-500 font-mono font-black text-lg ">{hasQuiz ? computedCourseProgress : videoWatchProgress}%</span>
+                <span className="text-emerald-500 font-mono font-black text-lg ">{showQuizSection ? computedCourseProgress : videoWatchProgress}%</span>
               </div>
-              <Progress value={hasQuiz ? computedCourseProgress : videoWatchProgress} className="w-[320px] h-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-zinc-900" />
+              <Progress value={showQuizSection ? computedCourseProgress : videoWatchProgress} className="w-[320px] h-2.5 shadow-[0_0_20px_rgba(16,185,129,0.3)] bg-zinc-900" />
             </div>
           )}
         </div>
       </header>
 
-      <div className={hasQuiz ? "grid grid-cols-1 lg:grid-cols-2 gap-12" : "max-w-4xl mx-auto"}>
+      <div className={showQuizSection ? "grid grid-cols-1 lg:grid-cols-2 gap-12" : "max-w-4xl mx-auto"}>
         {/* VIDEO & SLIDE ĐÀO TẠO */}
         <section className="space-y-8">
           {/* Tab Toggle — only show tabs when both video and slide exist */}
@@ -862,8 +865,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
           )}
         </section>
 
-        {/* BÀI KIỂM TRA — chỉ hiện khi course có quiz và không phải Doscom */}
-        {hasQuiz && course.brand !== 'Doscom' && (
+        {/* BÀI KIỂM TRA — ẩn với Doscom và Noma, dùng menu Kiểm tra thay thế */}
+        {showQuizSection && (
           <section className="space-y-10">
             <div className="flex items-center gap-4">
               <Trophy className="w-8 h-8 text-emerald-500" />
