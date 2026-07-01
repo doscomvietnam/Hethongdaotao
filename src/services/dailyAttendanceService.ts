@@ -90,8 +90,7 @@ export async function getYesterdayOverdueForUser(
   const dateStr = getYesterdayDateStrVN();
   if (vnDayOfWeek(dateStr) === 0) return { overdue: false }; // Chủ nhật → bỏ qua
 
-  // STRICT: chỉ tính khi user thực sự submit quiz (quiz_completed_at được set khi
-  // saveQuizResult chạy). Bỏ qua updated_at vì nó cũng bị bump khi chỉ xem video.
+  // Kiểm tra training_progress (quiz khóa học)
   const { data, error } = await supabase
     .from('training_progress')
     .select('course_id, quiz_score, quiz_completed_at')
@@ -103,6 +102,16 @@ export async function getYesterdayOverdueForUser(
   }
   const submittedOnDate = (data || []).some((r: any) => isoToVNDateStr(r.quiz_completed_at) === dateStr);
   if (submittedOnDate) return { overdue: false };
+
+  // Kiểm tra daily_tests (bài kiểm tra hằng ngày từ menu Kiểm tra)
+  const { data: dtData } = await supabase
+    .from('daily_tests')
+    .select('test_id')
+    .eq('employee_id', employeeId)
+    .eq('test_date', dateStr)
+    .eq('status', 'submitted')
+    .limit(1);
+  if (dtData && dtData.length > 0) return { overdue: false };
 
   // Không submit hôm qua → kiểm tra miễn trừ
   const exempt = await hasUserCompletedAllCourses(employeeId, department);
@@ -139,18 +148,28 @@ export async function getOverdueEmployeesForDate(dateStr?: string): Promise<Over
     return [];
   }
 
-  // 2. STRICT: chỉ tính submit thực sự (quiz_score != null + quiz_completed_at trong ngày VN)
-  const { data: allSubmits, error: subErr } = await supabase
-    .from('training_progress')
-    .select('employee_id, quiz_score, quiz_completed_at')
-    .not('quiz_score', 'is', null);
-  if (subErr) {
-    console.error('getOverdueEmployees submits error:', subErr);
+  // 2. Lấy danh sách đã submit: training_progress (quiz khóa học) + daily_tests (kiểm tra hằng ngày)
+  const [submitsRes, dailyRes] = await Promise.all([
+    supabase
+      .from('training_progress')
+      .select('employee_id, quiz_score, quiz_completed_at')
+      .not('quiz_score', 'is', null),
+    supabase
+      .from('daily_tests')
+      .select('employee_id')
+      .eq('test_date', targetDate)
+      .eq('status', 'submitted'),
+  ]);
+  if (submitsRes.error) {
+    console.error('getOverdueEmployees submits error:', submitsRes.error);
     return [];
   }
   const submittedIds = new Set<string>();
-  for (const r of (allSubmits || []) as any[]) {
+  for (const r of (submitsRes.data || []) as any[]) {
     if (isoToVNDateStr(r.quiz_completed_at) === targetDate) submittedIds.add(r.employee_id);
+  }
+  for (const r of (dailyRes.data || []) as any[]) {
+    submittedIds.add(r.employee_id);
   }
   console.log(`[Overdue] === Debug cho ngày ${targetDate} ===`);
   console.log(`[Overdue] Tổng nhân viên active: ${employees.length}`);
@@ -241,16 +260,19 @@ export async function getOverdueEmployeesByDay(
   const endDate = new Date(`${endDateStr}T00:00:00.000Z`);
   if (startDate > endDate) return [];
 
-  // Load active employees + courses + progress
-  const [empRes, coursesRes, progressRes] = await Promise.all([
+  // Load active employees + courses + progress + daily_tests
+  const [empRes, coursesRes, progressRes, dailyRes] = await Promise.all([
     supabase.from('employees').select('id, full_name, department, email, employment_status').eq('employment_status', 'active'),
     supabase.from('courses').select('course_id, department, video_url, quiz_id, status').eq('status', 'active'),
     supabase.from('training_progress').select('employee_id, course_id, status, quiz_completed_at, updated_at, video_progress'),
+    supabase.from('daily_tests').select('employee_id, test_date').eq('status', 'submitted')
+      .gte('test_date', startDateStr).lte('test_date', endDateStr),
   ]);
   const employees = (empRes.data || []) as any[];
   if (employees.length === 0) return [];
   const allCourses = (coursesRes.data || []) as any[];
   const allProgress = (progressRes.data || []) as any[];
+  const allDailyTests = (dailyRes.data || []) as any[];
 
   // Group progress theo employee
   const progressByEmp = new Map<string, Map<string, any>>();
@@ -273,7 +295,9 @@ export async function getOverdueEmployeesByDay(
     if (completedAll) exemptIds.add(emp.id);
   }
 
-  const candidates = employees.filter((e) => !exemptIds.has(e.id));
+  const candidates = employees.filter((e) =>
+    !exemptIds.has(e.id) && (e.department || '').toLowerCase().trim() !== 'chủ tịch',
+  );
   const groups: OverdueDayGroup[] = [];
 
   // Iterate từng ngày làm việc
@@ -285,11 +309,14 @@ export async function getOverdueEmployeesByDay(
     const dd = String(d.getUTCDate()).padStart(2, '0');
     const dayStr = `${y}-${m}-${dd}`;
 
-    // STRICT: chỉ tính submit thực sự (có quiz_score + quiz_completed_at == ngày VN)
+    // Tổng hợp submitted: quiz khóa học + bài kiểm tra hằng ngày
     const submittedIds = new Set<string>();
     for (const p of allProgress) {
       if (p.quiz_score == null) continue;
       if (isoToVNDateStr(p.quiz_completed_at) === dayStr) submittedIds.add(p.employee_id);
+    }
+    for (const dt of allDailyTests) {
+      if (dt.test_date === dayStr) submittedIds.add(dt.employee_id);
     }
 
     const missedRows: OverdueEmployeeRow[] = [];
