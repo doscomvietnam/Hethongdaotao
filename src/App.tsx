@@ -228,17 +228,22 @@ function App() {
     const initAuth = async () => {
       let handledByEvent = false;
       try {
-        // Kiểm tra nếu URL chứa recovery token hoặc error
         const hash = window.location.hash;
         const searchParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(hash.replace('#', ''));
+        const currentPath = window.location.pathname.replace(/\/+$/, '');
 
-        const isRecovery =
+        // Implicit flow: #access_token=...&type=recovery
+        const isImplicitRecovery =
           hash.includes('type=recovery') ||
           searchParams.get('type') === 'recovery' ||
           hashParams.get('type') === 'recovery';
 
-        // Kiểm tra nếu link reset bị lỗi (hết hạn, không hợp lệ)
+        // PKCE flow: /reset-password?code=...
+        const isPkceRecovery =
+          currentPath.includes('reset-password') && !!searchParams.get('code');
+
+        // Link lỗi từ Supabase (hết hạn, không hợp lệ)
         const hashError = hashParams.get('error_description');
         if (hashError) {
           console.warn('[Auth] Link error:', hashError);
@@ -247,11 +252,18 @@ function App() {
           return;
         }
 
-        if (isRecovery) {
+        if (isImplicitRecovery || isPkceRecovery) {
           // Để onAuthStateChange xử lý PASSWORD_RECOVERY event —
-          // Supabase chỉ fire event đó sau khi session đã sẵn sàng.
-          // Giữ authLoading = true (loading screen) cho đến khi event được nhận.
+          // Supabase chỉ fire event sau khi session đã sẵn sàng.
+          // Giữ authLoading = true cho đến khi event được nhận.
+          // Nếu sau 8s không có event → link hết hạn, show trang reset với lỗi.
           handledByEvent = true;
+          setTimeout(() => {
+            if (isMounted) {
+              setAuthViewRaw('reset-password');
+              setAuthLoading(false);
+            }
+          }, 8000);
           return;
         }
 
@@ -743,7 +755,7 @@ function App() {
         break;
 
       case 'reset-password':
-        authPage = <ResetPasswordPage onSuccess={handleResetPasswordSuccess} />;
+        authPage = <ResetPasswordPage onSuccess={handleResetPasswordSuccess} onBackToLogin={() => setAuthView('forgot-password')} />;
         break;
 
       default:

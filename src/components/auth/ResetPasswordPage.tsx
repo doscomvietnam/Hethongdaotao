@@ -1,12 +1,13 @@
 import React from 'react';
-import { ShieldCheck, Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react';
-import { updatePassword, updateMustChangePassword, getCurrentUser } from '../../services/authService';
+import { ShieldCheck, Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertTriangle, KeyRound, RefreshCw } from 'lucide-react';
+import { updatePassword, updateMustChangePassword, getCurrentUser, getSession } from '../../services/authService';
 
 interface ResetPasswordPageProps {
     onSuccess: () => void;
+    onBackToLogin?: () => void;
 }
 
-export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps) {
+export default function ResetPasswordPage({ onSuccess, onBackToLogin }: ResetPasswordPageProps) {
     const [newPassword, setNewPassword] = React.useState('');
     const [confirmPassword, setConfirmPassword] = React.useState('');
     const [showPassword, setShowPassword] = React.useState(false);
@@ -14,6 +15,26 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
     const [isLoading, setIsLoading] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
     const [isSuccess, setIsSuccess] = React.useState(false);
+    // Kiểm tra session khi mở trang — nếu không có session, link đã hết hạn
+    const [sessionReady, setSessionReady] = React.useState<boolean | null>(null); // null = đang kiểm tra
+
+    React.useEffect(() => {
+        let cancelled = false;
+        const checkSession = async () => {
+            // Đợi tối đa 6 giây cho Supabase xử lý recovery token (PKCE hoặc implicit)
+            for (let i = 0; i < 12; i++) {
+                await new Promise(r => setTimeout(r, 500));
+                const session = await getSession();
+                if (session) {
+                    if (!cancelled) setSessionReady(true);
+                    return;
+                }
+            }
+            if (!cancelled) setSessionReady(false); // hết thời gian, không có session
+        };
+        checkSession();
+        return () => { cancelled = true; };
+    }, []);
 
     const validate = (): string | null => {
         if (newPassword.length < 6) {
@@ -91,7 +112,38 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
 
                 {/* Card */}
                 <div className="bg-zinc-950/80 backdrop-blur-xl border border-zinc-800/60 rounded-3xl p-8 shadow-2xl shadow-black/40">
-                    {!isSuccess ? (
+                    {/* Đang kiểm tra session */}
+                {sessionReady === null && !isSuccess && (
+                    <div className="text-center py-8">
+                        <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-4" />
+                        <p className="text-sm text-zinc-400 font-medium">Đang xác thực link đặt lại mật khẩu...</p>
+                    </div>
+                )}
+
+                {/* Link hết hạn / đã dùng */}
+                {sessionReady === false && !isSuccess && (
+                    <div className="text-center py-4">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/10 border border-red-500/20 mb-5">
+                            <AlertTriangle className="w-8 h-8 text-red-400" />
+                        </div>
+                        <h3 className="text-base font-black uppercase tracking-tight text-white mb-2">Link đã hết hạn</h3>
+                        <p className="text-xs text-zinc-500 leading-relaxed mb-6">
+                            Link đặt lại mật khẩu chỉ dùng được một lần và hết hạn sau 1 giờ.<br />
+                            Vui lòng yêu cầu gửi lại email.
+                        </p>
+                        {onBackToLogin && (
+                            <button
+                                onClick={onBackToLogin}
+                                className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-white font-black text-sm uppercase tracking-widest transition-all"
+                            >
+                                <RefreshCw className="w-4 h-4" />
+                                Gửi lại email
+                            </button>
+                        )}
+                    </div>
+                )}
+
+                {!isSuccess && sessionReady === true && (
                         <>
                             <div className="mb-8">
                                 <div className="flex items-center gap-3 mb-3">
@@ -216,7 +268,9 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                                 </button>
                             </form>
                         </>
-                    ) : (
+                )}
+
+                {isSuccess && (
                         /* Success */
                         <div className="text-center py-6">
                             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-6">
@@ -232,7 +286,7 @@ export default function ResetPasswordPage({ onSuccess }: ResetPasswordPageProps)
                                 <Loader2 className="w-5 h-5 animate-spin text-emerald-500 mx-auto" />
                             </div>
                         </div>
-                    )}
+                )}
                 </div>
 
                 {/* Footer */}
