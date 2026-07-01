@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShieldCheck, Lock, Eye, EyeOff, Loader2, CheckCircle2, AlertTriangle, KeyRound, RefreshCw } from 'lucide-react';
 import { updatePassword, updateMustChangePassword, getCurrentUser, getSession } from '../../services/authService';
+import { supabase } from '../../services/supabaseClient';
 
 interface ResetPasswordPageProps {
     onSuccess: () => void;
@@ -19,21 +20,29 @@ export default function ResetPasswordPage({ onSuccess, onBackToLogin }: ResetPas
     const [sessionReady, setSessionReady] = React.useState<boolean | null>(null); // null = đang kiểm tra
 
     React.useEffect(() => {
-        let cancelled = false;
-        const checkSession = async () => {
-            // Đợi tối đa 3 giây cho Supabase xử lý recovery token
-            for (let i = 0; i < 6; i++) {
-                await new Promise(r => setTimeout(r, 500));
-                const session = await getSession();
-                if (session) {
-                    if (!cancelled) setSessionReady(true);
-                    return;
-                }
+        let resolved = false;
+        const resolve = (ready: boolean) => {
+            if (!resolved) {
+                resolved = true;
+                setSessionReady(ready);
             }
-            if (!cancelled) setSessionReady(false);
         };
-        checkSession();
-        return () => { cancelled = true; };
+
+        // Lắng nghe PASSWORD_RECOVERY event — Supabase chỉ fire sau khi exchange thành công
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'PASSWORD_RECOVERY') resolve(true);
+        });
+
+        // Kiểm tra ngay nếu session đã có (exchange hoàn thành trước khi component mount)
+        getSession().then(s => { if (s) resolve(true); });
+
+        // Timeout 6 giây — nếu không có session, link hết hạn hoặc sai browser
+        const timer = setTimeout(() => resolve(false), 6000);
+
+        return () => {
+            subscription.unsubscribe();
+            clearTimeout(timer);
+        };
     }, []);
 
     const validate = (): string | null => {
@@ -128,8 +137,10 @@ export default function ResetPasswordPage({ onSuccess, onBackToLogin }: ResetPas
                         </div>
                         <h3 className="text-base font-black uppercase tracking-tight text-white mb-2">Link đã hết hạn</h3>
                         <p className="text-xs text-zinc-500 leading-relaxed mb-6">
-                            Link đặt lại mật khẩu chỉ dùng được một lần và hết hạn sau 1 giờ.<br />
-                            Vui lòng yêu cầu gửi lại email.
+                            Link không hợp lệ. Có thể do:<br />
+                            • Mở link trên trình duyệt khác với lúc yêu cầu<br />
+                            • Link đã hết hạn (quá 1 giờ)<br />
+                            • Link đã được sử dụng rồi
                         </p>
                         {onBackToLogin && (
                             <button

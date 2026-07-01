@@ -252,8 +252,8 @@ function App() {
           return;
         }
 
-        if (isImplicitRecovery || isPkceRecovery) {
-          // Hiện trang reset ngay (không đợi event), ResetPasswordPage tự check session.
+        if (isImplicitRecovery || isPkceRecovery || currentPath.includes('reset-password')) {
+          // Hiện trang reset ngay. ResetPasswordPage tự lắng nghe PASSWORD_RECOVERY event.
           handledByEvent = true;
           setAuthViewRaw('reset-password');
           setAuthLoading(false);
