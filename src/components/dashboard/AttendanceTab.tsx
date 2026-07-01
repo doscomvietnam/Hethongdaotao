@@ -516,9 +516,12 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
   const [loading, setLoading] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
 
+  const SYSTEM_START = { year: 2026, month: 7 }; // hệ thống bắt đầu tháng 7/2026
+
   React.useEffect(() => {
     setLoading(true);
-    getYearlySummary(year)
+    const startMonth = year === SYSTEM_START.year ? SYSTEM_START.month : 1;
+    getYearlySummary(year, startMonth)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false));

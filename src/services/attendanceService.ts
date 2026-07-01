@@ -152,7 +152,7 @@ export interface EmployeeYearlySummary {
 }
 
 /** Bulk-load toàn bộ dữ liệu 1 năm, tính ngày vắng theo tháng cho mỗi nhân viên */
-export async function getYearlySummary(year: number): Promise<{
+export async function getYearlySummary(year: number, startMonth: number = 1): Promise<{
   months: string[];
   rows: EmployeeYearlySummary[];
 }> {
@@ -161,11 +161,11 @@ export async function getYearlySummary(year: number): Promise<{
   const maxMonth = currentYM.startsWith(`${year}`) ? parseInt(currentYM.slice(5, 7)) : 12;
 
   const months: string[] = [];
-  for (let m = 1; m <= maxMonth; m++) {
+  for (let m = startMonth; m <= maxMonth; m++) {
     months.push(`${year}-${String(m).padStart(2, '0')}`);
   }
 
-  const startDate = `${year}-01-01`;
+  const startDate = `${year}-${String(startMonth).padStart(2, '0')}-01`;
   const endDate   = `${year}-12-31`;
 
   const [empsRes, holsRes, absRes, trainingRes, dailyRes] = await Promise.all([
