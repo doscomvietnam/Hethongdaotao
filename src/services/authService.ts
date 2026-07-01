@@ -69,6 +69,23 @@ export async function resetPasswordForEmail(email: string): Promise<void> {
 }
 
 /**
+ * Xác thực mã OTP từ email để lấy recovery session
+ */
+export async function verifyRecoveryOtp(email: string, token: string): Promise<void> {
+    const { error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: token.trim(),
+        type: 'recovery',
+    });
+    if (error) {
+        if (error.message.includes('expired') || error.message.includes('invalid')) {
+            throw new Error('Mã xác nhận không đúng hoặc đã hết hạn');
+        }
+        throw new Error('Xác nhận thất bại: ' + error.message);
+    }
+}
+
+/**
  * Đổi mật khẩu (dùng cho cả reset password từ email và change password khi đã đăng nhập)
  */
 export async function updatePassword(newPassword: string): Promise<void> {
