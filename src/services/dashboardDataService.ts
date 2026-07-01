@@ -696,11 +696,13 @@ export async function getQuizActivity3Months(): Promise<{
       .select('employee_id, test_date, score_percent')
       .eq('status', 'submitted')
       .gte('test_date', startDate)
-      .lte('test_date', todayStr),
+      .lte('test_date', todayStr)
+      .limit(10000),
     supabase
       .from('training_progress')
       .select('employee_id, quiz_score, quiz_passed, quiz_completed_at')
-      .gte('quiz_completed_at', startDate),
+      .gte('quiz_completed_at', startDate)
+      .limit(5000),
     supabase
       .from('employees')
       .select('id, full_name, department, skip_daily_quiz')
