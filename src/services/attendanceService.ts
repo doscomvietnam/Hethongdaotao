@@ -1,5 +1,49 @@
 import { supabase } from './supabaseClient';
 
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+
+function isoToVNDateLocal(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms + VN_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** Lấy tất cả ngày nhân viên đã nộp bài (quiz khóa học + bài kiểm tra hằng ngày) trong 1 tháng */
+export async function getQuizSubmissionsForMonth(
+  yearMonth: string,
+): Promise<Map<string, Set<string>>> {
+  const [trainingRes, dailyRes] = await Promise.all([
+    supabase
+      .from('training_progress')
+      .select('employee_id, quiz_completed_at')
+      .not('quiz_score', 'is', null)
+      .not('quiz_completed_at', 'is', null),
+    supabase
+      .from('daily_tests')
+      .select('employee_id, test_date')
+      .gte('test_date', `${yearMonth}-01`)
+      .lte('test_date', `${yearMonth}-31`)
+      .eq('status', 'submitted'),
+  ]);
+
+  const map = new Map<string, Set<string>>();
+  const add = (empId: string, date: string) => {
+    if (!map.has(empId)) map.set(empId, new Set());
+    map.get(empId)!.add(date);
+  };
+
+  for (const r of (trainingRes.data || []) as any[]) {
+    const vnDate = isoToVNDateLocal(r.quiz_completed_at);
+    if (vnDate?.startsWith(yearMonth)) add(r.employee_id, vnDate);
+  }
+  for (const r of (dailyRes.data || []) as any[]) {
+    if ((r.test_date as string)?.startsWith(yearMonth)) add(r.employee_id, r.test_date);
+  }
+
+  return map;
+}
+
 export interface AttendanceEmployee {
   id: string;
   fullName: string;

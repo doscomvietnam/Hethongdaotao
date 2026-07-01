@@ -1,16 +1,29 @@
 import * as React from 'react';
-import { ChevronLeft, ChevronRight, Sun, Building2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Building2, ClipboardList, Calendar, Download } from 'lucide-react';
 import {
   getAttendanceEmployees,
   getHolidays,
   getAbsences,
+  getQuizSubmissionsForMonth,
   toggleHoliday,
   toggleAbsence,
   type AttendanceEmployee,
 } from '../../services/attendanceService';
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function getVNMonth(): string {
   return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7);
+}
+
+function getVNYesterday(): string {
+  const nowVN = new Date(Date.now() + 7 * 3600 * 1000);
+  nowVN.setUTCDate(nowVN.getUTCDate() - 1);
+  return nowVN.toISOString().slice(0, 10);
+}
+
+function getVNToday(): string {
+  return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
 function getDaysInMonth(yearMonth: string): number {
@@ -18,9 +31,13 @@ function getDaysInMonth(yearMonth: string): number {
   return new Date(y, m, 0).getDate();
 }
 
-function isSunday(yearMonth: string, day: number): boolean {
+function getDayOfWeek(yearMonth: string, day: number): number {
   const [y, m] = yearMonth.split('-').map(Number);
-  return new Date(y, m - 1, day).getDay() === 0;
+  return new Date(y, m - 1, day).getDay(); // 0=Sun … 6=Sat
+}
+
+function isSunday(yearMonth: string, day: number): boolean {
+  return getDayOfWeek(yearMonth, day) === 0;
 }
 
 function dateStr(yearMonth: string, day: number): string {
@@ -39,15 +56,469 @@ function nextMonth(ym: string): string {
   return `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
+const DOW_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+// ── Cell logic for quiz results ───────────────────────────────────────────────
+
+type CellType = 'sun' | 'hol' | 'abs' | 'done' | 'miss' | 'pending';
+
+function getCellType(
+  yearMonth: string,
+  day: number,
+  empId: string,
+  holidays: Set<string>,
+  absences: Map<string, Set<string>>,
+  submissions: Map<string, Set<string>>,
+  yesterday: string,
+): CellType {
+  const date = dateStr(yearMonth, day);
+  if (isSunday(yearMonth, day)) return 'sun';
+  if (holidays.has(date)) return 'hol';
+  if (absences.get(empId)?.has(date)) return 'abs';
+  if (date > yesterday) return 'pending';
+  if (submissions.get(empId)?.has(date)) return 'done';
+  return 'miss';
+}
+
+function calcEmployeeStats(
+  empId: string,
+  yearMonth: string,
+  dayNumbers: number[],
+  holidays: Set<string>,
+  absences: Map<string, Set<string>>,
+  submissions: Map<string, Set<string>>,
+  yesterday: string,
+): { required: number; done: number; missed: number } {
+  let required = 0, done = 0, missed = 0;
+  for (const d of dayNumbers) {
+    const t = getCellType(yearMonth, d, empId, holidays, absences, submissions, yesterday);
+    if (t === 'sun' || t === 'hol' || t === 'abs' || t === 'pending') continue;
+    required++;
+    if (t === 'done') done++;
+    else missed++;
+  }
+  return { required, done, missed };
+}
+
+// ── Excel export ─────────────────────────────────────────────────────────────
+
+async function exportSalaryReport(
+  yearMonth: string,
+  employees: AttendanceEmployee[],
+  dayNumbers: number[],
+  holidays: Set<string>,
+  absences: Map<string, Set<string>>,
+  submissions: Map<string, Set<string>>,
+  yesterday: string,
+): Promise<void> {
+  const XLSX = await import('xlsx');
+  const [y, m] = yearMonth.split('-');
+  const wb = XLSX.utils.book_new();
+  const generatedAt = new Date().toLocaleString('vi-VN');
+
+  // ─── Sheet 1: Tổng hợp ───────────────────────────────────────────────────
+  const S1_HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Ngày phải làm', 'Ngày làm bài', 'Ngày vắng'];
+  const summaryRows = employees.map((emp, i) => {
+    const { required, done, missed } = calcEmployeeStats(emp.id, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
+    return [i + 1, emp.fullName, emp.department, required, done, missed];
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    [`BÁO CÁO ĐIỂM DANH LÀM BÀI — Tháng ${m}/${y}`],
+    [`Xuất lúc: ${generatedAt}`, '', '', '', '', ''],
+    [],
+    S1_HEADERS,
+    ...summaryRows,
+  ]);
+  ws1['!cols'] = [{ wch: 5 }, { wch: 28 }, { wch: 20 }, { wch: 16 }, { wch: 14 }, { wch: 12 }];
+  ws1['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: S1_HEADERS.length - 1 } }];
+  for (let c = 0; c < S1_HEADERS.length; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 3, c });
+    if (ws1[addr]) ws1[addr].s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '1D4ED8' } },
+      alignment: { horizontal: 'center' },
+    };
+  }
+  for (let r = 4; r < 4 + summaryRows.length; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: 5 });
+    if (ws1[addr]?.v > 0) ws1[addr].s = { font: { bold: true, color: { rgb: 'DC2626' } } };
+  }
+  XLSX.utils.book_append_sheet(wb, ws1, 'Tổng hợp');
+
+  // ─── Sheet 2: Chi tiết ngày ───────────────────────────────────────────────
+  const cellLabel = (t: CellType) =>
+    ({ sun: 'CN', hol: 'Lễ', abs: 'Nghỉ', done: '✓', miss: 'X', pending: '·' })[t];
+
+  const S2_HEADERS = [
+    'Họ và tên', 'Phòng ban',
+    ...dayNumbers.map(d => `${d} (${DOW_LABEL[getDayOfWeek(yearMonth, d)]})`),
+    'Tổng vắng',
+  ];
+  const detailRows = employees.map(emp => {
+    const cells = dayNumbers.map(d =>
+      cellLabel(getCellType(yearMonth, d, emp.id, holidays, absences, submissions, yesterday))
+    );
+    const { missed } = calcEmployeeStats(emp.id, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
+    return [emp.fullName, emp.department, ...cells, missed];
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    [`CHI TIẾT LÀM BÀI — Tháng ${m}/${y}`],
+    [],
+    S2_HEADERS,
+    ...detailRows,
+  ]);
+  ws2['!cols'] = [{ wch: 28 }, { wch: 18 }, ...dayNumbers.map(() => ({ wch: 6 })), { wch: 10 }];
+  ws2['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: S2_HEADERS.length - 1 } }];
+  for (let c = 0; c < S2_HEADERS.length; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 2, c });
+    if (ws2[addr]) ws2[addr].s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '374151' } },
+      alignment: { horizontal: 'center' },
+    };
+  }
+  XLSX.utils.book_append_sheet(wb, ws2, 'Chi tiết');
+
+  XLSX.writeFile(wb, `diem-danh-lam-bai_${yearMonth}.xlsx`);
+}
+
+// ── Config View: Quản lý ngày nghỉ (giữ nguyên nội dung cũ) ─────────────────
+
+function ConfigView({
+  month, dayNumbers, employees, holidays, absences, saving, onToggleHoliday, onToggleAbsence, deptFilter,
+}: {
+  month: string;
+  dayNumbers: number[];
+  employees: AttendanceEmployee[];
+  holidays: Set<string>;
+  absences: Map<string, Set<string>>;
+  saving: string | null;
+  onToggleHoliday: (day: number) => void;
+  onToggleAbsence: (empId: string, day: number) => void;
+  deptFilter: string;
+}) {
+  const filtered = deptFilter === 'Tất cả' ? employees : employees.filter(e => e.department === deptFilter);
+
+  return (
+    <>
+      <div className="flex gap-4 text-[10px] font-bold text-zinc-500">
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-zinc-800 inline-block" /><Sun className="w-3 h-3 text-zinc-600" />Chủ nhật</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-500/30 inline-block" />Ngày lễ</span>
+        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500/30 inline-block" />Nghỉ cá nhân</span>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
+        <table className="min-w-max text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-zinc-800">
+              <th className="sticky left-0 z-10 bg-zinc-950 px-4 py-2 text-left min-w-[180px] border-r border-zinc-800">
+                <div className="flex items-center gap-1.5 text-zinc-600">
+                  <Building2 className="w-3 h-3" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Nhân viên</span>
+                </div>
+              </th>
+              {dayNumbers.map(d => {
+                const sunday = isSunday(month, d);
+                const date = dateStr(month, d);
+                const isHol = holidays.has(date);
+                return (
+                  <th key={d}
+                    onClick={() => !sunday && onToggleHoliday(d)}
+                    className={`w-8 min-w-[32px] py-1.5 text-center font-black border-r border-zinc-900 last:border-r-0 select-none transition-colors ${
+                      sunday
+                        ? 'bg-zinc-900 text-zinc-700 cursor-default'
+                        : isHol
+                          ? 'bg-orange-500/25 text-orange-300 cursor-pointer hover:bg-orange-500/35'
+                          : 'bg-zinc-950 text-zinc-500 cursor-pointer hover:bg-orange-500/10 hover:text-orange-400'
+                    }`}>
+                    <div>{d}</div>
+                    {sunday && <Sun className="w-2.5 h-2.5 mx-auto text-zinc-700 mt-0.5" />}
+                    {isHol && <span className="text-[8px] text-orange-400 block leading-none">Lễ</span>}
+                  </th>
+                );
+              })}
+              <th className="px-3 py-2 text-center text-zinc-600 text-[10px] font-black uppercase tracking-widest min-w-[80px]">
+                Tổng nghỉ
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((emp, idx) => {
+              const empAbsences = absences.get(emp.id) ?? new Set<string>();
+              return (
+                <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'} hover:bg-zinc-900/40 transition-colors`}>
+                  <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'}`}>
+                    <div className="font-bold text-zinc-200 truncate max-w-[160px]">{emp.fullName}</div>
+                    <div className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</div>
+                  </td>
+                  {dayNumbers.map(d => {
+                    const sunday = isSunday(month, d);
+                    const date = dateStr(month, d);
+                    const isHol = holidays.has(date);
+                    const isAbsent = empAbsences.has(date);
+                    const key = `${emp.id}-${d}`;
+                    const isSaving = saving === key;
+                    return (
+                      <td key={d}
+                        onClick={() => !sunday && !isHol && onToggleAbsence(emp.id, d)}
+                        className={`border-r border-zinc-900 last:border-r-0 text-center transition-colors select-none ${
+                          sunday
+                            ? 'bg-zinc-900/60 cursor-default'
+                            : isHol
+                              ? 'bg-orange-500/10 cursor-default'
+                              : isAbsent
+                                ? 'bg-red-500/25 cursor-pointer hover:bg-red-500/35'
+                                : 'cursor-pointer hover:bg-red-500/10'
+                        }`}>
+                        {isSaving ? (
+                          <span className="text-zinc-600">·</span>
+                        ) : isAbsent ? (
+                          <span className="text-red-400 font-black text-[10px]">N</span>
+                        ) : isHol ? (
+                          <span className="text-orange-400/50 text-[10px]">—</span>
+                        ) : sunday ? (
+                          <span className="text-zinc-800 text-[10px]">·</span>
+                        ) : null}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center">
+                    {empAbsences.size > 0 ? (
+                      <span className="text-red-400 font-black text-[11px]">{empAbsences.size} ngày</span>
+                    ) : (
+                      <span className="text-zinc-700 text-[10px]">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// ── Results View: Kết quả làm bài ────────────────────────────────────────────
+
+function ResultsView({
+  month, dayNumbers, employees, holidays, absences, submissions, deptFilter, yesterday,
+}: {
+  month: string;
+  dayNumbers: number[];
+  employees: AttendanceEmployee[];
+  holidays: Set<string>;
+  absences: Map<string, Set<string>>;
+  submissions: Map<string, Set<string>>;
+  deptFilter: string;
+  yesterday: string;
+}) {
+  const [exporting, setExporting] = React.useState(false);
+  const todayStr = getVNToday();
+
+  const filtered = deptFilter === 'Tất cả' ? employees : employees.filter(e => e.department === deptFilter);
+
+  const CELL_CLS: Record<CellType, string> = {
+    sun: 'bg-zinc-900/60',
+    hol: 'bg-orange-500/10',
+    abs: 'bg-violet-500/15',
+    done: 'bg-emerald-500/10',
+    miss: 'bg-red-500/20',
+    pending: '',
+  };
+
+  const renderCell = (t: CellType) => {
+    switch (t) {
+      case 'sun':     return <span className="text-zinc-800 text-[9px]">·</span>;
+      case 'hol':     return <span className="text-orange-400 font-black text-[9px]">L</span>;
+      case 'abs':     return <span className="text-violet-400 font-black text-[9px]">N</span>;
+      case 'done':    return <span className="text-emerald-400 font-black text-[11px]">✓</span>;
+      case 'miss':    return <span className="text-red-400 font-black text-[10px]">X</span>;
+      case 'pending': return <span className="text-zinc-700 text-[9px]">·</span>;
+    }
+  };
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportSalaryReport(month, employees, dayNumbers, holidays, absences, submissions, yesterday);
+    } catch (e) {
+      console.error('Export error:', e);
+      alert('Lỗi xuất Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <>
+      {/* Legend + Export */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-3 flex-wrap text-[10px] font-bold text-zinc-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-emerald-500/15 inline-block border border-emerald-500/20" />
+            <span className="text-emerald-400">✓</span> Đã làm bài
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-red-500/20 inline-block border border-red-500/20" />
+            <span className="text-red-400">X</span> Vắng — trừ lương
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-violet-500/15 inline-block border border-violet-500/20" />
+            <span className="text-violet-400">N</span> Nghỉ có phép
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-orange-500/10 inline-block border border-orange-500/20" />
+            <span className="text-orange-400">L</span> Ngày lễ
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-zinc-900 inline-block" />CN / Chưa tính
+          </span>
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-wide hover:bg-blue-500/25 transition-all disabled:opacity-50"
+        >
+          <Download className="w-3.5 h-3.5" />
+          {exporting ? 'Đang xuất...' : 'Xuất Excel trừ lương'}
+        </button>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
+        <table className="min-w-max text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-zinc-800">
+              <th className="sticky left-0 z-10 bg-zinc-950 px-4 py-2 text-left min-w-[200px] border-r border-zinc-800">
+                <div className="flex items-center gap-1.5 text-zinc-600">
+                  <Building2 className="w-3 h-3" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Nhân viên</span>
+                </div>
+              </th>
+              {dayNumbers.map(d => {
+                const dow = getDayOfWeek(month, d);
+                const sunday = dow === 0;
+                const date = dateStr(month, d);
+                const isToday = date === todayStr;
+                return (
+                  <th key={d}
+                    className={`w-8 min-w-[30px] py-1 text-center border-r border-zinc-900 last:border-r-0 ${
+                      isToday
+                        ? 'bg-blue-500/15 ring-1 ring-inset ring-blue-500/30'
+                        : sunday
+                          ? 'bg-zinc-900'
+                          : 'bg-zinc-950'
+                    }`}>
+                    <div className={`font-black text-[10px] ${isToday ? 'text-blue-300' : sunday ? 'text-zinc-700' : 'text-zinc-500'}`}>
+                      {d}
+                    </div>
+                    <div className={`text-[8px] font-bold ${
+                      isToday ? 'text-blue-400' : sunday ? 'text-zinc-700' : dow === 6 ? 'text-blue-700' : 'text-zinc-700'
+                    }`}>
+                      {DOW_LABEL[dow]}
+                    </div>
+                  </th>
+                );
+              })}
+              <th className="px-3 py-2 text-center text-red-500/80 text-[10px] font-black uppercase tracking-widest min-w-[90px] border-l border-zinc-800">
+                Ngày vắng
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((emp, idx) => {
+              const { required, done, missed } = calcEmployeeStats(emp.id, month, dayNumbers, holidays, absences, submissions, yesterday);
+              const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
+              return (
+                <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
+                  <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${bg}`}>
+                    <div className="font-bold text-zinc-200 truncate max-w-[180px]">{emp.fullName}</div>
+                    <div className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</div>
+                  </td>
+                  {dayNumbers.map(d => {
+                    const t = getCellType(month, d, emp.id, holidays, absences, submissions, yesterday);
+                    const date = dateStr(month, d);
+                    const isToday = date === todayStr;
+                    return (
+                      <td key={d}
+                        className={`border-r border-zinc-900 last:border-r-0 text-center ${CELL_CLS[t]} ${isToday ? 'ring-1 ring-inset ring-blue-500/20' : ''}`}>
+                        {renderCell(t)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center border-l border-zinc-800">
+                    {missed > 0 ? (
+                      <div>
+                        <span className="text-red-400 font-black text-[12px]">{missed}</span>
+                        <span className="text-[9px] text-zinc-600 font-bold ml-1">/{required}</span>
+                      </div>
+                    ) : required > 0 ? (
+                      <span className="text-emerald-500 font-black text-[11px]">✓</span>
+                    ) : (
+                      <span className="text-zinc-700 text-[10px]">—</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+
+            {/* Summary footer row */}
+            {filtered.length > 0 && (
+              <tr className="border-t border-zinc-700 bg-zinc-900/50">
+                <td className="sticky left-0 z-10 bg-zinc-900 px-4 py-2 border-r border-zinc-800">
+                  <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Tổng vắng / ngày</div>
+                </td>
+                {dayNumbers.map(d => {
+                  const date = dateStr(month, d);
+                  if (isSunday(month, d) || holidays.has(date) || date > yesterday) {
+                    return <td key={d} className="border-r border-zinc-900 last:border-r-0 text-center bg-zinc-900/30" />;
+                  }
+                  const missCount = filtered.filter(emp => {
+                    const t = getCellType(month, d, emp.id, holidays, absences, submissions, yesterday);
+                    return t === 'miss';
+                  }).length;
+                  return (
+                    <td key={d} className="border-r border-zinc-900 last:border-r-0 text-center">
+                      {missCount > 0 ? (
+                        <span className="text-red-400 font-black text-[10px]">{missCount}</span>
+                      ) : (
+                        <span className="text-emerald-600 text-[9px]">—</span>
+                      )}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-2 text-center border-l border-zinc-800">
+                  <span className="text-red-400 font-black text-[11px]">
+                    {filtered.reduce((sum, emp) => {
+                      const { missed } = calcEmployeeStats(emp.id, month, dayNumbers, holidays, absences, submissions, yesterday);
+                      return sum + missed;
+                    }, 0)}
+                  </span>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// ── Main AttendanceTab ────────────────────────────────────────────────────────
+
 export function AttendanceTab() {
   const [month, setMonth] = React.useState(getVNMonth);
+  const [view, setView] = React.useState<'results' | 'config'>('results');
   const [employees, setEmployees] = React.useState<AttendanceEmployee[]>([]);
   const [holidays, setHolidays] = React.useState<Set<string>>(new Set());
   const [absences, setAbsences] = React.useState<Map<string, Set<string>>>(new Map());
+  const [submissions, setSubmissions] = React.useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState<string | null>(null); // key đang save
+  const [saving, setSaving] = React.useState<string | null>(null);
   const [deptFilter, setDeptFilter] = React.useState('Tất cả');
 
+  const yesterday = getVNYesterday();
   const days = getDaysInMonth(month);
   const dayNumbers = Array.from({ length: days }, (_, i) => i + 1);
 
@@ -56,22 +527,19 @@ export function AttendanceTab() {
     return ['Tất cả', ...depts];
   }, [employees]);
 
-  const filtered = React.useMemo(() =>
-    deptFilter === 'Tất cả' ? employees : employees.filter(e => e.department === deptFilter),
-    [employees, deptFilter]
-  );
-
   const loadData = React.useCallback(async (ym: string) => {
     setLoading(true);
     try {
-      const [emps, hols, abs] = await Promise.all([
+      const [emps, hols, abs, subs] = await Promise.all([
         getAttendanceEmployees(),
         getHolidays(ym),
         getAbsences(ym),
+        getQuizSubmissionsForMonth(ym),
       ]);
       setEmployees(emps);
       setHolidays(hols);
       setAbsences(abs);
+      setSubmissions(subs);
     } catch (e) {
       console.error('Attendance load error:', e);
     } finally {
@@ -121,150 +589,100 @@ export function AttendanceTab() {
   const [mY, mM] = month.split('-');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h2 className="text-xl font-black text-white tracking-tight">Điểm Danh Nhân Viên</h2>
           <p className="text-[11px] text-zinc-500 font-bold mt-0.5">
-            Click ô ngày để đánh dấu nghỉ · Click hàng lễ để đánh dấu toàn công ty nghỉ
+            {view === 'results'
+              ? 'Kết quả làm bài quiz mỗi ngày · X = vắng tính trừ lương'
+              : 'Click ô ngày để đánh dấu nghỉ · Click hàng lễ để đánh dấu toàn công ty nghỉ'}
           </p>
         </div>
 
         {/* Month navigation */}
         <div className="flex items-center gap-2">
-          <button onClick={() => setMonth(prevMonth(month))} className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white transition-all">
+          <button onClick={() => setMonth(prevMonth(month))}
+            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white transition-all">
             <ChevronLeft className="w-4 h-4" />
           </button>
           <span className="text-white font-black text-sm min-w-[120px] text-center">
             Tháng {mM}/{mY}
           </span>
-          <button onClick={() => setMonth(nextMonth(month))} className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white transition-all">
+          <button onClick={() => setMonth(nextMonth(month))}
+            className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-white transition-all">
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Department filter */}
-      <div className="flex gap-2 flex-wrap">
-        {departments.map(d => (
-          <button key={d} onClick={() => setDeptFilter(d)}
-            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all border ${
-              deptFilter === d
-                ? 'bg-blue-500/20 border-blue-500/40 text-blue-300'
-                : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+      {/* View toggle */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
+          <button
+            onClick={() => setView('results')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all ${
+              view === 'results' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
             }`}>
-            {d}
+            <ClipboardList className="w-3.5 h-3.5" />
+            Kết quả làm bài
           </button>
-        ))}
-      </div>
+          <button
+            onClick={() => setView('config')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all ${
+              view === 'config' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+            }`}>
+            <Calendar className="w-3.5 h-3.5" />
+            Quản lý ngày nghỉ
+          </button>
+        </div>
 
-      {/* Legend */}
-      <div className="flex gap-4 text-[10px] font-bold text-zinc-500">
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-zinc-800 inline-block"/><Sun className="w-3 h-3 text-zinc-600"/>Chủ nhật</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-orange-500/30 inline-block"/>Ngày lễ</span>
-        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-500/30 inline-block"/>Nghỉ</span>
+        {/* Department filter */}
+        <div className="flex gap-2 flex-wrap">
+          {departments.map(d => (
+            <button key={d} onClick={() => setDeptFilter(d)}
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all border ${
+                deptFilter === d
+                  ? 'bg-blue-500/20 border-blue-500/40 text-blue-300'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+              }`}>
+              {d}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
         <div className="text-center py-16 text-zinc-600 font-bold text-sm">Đang tải...</div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
-          <table className="min-w-max text-xs border-collapse">
-            <thead>
-              {/* Holiday row — click để toggle ngày lễ */}
-              <tr className="border-b border-zinc-800">
-                <th className="sticky left-0 z-10 bg-zinc-950 px-4 py-2 text-left min-w-[180px] border-r border-zinc-800">
-                  <div className="flex items-center gap-1.5 text-zinc-600">
-                    <Building2 className="w-3 h-3"/>
-                    <span className="text-[10px] font-black uppercase tracking-widest">Nhân viên</span>
-                  </div>
-                </th>
-                {dayNumbers.map(d => {
-                  const sunday = isSunday(month, d);
-                  const date = dateStr(month, d);
-                  const isHol = holidays.has(date);
-                  return (
-                    <th key={d}
-                      onClick={() => !sunday && handleToggleHoliday(d)}
-                      className={`w-8 min-w-[32px] py-1.5 text-center font-black border-r border-zinc-900 last:border-r-0 select-none transition-colors ${
-                        sunday
-                          ? 'bg-zinc-900 text-zinc-700 cursor-default'
-                          : isHol
-                            ? 'bg-orange-500/25 text-orange-300 cursor-pointer hover:bg-orange-500/35'
-                            : 'bg-zinc-950 text-zinc-500 cursor-pointer hover:bg-orange-500/10 hover:text-orange-400'
-                      }`}>
-                      <div>{d}</div>
-                      {sunday && <Sun className="w-2.5 h-2.5 mx-auto text-zinc-700 mt-0.5"/>}
-                      {isHol && <span className="text-[8px] text-orange-400 block leading-none">Lễ</span>}
-                    </th>
-                  );
-                })}
-                <th className="px-3 py-2 text-center text-zinc-600 text-[10px] font-black uppercase tracking-widest min-w-[80px]">
-                  Tổng nghỉ
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((emp, idx) => {
-                const empAbsences = absences.get(emp.id) ?? new Set<string>();
-                const totalAbsent = empAbsences.size;
-                return (
-                  <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'} hover:bg-zinc-900/40 transition-colors`}>
-                    {/* Tên */}
-                    <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'}`}>
-                      <div className="font-bold text-zinc-200 truncate max-w-[160px]">{emp.fullName}</div>
-                      <div className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</div>
-                    </td>
-
-                    {/* Ngày */}
-                    {dayNumbers.map(d => {
-                      const sunday = isSunday(month, d);
-                      const date = dateStr(month, d);
-                      const isHol = holidays.has(date);
-                      const isAbsent = empAbsences.has(date);
-                      const key = `${emp.id}-${d}`;
-                      const isSaving = saving === key;
-
-                      return (
-                        <td key={d}
-                          onClick={() => !sunday && !isHol && handleToggleAbsence(emp.id, d)}
-                          className={`border-r border-zinc-900 last:border-r-0 text-center transition-colors select-none ${
-                            sunday
-                              ? 'bg-zinc-900/60 cursor-default'
-                              : isHol
-                                ? 'bg-orange-500/10 cursor-default'
-                                : isAbsent
-                                  ? 'bg-red-500/25 cursor-pointer hover:bg-red-500/35'
-                                  : 'cursor-pointer hover:bg-red-500/10'
-                          }`}>
-                          {isSaving ? (
-                            <span className="text-zinc-600">·</span>
-                          ) : isAbsent ? (
-                            <span className="text-red-400 font-black text-[10px]">N</span>
-                          ) : isHol ? (
-                            <span className="text-orange-400/50 text-[10px]">—</span>
-                          ) : sunday ? (
-                            <span className="text-zinc-800 text-[10px]">·</span>
-                          ) : null}
-                        </td>
-                      );
-                    })}
-
-                    {/* Tổng nghỉ */}
-                    <td className="px-3 py-2 text-center">
-                      {totalAbsent > 0 ? (
-                        <span className="text-red-400 font-black text-[11px]">{totalAbsent} ngày</span>
-                      ) : (
-                        <span className="text-zinc-700 text-[10px]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <>
+          {view === 'results' && (
+            <ResultsView
+              month={month}
+              dayNumbers={dayNumbers}
+              employees={employees}
+              holidays={holidays}
+              absences={absences}
+              submissions={submissions}
+              deptFilter={deptFilter}
+              yesterday={yesterday}
+            />
+          )}
+          {view === 'config' && (
+            <ConfigView
+              month={month}
+              dayNumbers={dayNumbers}
+              employees={employees}
+              holidays={holidays}
+              absences={absences}
+              saving={saving}
+              onToggleHoliday={handleToggleHoliday}
+              onToggleAbsence={handleToggleAbsence}
+              deptFilter={deptFilter}
+            />
+          )}
+        </>
       )}
     </div>
   );
