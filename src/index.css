@@ -79,6 +79,22 @@
   background: #27272A;
 }
 
+/* Scrollbar đậm cho bảng điểm danh */
+.attendance-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+.attendance-scroll::-webkit-scrollbar-track {
+  background: #3F3F46;
+  border-radius: 10px;
+}
+.attendance-scroll::-webkit-scrollbar-thumb {
+  background: #52525B;
+  border-radius: 10px;
+}
+.attendance-scroll::-webkit-scrollbar-thumb:hover {
+  background: #71717A;
+}
+
 @keyframes pulse-slow {
   0%, 100% {
     opacity: 1;

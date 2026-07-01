@@ -22,6 +22,7 @@ import {
   PanelLeft,
   ExternalLink,
   ClipboardCheck,
+  CalendarDays,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -85,6 +86,7 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.ONBOARDING_TEST, icon: ClipboardCheck, label: 'Test Onboarding', roles: ['admin', 'manager', 'employee'], show: hasOnboarding },
+    { id: ViewType.ATTENDANCE, icon: CalendarDays, label: 'Điểm danh', roles: ['admin', 'manager'], show: true },
     { id: ViewType.ADMIN, icon: Settings, label: 'Quản trị hệ thống', roles: ['admin', 'manager'], show: true },
   ];
 
@@ -773,6 +775,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.EXAM_WHEEL]: 'exam-wheel',
       [ViewType.DAILY_TEST]: 'exam-hub',
       [ViewType.ONBOARDING_TEST]: 'onboarding-test',
+      [ViewType.ATTENDANCE]: 'attendance',
     };
     onNavigate(viewMap[view] || 'dashboard');
   };

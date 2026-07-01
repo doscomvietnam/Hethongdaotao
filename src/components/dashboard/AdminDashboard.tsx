@@ -150,7 +150,7 @@ function QuizActivity3Months() {
       <SectionHeader
         icon={CalendarDays}
         title="Hoạt động Kiểm Tra 3 tháng"
-        subtitle="Tỷ lệ hoàn thành = số ngày đạt / tổng ngày làm việc trong tháng"
+        subtitle="Tỷ lệ hoàn thành = số ngày có làm / tổng ngày làm việc trong tháng"
         color="text-sky-400"
         bg="bg-sky-500/10"
         ring="ring-sky-500/30"
@@ -222,21 +222,13 @@ function QuizActivity3Months() {
                   <td className="py-2 px-3 text-zinc-500 text-[10px] font-bold truncate">{emp.department}</td>
                   {emp.months.map((m: MonthStat) => {
                     const wd = workdayMap[m.month] ?? 0;
-                    const pct = wd > 0 ? Math.round(m.passed / wd * 100) : 0;
                     return (
                       <td key={m.month} className="py-2 px-3 text-center align-top">
                         {wd === 0 ? (
                           <span className="text-zinc-700 font-bold">—</span>
                         ) : (
                           <div className="inline-flex flex-col items-center gap-1">
-                            {/* Tỷ lệ hoàn thành ngày */}
-                            <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${cellBg(m.passed, wd)}`}>
-                              <span className={`font-black text-xs ${cellColor(m.passed, wd)}`}>{pct}%</span>
-                              <span className="text-[9px] text-zinc-500 font-bold">{m.passed}/{wd} ngày đạt</span>
-                              {m.done > m.passed && (
-                                <span className="text-[8px] text-zinc-600 font-bold">({m.done} đã làm)</span>
-                              )}
-                            </div>
+                            <span className="text-[9px] text-zinc-400 font-bold">{m.done}/{wd} ngày làm</span>
                             {/* Điểm TB tháng */}
                             {m.monthAvgScore != null ? (
                               <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${m.monthScorePassed ? 'bg-emerald-500/10' : 'bg-red-500/10'}`}>
@@ -260,12 +252,7 @@ function QuizActivity3Months() {
                   })}
                   <td className="py-2 px-3 text-center align-top">
                     <div className="inline-flex flex-col items-center gap-1">
-                      <div className={`flex flex-col items-center rounded-lg px-2 py-1 ${cellBg(emp.totalPassed, totalWorkdays)}`}>
-                        <span className={`font-black text-xs ${cellColor(emp.totalPassed, totalWorkdays)}`}>
-                          {totalWorkdays > 0 ? Math.round(emp.totalPassed / totalWorkdays * 100) : 0}%
-                        </span>
-                        <span className="text-[9px] text-zinc-500 font-bold">{emp.totalPassed}/{totalWorkdays} ngày</span>
-                      </div>
+                      <span className="text-[9px] text-zinc-400 font-bold">{emp.totalDone}/{totalWorkdays} ngày làm</span>
                       {(emp.totalCourseCount + emp.totalDone) > 0 && (() => {
                         const allMonthScores = emp.months.flatMap(m =>
                           m.monthAvgScore != null ? [m.monthAvgScore] : []
@@ -300,7 +287,7 @@ function QuizActivity3Months() {
         <span className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Điểm tháng:</span>
         <span className="text-[9px] text-emerald-400 font-bold">✓ ≥80% Đạt</span>
         <span className="text-[9px] text-red-400 font-bold">✗ &lt;80% Chưa đạt</span>
-        <span className="text-[9px] text-zinc-500 ml-auto font-bold">HT% = ngày đạt / ngày làm việc · Điểm = TB kiểm tra hằng ngày + khóa học</span>
+        <span className="text-[9px] text-zinc-500 ml-auto font-bold">HT% = ngày có làm / ngày làm việc · Điểm = TB kiểm tra hằng ngày + khóa học</span>
       </div>
     </Card>
   );

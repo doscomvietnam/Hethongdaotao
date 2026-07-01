@@ -16,6 +16,7 @@ export enum ViewType {
   EXAM_WHEEL = 'exam-wheel',
   DAILY_TEST = 'daily-test',
   ONBOARDING_TEST = 'onboarding-test',
+  ATTENDANCE = 'attendance',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';

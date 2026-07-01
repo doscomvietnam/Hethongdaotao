@@ -12,6 +12,7 @@ import ExamWheelPage from "./components/exam/ExamWheelPage";
 import DailyTestView from "./components/daily-test/DailyTestView";
 import OnboardingTestPage from "./components/onboarding-test/OnboardingTestPage";
 import OnboardingTestView from "./components/onboarding-test/OnboardingTestView";
+import { AttendanceTab } from "./components/dashboard/AttendanceTab";
 
 import LoginPage from "./components/auth/LoginPage";
 import ForgotPasswordPage from "./components/auth/ForgotPasswordPage";
@@ -85,6 +86,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.EXAM_WHEEL]: '/exam/wheel',
   [ViewType.DAILY_TEST]: '/daily-test',
   [ViewType.ONBOARDING_TEST]: '/onboarding-test',
+  [ViewType.ATTENDANCE]: '/attendance',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -121,6 +123,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.DAILY_TEST };
     case 'onboarding-test':
       return { view: ViewType.ONBOARDING_TEST };
+    case 'attendance':
+      return { view: ViewType.ATTENDANCE };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -222,14 +226,15 @@ function App() {
     let isMounted = true;
 
     const initAuth = async () => {
+      let handledByEvent = false;
       try {
         // Kiểm tra nếu URL chứa recovery token hoặc error
         const hash = window.location.hash;
         const searchParams = new URLSearchParams(window.location.search);
         const hashParams = new URLSearchParams(hash.replace('#', ''));
-        
-        const isRecovery = 
-          hash.includes('type=recovery') || 
+
+        const isRecovery =
+          hash.includes('type=recovery') ||
           searchParams.get('type') === 'recovery' ||
           hashParams.get('type') === 'recovery';
 
@@ -237,17 +242,16 @@ function App() {
         const hashError = hashParams.get('error_description');
         if (hashError) {
           console.warn('[Auth] Link error:', hashError);
-          // Xóa hash khỏi URL
           window.history.replaceState(null, '', window.location.pathname);
           setAuthLoading(false);
           return;
         }
 
         if (isRecovery) {
-          // Đợi Supabase xử lý token từ URL
-          await new Promise(resolve => setTimeout(resolve, 500));
-          setAuthView('reset-password');
-          setAuthLoading(false);
+          // Để onAuthStateChange xử lý PASSWORD_RECOVERY event —
+          // Supabase chỉ fire event đó sau khi session đã sẵn sàng.
+          // Giữ authLoading = true (loading screen) cho đến khi event được nhận.
+          handledByEvent = true;
           return;
         }
 
@@ -292,7 +296,7 @@ function App() {
       } catch (error) {
         console.error('Auth init error:', error);
       } finally {
-        if (isMounted) {
+        if (isMounted && !handledByEvent) {
           setAuthLoading(false);
         }
       }
@@ -303,8 +307,10 @@ function App() {
     // Lắng nghe auth state changes (ví dụ: token refresh, password recovery)
     const subscription = onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
+        // Supabase fire event này sau khi session đã sẵn sàng → an toàn để show trang reset
         if (isMounted) {
           setAuthView('reset-password');
+          setAuthLoading(false);
         }
       }
 
@@ -561,6 +567,9 @@ function App() {
       case "onboarding-test":
         setOnboardingTestActive(false);
         setCurrentView(ViewType.ONBOARDING_TEST);
+        break;
+      case "attendance":
+        setCurrentView(ViewType.ATTENDANCE);
         break;
       default:
         setCurrentView(ViewType.DASHBOARD);
@@ -999,6 +1008,10 @@ function App() {
           />
         );
       }
+
+      case ViewType.ATTENDANCE:
+        if (employee.role === 'employee') return null;
+        return <AttendanceTab />;
 
       default:
         return null;

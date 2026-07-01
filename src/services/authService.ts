@@ -131,17 +131,15 @@ export async function getEmployeeProfile(authUserId: string): Promise<Employee |
 }
 
 /**
- * Cập nhật must_change_password = false sau khi đổi mật khẩu
+ * Xóa must_change_password = false sau khi đổi mật khẩu.
+ * Dùng RPC (SECURITY DEFINER) để bypass RLS — nhân viên thường không có quyền UPDATE employees trực tiếp.
+ * Admin đặt lại flag qua EmployeeManagement (dùng service role / admin client).
  */
-export async function updateMustChangePassword(authUserId: string, value: boolean): Promise<void> {
-    const { error } = await supabase
-        .from('employees')
-        .update({ must_change_password: value })
-        .eq('auth_user_id', authUserId);
-
+export async function updateMustChangePassword(_authUserId: string, _value: boolean): Promise<void> {
+    const { error } = await supabase.rpc('clear_own_must_change_password');
     if (error) {
         console.error('Lỗi cập nhật must_change_password:', error.message);
-        throw new Error('Không thể cập nhật trạng thái mật khẩu');
+        throw new Error('Không thể cập nhật trạng thái mật khẩu: ' + error.message);
     }
 }
 

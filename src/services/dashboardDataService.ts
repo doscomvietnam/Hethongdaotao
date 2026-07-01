@@ -690,7 +690,7 @@ export async function getQuizActivity3Months(): Promise<{
 
   const startDate = monthKeys[0].key + '-01';
 
-  const [testsRes, coursesRes, empsRes] = await Promise.all([
+const [testsRes, coursesRes, empsRes] = await Promise.all([
     supabase
       .from('daily_tests')
       .select('employee_id, test_date, score_percent')
@@ -713,34 +713,41 @@ export async function getQuizActivity3Months(): Promise<{
   const courseTests = coursesRes.data || [];
   const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
 
-  type MonthBucket = { done: number; passed: number; scores: number[]; courseCount: number; coursePassed: number; courseScores: number[] };
 
-  // Group daily tests by employee → month
+  // dayMap: Map<date YYYY-MM-DD, passed boolean> — gộp cả daily_tests + training_progress
+  type MonthBucket = { dayMap: Map<string, boolean>; scores: number[]; courseCount: number; coursePassed: number; courseScores: number[] };
+
   const byEmp = new Map<string, Map<string, MonthBucket>>();
-  const initBucket = (): MonthBucket => ({ done: 0, passed: 0, scores: [], courseCount: 0, coursePassed: 0, courseScores: [] });
+  const initBucket = (): MonthBucket => ({ dayMap: new Map(), scores: [], courseCount: 0, coursePassed: 0, courseScores: [] });
 
-  for (const t of tests) {
-    const mo = (t.test_date as string).slice(0, 7);
-    if (!byEmp.has(t.employee_id)) byEmp.set(t.employee_id, new Map());
-    const em = byEmp.get(t.employee_id)!;
+  const getOrInit = (empId: string, mo: string): MonthBucket => {
+    if (!byEmp.has(empId)) byEmp.set(empId, new Map());
+    const em = byEmp.get(empId)!;
     if (!em.has(mo)) em.set(mo, initBucket());
-    const s = em.get(mo)!;
-    s.done++;
-    if (t.score_percent != null && Number(t.score_percent) >= 80) s.passed++;
+    return em.get(mo)!;
+  };
+
+  // Nguồn 1: daily_tests
+  for (const t of tests) {
+    const date = t.test_date as string; // YYYY-MM-DD
+    const mo = date.slice(0, 7);
+    const dayPassed = t.score_percent != null && Number(t.score_percent) >= 80;
+    const s = getOrInit(t.employee_id, mo);
+    s.dayMap.set(date, (s.dayMap.get(date) ?? false) || dayPassed);
     if (t.score_percent != null) s.scores.push(Number(t.score_percent));
   }
 
-  // Group course quiz results by employee → Vietnam month
+  // Nguồn 2: training_progress — mỗi ngày quiz = 1 ngày HT
   for (const p of courseTests) {
     if (!p.quiz_completed_at) continue;
     const ts = new Date(p.quiz_completed_at).getTime();
     if (isNaN(ts)) continue;
-    // Convert UTC timestamp → Vietnam date (UTC+7)
-    const mo = new Date(ts + 7 * 3600 * 1000).toISOString().slice(0, 7);
-    if (!byEmp.has(p.employee_id)) byEmp.set(p.employee_id, new Map());
-    const em = byEmp.get(p.employee_id)!;
-    if (!em.has(mo)) em.set(mo, initBucket());
-    const s = em.get(mo)!;
+    const vnDate = new Date(ts + 7 * 3600 * 1000).toISOString().slice(0, 10); // YYYY-MM-DD Vietnam
+    const mo = vnDate.slice(0, 7);
+    const dayPassed = p.quiz_passed === true;
+    const s = getOrInit(p.employee_id, mo);
+    // Gộp: ngày đó đạt nếu BẤT KỲ quiz nào trong ngày đạt
+    s.dayMap.set(vnDate, (s.dayMap.get(vnDate) ?? false) || dayPassed);
     s.courseCount++;
     if (p.quiz_passed) s.coursePassed++;
     if (p.quiz_score != null) s.courseScores.push(Number(p.quiz_score));
@@ -750,6 +757,8 @@ export async function getQuizActivity3Months(): Promise<{
     const empTests = byEmp.get(emp.id);
     const months: MonthStat[] = monthKeys.map(({ key, label }) => {
       const s = empTests?.get(key) ?? initBucket();
+      const done = s.dayMap.size;
+      const passed = [...s.dayMap.values()].filter(Boolean).length;
       const allScores = [...s.scores, ...s.courseScores];
       const monthAvgScore = allScores.length
         ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length)
@@ -757,8 +766,8 @@ export async function getQuizActivity3Months(): Promise<{
       return {
         month: key,
         label,
-        done: s.done,
-        passed: s.passed,
+        done,
+        passed,
         courseCount: s.courseCount,
         coursePassed: s.coursePassed,
         monthAvgScore,
