@@ -253,17 +253,10 @@ function App() {
         }
 
         if (isImplicitRecovery || isPkceRecovery) {
-          // Để onAuthStateChange xử lý PASSWORD_RECOVERY event —
-          // Supabase chỉ fire event sau khi session đã sẵn sàng.
-          // Giữ authLoading = true cho đến khi event được nhận.
-          // Nếu sau 8s không có event → link hết hạn, show trang reset với lỗi.
+          // Hiện trang reset ngay (không đợi event), ResetPasswordPage tự check session.
           handledByEvent = true;
-          setTimeout(() => {
-            if (isMounted) {
-              setAuthViewRaw('reset-password');
-              setAuthLoading(false);
-            }
-          }, 8000);
+          setAuthViewRaw('reset-password');
+          setAuthLoading(false);
           return;
         }
 

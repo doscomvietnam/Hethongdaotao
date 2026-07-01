@@ -21,8 +21,8 @@ export default function ResetPasswordPage({ onSuccess, onBackToLogin }: ResetPas
     React.useEffect(() => {
         let cancelled = false;
         const checkSession = async () => {
-            // Đợi tối đa 6 giây cho Supabase xử lý recovery token (PKCE hoặc implicit)
-            for (let i = 0; i < 12; i++) {
+            // Đợi tối đa 3 giây cho Supabase xử lý recovery token
+            for (let i = 0; i < 6; i++) {
                 await new Promise(r => setTimeout(r, 500));
                 const session = await getSession();
                 if (session) {
@@ -30,7 +30,7 @@ export default function ResetPasswordPage({ onSuccess, onBackToLogin }: ResetPas
                     return;
                 }
             }
-            if (!cancelled) setSessionReady(false); // hết thời gian, không có session
+            if (!cancelled) setSessionReady(false);
         };
         checkSession();
         return () => { cancelled = true; };
