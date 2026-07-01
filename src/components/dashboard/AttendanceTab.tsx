@@ -361,7 +361,7 @@ function ResultsView({
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-red-500/20 inline-block border border-red-500/20" />
-            <span className="text-red-400">X</span> Vắng — trừ lương
+            <span className="text-red-400">X</span> Vắng
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-violet-500/15 inline-block border border-violet-500/20" />
@@ -381,7 +381,7 @@ function ResultsView({
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-wide hover:bg-blue-500/25 transition-all disabled:opacity-50"
         >
           <Download className="w-3.5 h-3.5" />
-          {exporting ? 'Đang xuất...' : 'Xuất Excel trừ lương'}
+          {exporting ? 'Đang xuất...' : 'Xuất Excel'}
         </button>
       </div>
 
@@ -518,7 +518,7 @@ export function AttendanceTab() {
   const [saving, setSaving] = React.useState<string | null>(null);
   const [deptFilter, setDeptFilter] = React.useState('Tất cả');
 
-  const yesterday = getVNYesterday();
+  const cutoffDate = getVNToday(); // tính đến hôm nay (bao gồm cả ngày hiện tại)
   const days = getDaysInMonth(month);
   const dayNumbers = Array.from({ length: days }, (_, i) => i + 1);
 
@@ -596,7 +596,7 @@ export function AttendanceTab() {
           <h2 className="text-xl font-black text-white tracking-tight">Điểm Danh Nhân Viên</h2>
           <p className="text-[11px] text-zinc-500 font-bold mt-0.5">
             {view === 'results'
-              ? 'Kết quả làm bài quiz mỗi ngày · X = vắng tính trừ lương'
+              ? 'Kết quả làm bài quiz theo ngày'
               : 'Click ô ngày để đánh dấu nghỉ · Click hàng lễ để đánh dấu toàn công ty nghỉ'}
           </p>
         </div>
@@ -666,7 +666,7 @@ export function AttendanceTab() {
               absences={absences}
               submissions={submissions}
               deptFilter={deptFilter}
-              yesterday={yesterday}
+              yesterday={cutoffDate}
             />
           )}
           {view === 'config' && (
