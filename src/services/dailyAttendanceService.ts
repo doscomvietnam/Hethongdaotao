@@ -156,8 +156,10 @@ export async function getOverdueEmployeesForDate(dateStr?: string): Promise<Over
   console.log(`[Overdue] Tổng nhân viên active: ${employees.length}`);
   console.log(`[Overdue] Đã submit hôm đó: ${submittedIds.size}`);
 
-  // 3. Candidates = active employees chưa submit hôm qua
-  const candidates = employees.filter((e: any) => !submittedIds.has(e.id));
+  // 3. Candidates = active employees chưa submit hôm qua (bỏ Chủ Tịch)
+  const candidates = employees.filter((e: any) =>
+    !submittedIds.has(e.id) && (e.department || '').toLowerCase().trim() !== 'chủ tịch',
+  );
   if (candidates.length === 0) return [];
 
   // 4. Load all courses + all progress để check miễn trừ batch

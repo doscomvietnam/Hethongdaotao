@@ -4,6 +4,11 @@
  */
 import { supabase } from './supabaseClient';
 
+// Phòng ban bị ẩn khỏi toàn bộ dashboard
+const EXCLUDED_DEPARTMENTS = ['chủ tịch'];
+const isExcludedDept = (dept: string) =>
+  EXCLUDED_DEPARTMENTS.some(d => (dept || '').toLowerCase().trim() === d);
+
 // ── Types ───────────────────────────────────────────────────────────────
 export interface DashboardKPI {
   totalEmployees: number;
@@ -106,7 +111,7 @@ async function fetchAllData() {
   ]);
   return {
     progress: progressRes.data || [],
-    employees: employeesRes.data || [],
+    employees: (employeesRes.data || []).filter((e: any) => !isExcludedDept(e.department || '')),
     courses: coursesRes.data || [],
   };
 }
@@ -223,14 +228,18 @@ export async function getAdminDashboardData() {
     untouchedCoursesCount, inactiveEmployeesCount,
   };
 
-  // Department stats
+  // Department stats — dùng employee×course pairs (giống KPI) để luôn hiện đủ phòng ban
   const deptMap: Record<string, { total: number; completed: number; scores: number[] }> = {};
-  for (const p of progress) {
-    const dept = p.employees?.department || 'Khác';
+  for (const emp of employees) {
+    const dept = emp.department || 'Khác';
     if (!deptMap[dept]) deptMap[dept] = { total: 0, completed: 0, scores: [] };
-    deptMap[dept].total++;
-    if (isProgressDone(p)) deptMap[dept].completed++;
-    if (p.quiz_score != null) deptMap[dept].scores.push(p.quiz_score);
+    for (const course of courses) {
+      const key = `${emp.id}__${course.course_id}`;
+      const p = progressMap.get(key);
+      deptMap[dept].total++;
+      if (p && isProgressDone(p)) deptMap[dept].completed++;
+      if (p?.quiz_score != null) deptMap[dept].scores.push(p.quiz_score);
+    }
   }
   const deptStats: DeptStat[] = Object.entries(deptMap).map(([name, d]) => ({
     name,
@@ -491,7 +500,7 @@ export async function getLeaderboardData(startDate: string, endDate: string): Pr
   ]);
 
   const allProgress = progressRes.data || [];
-  const employees = employeesRes.data || [];
+  const employees = (employeesRes.data || []).filter((e: any) => !isExcludedDept(e.department || ''));
   const dailyTests = dailyTestRes.data || [];
 
   // Lọc theo khoảng ngày (dùng VN timezone UTC+7)
@@ -711,7 +720,9 @@ const [testsRes, coursesRes, empsRes] = await Promise.all([
 
   const tests = testsRes.data || [];
   const courseTests = coursesRes.data || [];
-  const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
+  const employees = (empsRes.data || []).filter((e: any) =>
+    !e.skip_daily_quiz && !isExcludedDept(e.department || ''),
+  );
 
 
   // dayMap: Map<date YYYY-MM-DD, passed boolean> — gộp cả daily_tests + training_progress

@@ -16,7 +16,7 @@ export async function getAttendanceEmployees(): Promise<AttendanceEmployee[]> {
     .order('full_name');
   if (error) throw error;
   return (data || [])
-    .filter((e: any) => !e.skip_daily_quiz)
+    .filter((e: any) => !e.skip_daily_quiz && (e.department || '').toLowerCase().trim() !== 'chủ tịch')
     .map((e: any) => ({
       id: e.id,
       fullName: e.full_name || '—',
