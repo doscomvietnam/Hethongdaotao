@@ -134,6 +134,120 @@ export async function toggleAbsence(employeeId: string, date: string): Promise<b
   }
 }
 
+// ── Tổng hợp theo năm ───────────────────────────────────────────────────────
+
+export interface MonthStat {
+  yearMonth: string;
+  required: number;
+  done: number;
+  missed: number;
+}
+
+export interface EmployeeYearlySummary {
+  employee: AttendanceEmployee;
+  months: MonthStat[];
+  totalRequired: number;
+  totalDone: number;
+  totalMissed: number;
+}
+
+/** Bulk-load toàn bộ dữ liệu 1 năm, tính ngày vắng theo tháng cho mỗi nhân viên */
+export async function getYearlySummary(year: number): Promise<{
+  months: string[];
+  rows: EmployeeYearlySummary[];
+}> {
+  const todayVN = new Date(Date.now() + VN_OFFSET_MS).toISOString().slice(0, 10);
+  const currentYM = todayVN.slice(0, 7);
+  const maxMonth = currentYM.startsWith(`${year}`) ? parseInt(currentYM.slice(5, 7)) : 12;
+
+  const months: string[] = [];
+  for (let m = 1; m <= maxMonth; m++) {
+    months.push(`${year}-${String(m).padStart(2, '0')}`);
+  }
+
+  const startDate = `${year}-01-01`;
+  const endDate   = `${year}-12-31`;
+
+  const [empsRes, holsRes, absRes, trainingRes, dailyRes] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('id, full_name, department, skip_daily_quiz')
+      .eq('employment_status', 'active')
+      .order('department')
+      .order('full_name'),
+    supabase.from('company_holidays').select('date').gte('date', startDate).lte('date', endDate),
+    supabase.from('employee_absences').select('employee_id, date').gte('date', startDate).lte('date', endDate),
+    supabase
+      .from('training_progress')
+      .select('employee_id, quiz_completed_at')
+      .not('quiz_score', 'is', null)
+      .not('quiz_completed_at', 'is', null),
+    supabase
+      .from('daily_tests')
+      .select('employee_id, test_date')
+      .gte('test_date', startDate)
+      .lte('test_date', todayVN)
+      .eq('status', 'submitted'),
+  ]);
+
+  const employees = (empsRes.data || []).filter(
+    (e: any) => !e.skip_daily_quiz && (e.department || '').toLowerCase().trim() !== 'chủ tịch',
+  );
+
+  const holidaySet = new Set<string>((holsRes.data || []).map((r: any) => r.date as string));
+
+  const absMap = new Map<string, Set<string>>();
+  for (const r of absRes.data || []) {
+    if (!absMap.has(r.employee_id)) absMap.set(r.employee_id, new Set());
+    absMap.get(r.employee_id)!.add(r.date as string);
+  }
+
+  const subMap = new Map<string, Set<string>>();
+  const addSub = (empId: string, date: string) => {
+    if (!subMap.has(empId)) subMap.set(empId, new Set());
+    subMap.get(empId)!.add(date);
+  };
+  for (const r of (trainingRes.data || []) as any[]) {
+    const vnDate = isoToVNDateLocal(r.quiz_completed_at);
+    if (vnDate && vnDate >= startDate && vnDate <= todayVN) addSub(r.employee_id, vnDate);
+  }
+  for (const r of (dailyRes.data || []) as any[]) {
+    addSub(r.employee_id, r.test_date as string);
+  }
+
+  const rows: EmployeeYearlySummary[] = employees.map((emp: any) => {
+    let totalRequired = 0, totalDone = 0, totalMissed = 0;
+    const monthStats: MonthStat[] = months.map(ym => {
+      const [y, m] = ym.split('-').map(Number);
+      const daysInMonth = new Date(y, m, 0).getDate();
+      let required = 0, done = 0, missed = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        const date = `${ym}-${String(d).padStart(2, '0')}`;
+        if (date > todayVN) continue;
+        if (new Date(y, m - 1, d).getDay() === 0) continue; // Chủ nhật
+        if (holidaySet.has(date)) continue;
+        if (absMap.get(emp.id)?.has(date)) continue;
+        required++;
+        if (subMap.get(emp.id)?.has(date)) done++;
+        else missed++;
+      }
+      totalRequired += required;
+      totalDone     += done;
+      totalMissed   += missed;
+      return { yearMonth: ym, required, done, missed };
+    });
+    return {
+      employee: { id: emp.id, fullName: emp.full_name || '—', department: emp.department || '—' },
+      months: monthStats,
+      totalRequired,
+      totalDone,
+      totalMissed,
+    };
+  });
+
+  return { months, rows };
+}
+
 // Tính số ngày phải làm = ngày làm việc - ngày lễ - ngày nghỉ cá nhân
 export function calcRequiredDays(
   yearMonth: string,
