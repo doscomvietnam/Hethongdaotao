@@ -99,7 +99,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                             <div className="mb-8">
                                 <h2 className="text-lg font-black uppercase tracking-tight text-white">Quên mật khẩu</h2>
                                 <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
-                                    Nhập email của bạn. Chúng tôi sẽ gửi <strong className="text-zinc-300">mã 6 số</strong> để xác nhận.
+                                    Nhập email của bạn. Chúng tôi sẽ gửi <strong className="text-zinc-300">mã xác nhận</strong> đến email.
                                 </p>
                             </div>
                             <form onSubmit={handleSendEmail} className="space-y-5">
@@ -135,7 +135,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                                     <h2 className="text-lg font-black uppercase tracking-tight text-white">Nhập mã xác nhận</h2>
                                 </div>
                                 <p className="text-xs text-zinc-500 leading-relaxed">
-                                    Mã 6 số đã gửi về <strong className="text-zinc-300">{email}</strong>.<br />
+                                    Mã xác nhận đã gửi về <strong className="text-zinc-300">{email}</strong>.<br />
                                     Kiểm tra cả hộp thư spam nếu không thấy.
                                 </p>
                             </div>
@@ -147,9 +147,9 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                                     <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2">Mã xác nhận</label>
                                     <input
                                         type="text" value={otp}
-                                        onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 6)); setError(null); }}
-                                        placeholder="000000"
-                                        autoFocus maxLength={6} inputMode="numeric"
+                                        onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 8)); setError(null); }}
+                                        placeholder="00000000"
+                                        autoFocus maxLength={8} inputMode="numeric"
                                         disabled={isLoading}
                                         className="w-full bg-zinc-900/60 border border-zinc-800 rounded-2xl px-4 py-4 text-center text-2xl font-black text-white tracking-[0.5em] placeholder:text-zinc-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all disabled:opacity-50"
                                     />
