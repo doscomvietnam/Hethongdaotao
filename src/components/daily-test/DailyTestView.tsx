@@ -258,7 +258,9 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: QuizScreenProps) 
   const [tabSwitchCount, setTabSwitchCount] = React.useState(0);
   const [showTabWarning, setShowTabWarning] = React.useState(false);
   const [timeLeft, setTimeLeft] = React.useState(config.quizDurationSeconds);
+  const [timeExpired, setTimeExpired] = React.useState(false);
   const startTimeRef = React.useRef(Date.now());
+  const deadlineRef = React.useRef(Date.now() + config.quizDurationSeconds * 1000);
   const lastSwitchRef = React.useRef(0);
   const answersRef = React.useRef(answers);
   answersRef.current = answers;
@@ -268,22 +270,29 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: QuizScreenProps) 
   const answeredCount = Object.keys(answers).length;
   const allAnswered = answeredCount === total;
 
-  // Timer
+  // Timer — dùng Date.now() để chính xác kể cả khi browser throttle tab
   React.useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          // Auto-submit khi hết giờ
+      const remaining = Math.ceil((deadlineRef.current - Date.now()) / 1000);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        setTimeLeft(0);
+        const currentAnswers = answersRef.current;
+        const hasAnyAnswer = Object.values(currentAnswers).some(v => v >= 0);
+        if (hasAnyAnswer) {
+          // Có câu trả lời → nộp bài
           const finalAnswers: Record<number, number> = {};
-          questions.forEach((_, i) => { finalAnswers[i] = answersRef.current[i] ?? -1; });
+          questions.forEach((_, i) => { finalAnswers[i] = currentAnswers[i] ?? -1; });
           const timeSpent = Math.round((Date.now() - startTimeRef.current) / 1000);
           onSubmit(finalAnswers, timeSpent);
-          return 0;
+        } else {
+          // Không có câu nào → không nộp, để nhân viên làm lại
+          setTimeExpired(true);
         }
-        return prev - 1;
-      });
-    }, 1000);
+        return;
+      }
+      setTimeLeft(remaining);
+    }, 500);
     return () => clearInterval(timer);
   }, []);
 
@@ -338,6 +347,29 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: QuizScreenProps) 
   const mustForceSubmit = tabSwitchCount >= MAX_VIOLATIONS;
   const currentQ = questions[currentIdx];
   const progress = ((currentIdx + 1) / total) * 100;
+
+  // Hết giờ nhưng chưa trả lời câu nào → không nộp, cho thử lại
+  if (timeExpired) {
+    return (
+      <div className="fixed inset-0 bg-[#09090B] z-[70] flex flex-col items-center justify-center p-8">
+        <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="max-w-lg w-full text-center space-y-8">
+          <div className="w-24 h-24 mx-auto rounded-[2rem] bg-amber-500/10 border-2 border-amber-500/30 flex items-center justify-center">
+            <Clock size={48} className="text-amber-500" />
+          </div>
+          <div className="space-y-3">
+            <h2 className="text-2xl font-black text-amber-400 uppercase">Hết Giờ Làm Bài</h2>
+            <p className="text-sm text-zinc-400 font-bold leading-relaxed">
+              Bạn chưa trả lời câu nào nên bài không được nộp.
+              <br />Vui lòng vào lại menu <span className="text-white">Kiểm tra</span> để làm bài.
+            </p>
+          </div>
+          <Button onClick={onBack} className="w-full h-14 rounded-2xl bg-zinc-800 text-white font-black uppercase tracking-widest text-xs border-none hover:bg-zinc-700">
+            Quay lại menu
+          </Button>
+        </motion.div>
+      </div>
+    );
+  }
 
   // Tab warning overlay
   if (showTabWarning) {
