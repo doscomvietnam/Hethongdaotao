@@ -119,7 +119,7 @@ async function exportSalaryReport(
   const generatedAt = new Date().toLocaleString('vi-VN');
 
   // ─── Sheet 1: Tổng hợp ───────────────────────────────────────────────────
-  const S1_HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Ngày phải làm', 'Ngày làm bài', 'Ngày vắng'];
+  const S1_HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Ngày phải làm', 'Ngày làm bài', 'Ngày không làm bài'];
   const summaryRows = employees.map((emp, i) => {
     const { required, done, missed } = calcEmployeeStats(emp.id, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
     return [i + 1, emp.fullName, emp.department, required, done, missed];
@@ -154,7 +154,7 @@ async function exportSalaryReport(
   const S2_HEADERS = [
     'Họ và tên', 'Phòng ban',
     ...dayNumbers.map(d => `${d} (${DOW_LABEL[getDayOfWeek(yearMonth, d)]})`),
-    'Tổng vắng',
+    'Tổng không làm bài',
   ];
   const detailRows = employees.map(emp => {
     const cells = dayNumbers.map(d =>
@@ -363,11 +363,11 @@ function ResultsView({
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-red-500/20 inline-block border border-red-500/20" />
-            <span className="text-red-400">X</span> Vắng
+            <span className="text-red-400">X</span> Không làm bài
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-violet-500/15 inline-block border border-violet-500/20" />
-            <span className="text-violet-400">N</span> Nghỉ có phép
+            <span className="text-violet-400">N</span> Nghỉ làm (không tính)
           </span>
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-orange-500/10 inline-block border border-orange-500/20" />
@@ -424,7 +424,7 @@ function ResultsView({
                 );
               })}
               <th className="px-3 py-2 text-center text-red-500/80 text-[10px] font-black uppercase tracking-widest min-w-[90px] border-l border-zinc-800">
-                Ngày vắng
+                Không làm bài
               </th>
             </tr>
           </thead>
@@ -469,7 +469,7 @@ function ResultsView({
             {filtered.length > 0 && (
               <tr className="border-t border-zinc-700 bg-zinc-900/50">
                 <td className="sticky left-0 z-10 bg-zinc-900 px-4 py-2 border-r border-zinc-800">
-                  <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Tổng vắng / ngày</div>
+                  <div className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Không làm bài / ngày</div>
                 </td>
                 {dayNumbers.map(d => {
                   const date = dateStr(month, d);
@@ -569,7 +569,7 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
       const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
       const monthLabels = months.map(ym => `T${parseInt(ym.slice(5, 7))}`);
-      const HEADERS = ['Nhân viên', 'Phòng ban', ...monthLabels.flatMap(m => [`${m} Làm`, `${m} Vắng`]), 'Tổng làm', 'Tổng vắng', 'Phải làm'];
+      const HEADERS = ['Nhân viên', 'Phòng ban', ...monthLabels.flatMap(m => [`${m} Làm`, `${m} Không làm`]), 'Tổng làm', 'Tổng không làm bài', 'Phải làm'];
       const rows = filtered.map(r => [
         r.employee.fullName,
         r.employee.department,
@@ -615,8 +615,8 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
         <div className="flex items-center gap-4 text-[10px] font-bold">
           <span className="text-zinc-400">Ô tháng: <span className="text-white">đã làm / phải làm</span></span>
           <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/30 inline-block" />Đủ ngày</span>
-          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 inline-block" />Vắng 1–2</span>
-          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 inline-block" />Vắng 3+</span>
+          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 inline-block" />Không làm 1–2</span>
+          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 inline-block" />Không làm 3+</span>
         </div>
         <button onClick={handleExport} disabled={exporting || !data}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-wide hover:bg-blue-500/25 transition-all disabled:opacity-40">
@@ -646,7 +646,7 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                   <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
                 </th>
                 <th className="px-3 py-2.5 text-center min-w-[72px] border-l border-zinc-800 bg-red-950/20">
-                  <div className="text-[10px] font-black text-red-400 uppercase tracking-wide">Vắng</div>
+                  <div className="text-[10px] font-black text-red-400 uppercase tracking-wide">Không làm bài</div>
                   <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
                 </th>
                 <th className="px-3 py-2.5 text-center min-w-[72px] border-l border-zinc-800">
