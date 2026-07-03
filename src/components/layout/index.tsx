@@ -76,9 +76,16 @@ interface SidebarProps {
   onCloseMobile?: () => void;
 }
 
+function isWithin6Months(startDate: string | null | undefined): boolean {
+  if (!startDate) return false;
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  return new Date(startDate) >= sixMonthsAgo;
+}
+
 export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCollapse, courseGroup, onSetCourseGroup, mobileOpen, onCloseMobile }: SidebarProps) => {
   const isAdmin = employee.role === 'admin' || employee.role === 'manager';
-  const hasOnboarding = isAdmin || Boolean(employee.onboarding_available_date);
+  const hasOnboarding = isAdmin || Boolean(employee.onboarding_available_date) || isWithin6Months(employee.start_date);
 
   const allMenuItems = [
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['admin', 'manager', 'employee'], show: true },

@@ -996,7 +996,13 @@ function App() {
       case ViewType.ONBOARDING_TEST: {
         const isAdminRole = employee.role === 'admin' || employee.role === 'manager';
         const onboardingDate = employee.onboarding_available_date
-          || (isAdminRole ? new Date().toISOString().slice(0, 10) : null);
+          || (isAdminRole ? new Date().toISOString().slice(0, 10) : null)
+          || (() => {
+              if (!employee.start_date) return null;
+              const sixMonthsAgo = new Date();
+              sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+              return new Date(employee.start_date) >= sixMonthsAgo ? employee.start_date : null;
+            })();
         if (onboardingTestActive) {
           return (
             <OnboardingTestView
