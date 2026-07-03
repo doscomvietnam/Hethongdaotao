@@ -9,7 +9,7 @@ import type { OnboardingTestSession } from '../../types';
 import { getOrCreateOnboardingTest, submitOnboardingTest } from '../../services/onboardingTestService';
 import { pushOnboardingTestToLark } from '../../services/larkSyncService';
 
-const QUIZ_DURATION = 1200; // 20 phút
+const QUIZ_DURATION = 600; // 10 phút
 
 interface OnboardingTestViewProps {
   employeeId: string;
@@ -207,6 +207,7 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: {
   const [showTabWarning, setShowTabWarning] = React.useState(false);
   const [timeLeft, setTimeLeft] = React.useState(QUIZ_DURATION);
   const startTimeRef = React.useRef(Date.now());
+  const deadlineRef = React.useRef(Date.now() + QUIZ_DURATION * 1000);
   const lastSwitchRef = React.useRef(0);
   const answersRef = React.useRef(answers);
   answersRef.current = answers;
@@ -219,18 +220,18 @@ function QuizScreen({ session, onSubmit, onBack, submitting }: {
 
   React.useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          const finalAnswers: Record<number, number> = {};
-          questions.forEach((_, i) => { finalAnswers[i] = answersRef.current[i] ?? -1; });
-          const timeSpent = Math.round((Date.now() - startTimeRef.current) / 1000);
-          onSubmit(finalAnswers, timeSpent);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const remaining = Math.ceil((deadlineRef.current - Date.now()) / 1000);
+      if (remaining <= 0) {
+        clearInterval(timer);
+        setTimeLeft(0);
+        const finalAnswers: Record<number, number> = {};
+        questions.forEach((_, i) => { finalAnswers[i] = answersRef.current[i] ?? -1; });
+        const timeSpent = Math.round((Date.now() - startTimeRef.current) / 1000);
+        onSubmit(finalAnswers, timeSpent);
+        return;
+      }
+      setTimeLeft(remaining);
+    }, 500);
     return () => clearInterval(timer);
   }, []);
 

@@ -111,7 +111,7 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
                 <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">Thông tin bài kiểm tra</p>
                 <div className="flex items-center gap-2 text-[11px] text-zinc-400 font-bold">
                   <Clock className="w-3.5 h-3.5 text-blue-400" />
-                  30 câu hỏi ngẫu nhiên · Thời gian 20 phút · Đạt 25/30
+                  30 câu hỏi ngẫu nhiên · Thời gian 10 phút · Đạt 25/30
                 </div>
               </div>
 
@@ -145,7 +145,7 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
                 {[
                   { label: 'Số câu', value: '30', unit: 'câu' },
                   { label: 'Đạt', value: '25/30', unit: 'câu đúng' },
-                  { label: 'Thời gian', value: '20', unit: 'phút' },
+                  { label: 'Thời gian', value: '10', unit: 'phút' },
                 ].map(({ label, value, unit }) => (
                   <div key={label} className="p-4 rounded-2xl bg-zinc-950 border border-zinc-900">
                     <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest mb-1.5">{label}</p>
