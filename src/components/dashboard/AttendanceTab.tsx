@@ -867,11 +867,11 @@ export function AttendanceTab() {
 
       {/* View toggle + Department filter */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 p-1 bg-zinc-900 rounded-xl border border-zinc-800">
+        <div className="flex gap-1 p-1 bg-zinc-800 rounded-xl border border-zinc-700">
           <button
             onClick={() => setView('results')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all ${
-              view === 'results' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              view === 'results' ? 'bg-blue-500 text-white shadow' : 'text-zinc-300 hover:text-white hover:bg-zinc-700'
             }`}>
             <ClipboardList className="w-3.5 h-3.5" />
             Kết quả theo ngày
@@ -879,7 +879,7 @@ export function AttendanceTab() {
           <button
             onClick={() => setView('summary')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all ${
-              view === 'summary' ? 'bg-violet-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              view === 'summary' ? 'bg-violet-500 text-white shadow' : 'text-zinc-300 hover:text-white hover:bg-zinc-700'
             }`}>
             <BarChart2 className="w-3.5 h-3.5" />
             Tổng hợp theo tháng
@@ -887,7 +887,7 @@ export function AttendanceTab() {
           <button
             onClick={() => setView('config')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all ${
-              view === 'config' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300'
+              view === 'config' ? 'bg-emerald-600 text-white shadow' : 'text-zinc-300 hover:text-white hover:bg-zinc-700'
             }`}>
             <Calendar className="w-3.5 h-3.5" />
             Quản lý ngày nghỉ
@@ -900,8 +900,8 @@ export function AttendanceTab() {
             <button key={d} onClick={() => setDeptFilter(d)}
               className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all border ${
                 deptFilter === d
-                  ? 'bg-blue-500/20 border-blue-500/40 text-blue-300'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+                  ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'
               }`}>
               {d}
             </button>
