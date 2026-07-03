@@ -138,7 +138,7 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-zinc-900">
-                {['Nhân viên', 'Tỷ lệ', 'Điểm TB', `Kiểm tra T${curM}/${curY}`, 'Trạng thái'].map(h => (
+                {['Nhân viên', 'Tỷ lệ', 'Điểm TB', `Kiểm tra T${curM}/${curY}`].map(h => (
                   <th key={h} className="px-4 py-3 text-[9px] font-black text-zinc-600 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -182,15 +182,6 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
                       ) : (
                         <span className="text-[9px] text-zinc-700 font-bold">—</span>
                       )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-1.5">
-                        {m.isOverdue && <Badge variant="warning" className="text-[8px] px-2 py-0.5">Quá hạn</Badge>}
-                        {m.hasFailed && <Badge variant="warning" className="text-[8px] px-2 py-0.5 bg-rose-500/10 text-rose-400 border-rose-500/20">Fail</Badge>}
-                        {!m.isOverdue && !m.hasFailed && m.completionRate === 100 && <Badge variant="success" className="text-[8px] px-2 py-0.5">Hoàn thành</Badge>}
-                        {!m.isOverdue && !m.hasFailed && m.completionRate < 100 && m.completedCourses > 0 && <span className="text-[9px] text-amber-400 font-bold">Đang học</span>}
-                        {m.completedCourses === 0 && !m.isOverdue && <span className="text-[9px] text-zinc-600 font-bold">Chưa học</span>}
-                      </div>
                     </td>
                   </tr>
                 );
