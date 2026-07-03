@@ -899,7 +899,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
           </div>
         </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Top 10 điểm cao */}
         <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
           <SectionHeader icon={Trophy} title="Top 10 Điểm Cao" subtitle="Điểm trung bình cao nhất" color="text-amber-400" bg="bg-amber-500/10" ring="ring-amber-500/30" />
@@ -993,6 +993,39 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
                         <p className="text-[9px] text-zinc-600 font-bold">bài</p>
                       </>
                     )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Top 10 không đạt */}
+        <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+          <SectionHeader icon={XCircle} title="Top 10 Không Đạt" subtitle="Nhiều lần thi không đạt nhất (<80%)" color="text-rose-400" bg="bg-rose-500/10" ring="ring-rose-500/30" />
+          {leaderboardLoading ? (
+            <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
+          ) : !leaderboard || leaderboard.topFailed.length === 0 ? (
+            <div className="text-center py-8">
+              <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mx-auto mb-2" />
+              <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Tất cả đều đạt điểm tốt!</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {leaderboard.topFailed.map((emp, i) => (
+                <div key={emp.employeeId} className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-rose-500/10 flex items-center justify-center text-[10px] font-black text-rose-400 flex-shrink-0">
+                    #{i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm font-black text-rose-400 tabular-nums">{emp.value}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold">
+                      {emp.extra != null ? `/${emp.extra} bài` : 'lần'}
+                    </p>
                   </div>
                 </div>
               ))}

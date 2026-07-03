@@ -489,6 +489,7 @@ export interface LeaderboardData {
   topScorers: LeaderboardEmployee[];
   topConsistent: LeaderboardEmployee[];
   topInactive: LeaderboardInactiveEmployee[];
+  topFailed: LeaderboardEmployee[];
 }
 
 const LEADERBOARD_START_DATE = '2026-05-20'; // ngày ra mắt hệ thống
@@ -514,7 +515,7 @@ export async function getLeaderboardData(startDate: string, endDate: string): Pr
   const [progressRes, employeesRes, dailyTestRes] = await Promise.all([
     supabase
       .from('training_progress')
-      .select('employee_id, quiz_score, quiz_completed_at, updated_at, status, video_progress'),
+      .select('employee_id, quiz_score, quiz_passed, quiz_completed_at, updated_at, status, video_progress'),
     supabase
       .from('employees')
       .select('id, full_name, department')
@@ -542,13 +543,16 @@ export async function getLeaderboardData(startDate: string, endDate: string): Pr
   });
 
   // Build per-employee stats từ training_progress trong khoảng thời gian đã chọn
-  const empMap = new Map<string, { scores: number[]; completedCount: number; activeDays: Set<string>; lastDate: string | null }>();
+  const empMap = new Map<string, { scores: number[]; completedCount: number; activeDays: Set<string>; lastDate: string | null; failedCount: number }>();
   for (const p of progress) {
     if (!empMap.has(p.employee_id)) {
-      empMap.set(p.employee_id, { scores: [], completedCount: 0, activeDays: new Set(), lastDate: null });
+      empMap.set(p.employee_id, { scores: [], completedCount: 0, activeDays: new Set(), lastDate: null, failedCount: 0 });
     }
     const em = empMap.get(p.employee_id)!;
-    if (p.quiz_score != null) em.scores.push(p.quiz_score);
+    if (p.quiz_score != null) {
+      em.scores.push(p.quiz_score);
+      if (p.quiz_passed === false) em.failedCount++;
+    }
     const isDone = p.quiz_completed_at != null || (p.video_progress || 0) >= 100 || p.status === 'completed';
     if (isDone) em.completedCount++;
     const d = normDateVN(p.updated_at || '');
@@ -559,11 +563,14 @@ export async function getLeaderboardData(startDate: string, endDate: string): Pr
   }
 
   // Build per-employee stats từ daily_tests (test_date đã là VN date, không cần convert)
-  const dailyMap = new Map<string, { scores: number[]; lastDate: string | null }>();
+  const dailyMap = new Map<string, { scores: number[]; lastDate: string | null; failedCount: number }>();
   for (const dt of dailyTests) {
-    if (!dailyMap.has(dt.employee_id)) dailyMap.set(dt.employee_id, { scores: [], lastDate: null });
+    if (!dailyMap.has(dt.employee_id)) dailyMap.set(dt.employee_id, { scores: [], lastDate: null, failedCount: 0 });
     const dm = dailyMap.get(dt.employee_id)!;
-    if (dt.score_percent != null) dm.scores.push(dt.score_percent);
+    if (dt.score_percent != null) {
+      dm.scores.push(dt.score_percent);
+      if (dt.score_percent < 80) dm.failedCount++;
+    }
     if (dt.test_date && (!dm.lastDate || dt.test_date > dm.lastDate)) dm.lastDate = dt.test_date;
   }
 
@@ -622,7 +629,25 @@ export async function getLeaderboardData(startDate: string, endDate: string): Pr
     .sort((a, b) => a.value - b.value)
     .slice(0, 10);
 
-  return { topScorers, topConsistent, topInactive };
+  // Top 10 không đạt — nhiều lần thi không đạt nhất (quiz_passed=false + daily score<80%)
+  const failedList: LeaderboardEmployee[] = [];
+  for (const emp of employees) {
+    const em = empMap.get(emp.id);
+    const dm = dailyMap.get(emp.id);
+    const totalFailed = (em?.failedCount || 0) + (dm?.failedCount || 0);
+    const totalAttempts = (em?.scores.length || 0) + (dm?.scores.length || 0);
+    if (totalFailed === 0) continue;
+    failedList.push({
+      employeeId: emp.id,
+      employeeName: emp.full_name,
+      department: emp.department || '—',
+      value: totalFailed,
+      extra: totalAttempts,
+    });
+  }
+  const topFailed = failedList.sort((a, b) => b.value - a.value).slice(0, 10);
+
+  return { topScorers, topConsistent, topInactive, topFailed };
 }
 
 // ── Onboarding Leaderboard ────────────────────────────────────────────────
