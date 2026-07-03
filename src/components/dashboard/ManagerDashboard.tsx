@@ -138,7 +138,7 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-zinc-900">
-                {['Nhân viên', 'Hoàn thành', 'Tỷ lệ', 'Điểm TB', `Kiểm tra T${curM}/${curY}`, 'Trạng thái'].map(h => (
+                {['Nhân viên', 'Tỷ lệ', 'Điểm TB', `Kiểm tra T${curM}/${curY}`, 'Trạng thái'].map(h => (
                   <th key={h} className="px-4 py-3 text-[9px] font-black text-zinc-600 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -152,7 +152,6 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
                       <p className="text-xs font-black text-zinc-200">{m.employeeName}</p>
                       <p className="text-[9px] text-zinc-600 font-bold">{m.email}</p>
                     </td>
-                    <td className="px-4 py-3 text-xs font-bold text-zinc-300 tabular-nums">{m.completedCourses}/{m.totalCourses}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
