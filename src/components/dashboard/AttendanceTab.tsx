@@ -516,7 +516,7 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
   const [loading, setLoading] = React.useState(true);
   const [exporting, setExporting] = React.useState(false);
 
-  const SYSTEM_START = { year: 2026, month: 7 }; // hệ thống bắt đầu tháng 7/2026
+  const SYSTEM_START = { year: 2026, month: 7 };
 
   React.useEffect(() => {
     setLoading(true);
@@ -534,7 +534,6 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
       : data.rows.filter(r => r.employee.department === deptFilter);
   }, [data, deptFilter]);
 
-  // Group by department
   const grouped = React.useMemo(() => {
     const map = new Map<string, EmployeeYearlySummary[]>();
     for (const r of filtered) {
@@ -547,11 +546,20 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
 
   const months = data?.months ?? [];
 
-  const missCell = (n: number, required: number) => {
-    if (required === 0) return <span className="text-zinc-700 text-[9px]">—</span>;
-    if (n === 0) return <span className="text-emerald-400 font-black text-[10px]">✓</span>;
-    if (n <= 2) return <span className="text-amber-400 font-black text-[11px]">{n}</span>;
-    return <span className="text-red-400 font-black text-[11px]">{n}</span>;
+  // Ô tháng: hiển thị "đã làm / phải làm", tô màu theo số ngày vắng
+  const monthCell = (ms: { done: number; missed: number; required: number }) => {
+    if (ms.required === 0) return <span className="text-zinc-700 text-[9px]">—</span>;
+    const color = ms.missed === 0
+      ? 'text-emerald-400'
+      : ms.missed <= 2 ? 'text-amber-400' : 'text-red-400';
+    return (
+      <div className="flex flex-col items-center leading-tight">
+        <span className={`font-black text-[11px] ${color}`}>{ms.done}/{ms.required}</span>
+        {ms.missed > 0 && (
+          <span className={`text-[8px] font-bold ${color} opacity-80`}>-{ms.missed}</span>
+        )}
+      </div>
+    );
   };
 
   const handleExport = async () => {
@@ -561,33 +569,26 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
       const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
       const monthLabels = months.map(ym => `T${parseInt(ym.slice(5, 7))}`);
-      const HEADERS = ['Nhân viên', 'Phòng ban', ...monthLabels, 'Tổng vắng', 'Tổng phải làm'];
+      const HEADERS = ['Nhân viên', 'Phòng ban', ...monthLabels.flatMap(m => [`${m} Làm`, `${m} Vắng`]), 'Tổng làm', 'Tổng vắng', 'Phải làm'];
       const rows = filtered.map(r => [
         r.employee.fullName,
         r.employee.department,
-        ...r.months.map(m => m.missed),
+        ...r.months.flatMap(m => [m.done, m.missed]),
+        r.totalDone,
         r.totalMissed,
         r.totalRequired,
       ]);
       const ws = XLSX.utils.aoa_to_sheet([
-        [`TỔNG HỢP VẮNG LÀM BÀI — Năm ${year}`],
+        [`TỔNG HỢP ĐIỂM DANH — Năm ${year}`],
         [`Xuất lúc: ${new Date().toLocaleString('vi-VN')}`],
         [],
         HEADERS,
         ...rows,
       ]);
-      ws['!cols'] = [{ wch: 28 }, { wch: 18 }, ...months.map(() => ({ wch: 7 })), { wch: 12 }, { wch: 14 }];
+      ws['!cols'] = [{ wch: 28 }, { wch: 18 }, ...months.flatMap(() => [{ wch: 8 }, { wch: 8 }]), { wch: 10 }, { wch: 10 }, { wch: 10 }];
       ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } }];
-      for (let c = 0; c < HEADERS.length; c++) {
-        const addr = XLSX.utils.encode_cell({ r: 3, c });
-        if (ws[addr]) ws[addr].s = {
-          font: { bold: true, color: { rgb: 'FFFFFF' } },
-          fill: { fgColor: { rgb: '1D4ED8' } },
-          alignment: { horizontal: 'center' },
-        };
-      }
       XLSX.utils.book_append_sheet(wb, ws, `Tổng hợp ${year}`);
-      XLSX.writeFile(wb, `tong-hop-vang_${year}.xlsx`);
+      XLSX.writeFile(wb, `tong-hop-diem-danh_${year}.xlsx`);
     } catch (e) {
       console.error('Export error:', e);
     } finally {
@@ -611,10 +612,11 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
             <ChevronRight className="w-3.5 h-3.5" />
           </button>
         </div>
-        <div className="flex items-center gap-3 text-[10px] font-bold text-zinc-500">
-          <span className="flex items-center gap-1"><span className="text-emerald-400">✓</span> 0 ngày vắng</span>
-          <span className="flex items-center gap-1"><span className="text-amber-400 font-black">n</span> 1–2 ngày</span>
-          <span className="flex items-center gap-1"><span className="text-red-400 font-black">n</span> 3+ ngày</span>
+        <div className="flex items-center gap-4 text-[10px] font-bold">
+          <span className="text-zinc-400">Ô tháng: <span className="text-white">đã làm / phải làm</span></span>
+          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500/30 inline-block" />Đủ ngày</span>
+          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-amber-500/30 inline-block" />Vắng 1–2</span>
+          <span className="flex items-center gap-1 text-zinc-500"><span className="w-2.5 h-2.5 rounded-sm bg-red-500/30 inline-block" />Vắng 3+</span>
         </div>
         <button onClick={handleExport} disabled={exporting || !data}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-500/15 border border-blue-500/30 text-blue-300 text-[11px] font-black uppercase tracking-wide hover:bg-blue-500/25 transition-all disabled:opacity-40">
@@ -629,21 +631,27 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
         <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
           <table className="min-w-max text-xs border-collapse">
             <thead>
-              <tr className="border-b border-zinc-800">
-                <th className="sticky left-0 z-10 bg-zinc-950 px-4 py-2.5 text-left min-w-[200px] border-r border-zinc-800">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Nhân viên</span>
+              <tr className="border-b border-zinc-800 bg-zinc-950">
+                <th className="sticky left-0 z-10 bg-zinc-950 px-4 py-3 text-left min-w-[200px] border-r border-zinc-800">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Nhân viên</span>
                 </th>
                 {months.map(ym => (
-                  <th key={ym} className="w-14 min-w-[56px] py-2 text-center border-r border-zinc-900 last:border-r-0 bg-zinc-950">
-                    <div className="font-black text-zinc-400 text-[11px]">T{parseInt(ym.slice(5, 7))}</div>
-                    <div className="text-[8px] text-zinc-600 font-bold">{ym.slice(0, 4)}</div>
+                  <th key={ym} className="w-[72px] min-w-[72px] py-2.5 text-center border-r border-zinc-800 last:border-r-0">
+                    <div className="font-black text-zinc-300 text-[12px]">T{parseInt(ym.slice(5, 7))}</div>
+                    <div className="text-[8px] text-zinc-600 font-bold mt-0.5">làm / phải</div>
                   </th>
                 ))}
-                <th className="px-3 py-2 text-center min-w-[80px] bg-zinc-900/50 border-l border-zinc-700">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Tổng vắng</span>
+                <th className="px-3 py-2.5 text-center min-w-[72px] border-l-2 border-zinc-700 bg-emerald-950/20">
+                  <div className="text-[10px] font-black text-emerald-400 uppercase tracking-wide">Đã làm</div>
+                  <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
                 </th>
-                <th className="px-3 py-2 text-center min-w-[80px] border-l border-zinc-800">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Phải làm</span>
+                <th className="px-3 py-2.5 text-center min-w-[72px] border-l border-zinc-800 bg-red-950/20">
+                  <div className="text-[10px] font-black text-red-400 uppercase tracking-wide">Vắng</div>
+                  <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
+                </th>
+                <th className="px-3 py-2.5 text-center min-w-[72px] border-l border-zinc-800">
+                  <div className="text-[10px] font-black text-zinc-500 uppercase tracking-wide">Phải làm</div>
+                  <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
                 </th>
               </tr>
             </thead>
@@ -651,61 +659,80 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
               {grouped.map(([dept, deptRows]) => (
                 <React.Fragment key={dept}>
                   {/* Department header */}
-                  <tr className="bg-zinc-900/60 border-b border-zinc-800">
-                    <td colSpan={months.length + 3}
-                      className="sticky left-0 px-4 py-1.5">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">{dept}</span>
+                  <tr className="bg-zinc-900/70 border-b border-zinc-800">
+                    <td colSpan={months.length + 4} className="sticky left-0 px-4 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{dept}</span>
                     </td>
                   </tr>
                   {deptRows.map((row, idx) => (
                     <tr key={row.employee.id}
-                      className={`border-b border-zinc-900 last:border-b-0 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'} hover:bg-zinc-900/30 transition-colors`}>
-                      <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'}`}>
+                      className={`border-b border-zinc-900 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'} hover:bg-zinc-900/40 transition-colors`}>
+                      <td className={`sticky left-0 z-10 px-4 py-2.5 border-r border-zinc-800 ${idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]'}`}>
                         <div className="font-bold text-zinc-200 truncate max-w-[180px]">{row.employee.fullName}</div>
                       </td>
                       {row.months.map(ms => (
-                        <td key={ms.yearMonth} className="border-r border-zinc-900 last:border-r-0 text-center py-2">
-                          {missCell(ms.missed, ms.required)}
+                        <td key={ms.yearMonth} className={`border-r border-zinc-900 last:border-r-0 text-center py-2 px-1 ${
+                          ms.required === 0 ? '' : ms.missed === 0 ? 'bg-emerald-950/10' : ms.missed <= 2 ? 'bg-amber-950/10' : 'bg-red-950/15'
+                        }`}>
+                          {monthCell(ms)}
                         </td>
                       ))}
-                      {/* Tổng vắng */}
-                      <td className="px-3 py-2 text-center border-l border-zinc-700 bg-zinc-900/30">
+                      {/* Đã làm */}
+                      <td className="px-3 py-2.5 text-center border-l-2 border-zinc-700 bg-emerald-950/10">
+                        <span className="font-black text-emerald-400 text-[12px]">{row.totalDone}</span>
+                      </td>
+                      {/* Vắng */}
+                      <td className="px-3 py-2.5 text-center border-l border-zinc-800 bg-red-950/10">
                         {row.totalMissed > 0 ? (
                           <span className={`font-black text-[12px] ${row.totalMissed >= 5 ? 'text-red-400' : row.totalMissed >= 3 ? 'text-amber-400' : 'text-zinc-300'}`}>
                             {row.totalMissed}
                           </span>
                         ) : (
-                          <span className="text-emerald-500 font-black text-[11px]">✓</span>
+                          <span className="text-emerald-500 font-black text-[12px]">0</span>
                         )}
                       </td>
-                      {/* Số ngày phải làm */}
-                      <td className="px-3 py-2 text-center border-l border-zinc-800">
-                        <span className="text-zinc-600 text-[10px] font-bold">{row.totalRequired}</span>
+                      {/* Phải làm */}
+                      <td className="px-3 py-2.5 text-center border-l border-zinc-800">
+                        <span className="text-zinc-500 text-[11px] font-bold">{row.totalRequired}</span>
                       </td>
                     </tr>
                   ))}
                   {/* Department subtotal */}
-                  <tr className="border-b border-zinc-800 bg-zinc-900/40">
-                    <td className="sticky left-0 bg-zinc-900/40 px-4 py-1.5 border-r border-zinc-800">
-                      <span className="text-[9px] font-black text-zinc-500 uppercase">Tổng {dept}</span>
+                  <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                    <td className="sticky left-0 bg-zinc-900/50 px-4 py-2 border-r border-zinc-800">
+                      <span className="text-[9px] font-black text-zinc-400 uppercase">Tổng {dept}</span>
                     </td>
                     {months.map((ym, mIdx) => {
-                      const total = deptRows.reduce((s, r) => s + (r.months[mIdx]?.missed ?? 0), 0);
+                      const totalDone = deptRows.reduce((s, r) => s + (r.months[mIdx]?.done ?? 0), 0);
+                      const totalReq = deptRows.reduce((s, r) => s + (r.months[mIdx]?.required ?? 0), 0);
+                      const totalMiss = deptRows.reduce((s, r) => s + (r.months[mIdx]?.missed ?? 0), 0);
                       return (
-                        <td key={ym} className="border-r border-zinc-900 text-center py-1.5">
-                          {total > 0
-                            ? <span className="text-red-400/80 font-black text-[10px]">{total}</span>
-                            : <span className="text-zinc-700 text-[9px]">—</span>}
+                        <td key={ym} className="border-r border-zinc-900 text-center py-2 px-1">
+                          {totalReq === 0 ? (
+                            <span className="text-zinc-700 text-[9px]">—</span>
+                          ) : (
+                            <div className="flex flex-col items-center leading-tight">
+                              <span className={`font-black text-[10px] ${totalMiss === 0 ? 'text-emerald-400' : totalMiss <= 3 ? 'text-amber-400' : 'text-red-400'}`}>
+                                {totalDone}/{totalReq}
+                              </span>
+                              {totalMiss > 0 && <span className="text-red-400/70 text-[8px] font-bold">-{totalMiss}</span>}
+                            </div>
+                          )}
                         </td>
                       );
                     })}
-                    <td className="px-3 py-1.5 text-center border-l border-zinc-700 bg-zinc-900/30">
-                      <span className="text-red-400/80 font-black text-[11px]">
+                    <td className="px-3 py-2 text-center border-l-2 border-zinc-700 bg-emerald-950/10">
+                      <span className="text-emerald-400 font-black text-[11px]">
+                        {deptRows.reduce((s, r) => s + r.totalDone, 0)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center border-l border-zinc-800 bg-red-950/10">
+                      <span className="text-red-400 font-black text-[11px]">
                         {deptRows.reduce((s, r) => s + r.totalMissed, 0)}
                       </span>
                     </td>
-                    <td className="px-3 py-1.5 text-center border-l border-zinc-800">
-                      <span className="text-zinc-600 text-[10px] font-bold">
+                    <td className="px-3 py-2 text-center border-l border-zinc-800">
+                      <span className="text-zinc-500 text-[10px] font-bold">
                         {deptRows.reduce((s, r) => s + r.totalRequired, 0)}
                       </span>
                     </td>
@@ -715,27 +742,41 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
 
               {/* Grand total */}
               {filtered.length > 0 && (
-                <tr className="border-t-2 border-zinc-600 bg-zinc-900/60">
-                  <td className="sticky left-0 bg-zinc-900/60 px-4 py-2 border-r border-zinc-700">
-                    <span className="text-[10px] font-black text-zinc-300 uppercase tracking-wide">Tổng toàn công ty</span>
+                <tr className="border-t-2 border-zinc-600 bg-zinc-900/70">
+                  <td className="sticky left-0 bg-zinc-900/70 px-4 py-2.5 border-r border-zinc-700">
+                    <span className="text-[10px] font-black text-white uppercase tracking-wide">Toàn công ty</span>
                   </td>
                   {months.map((ym, mIdx) => {
-                    const total = filtered.reduce((s, r) => s + (r.months[mIdx]?.missed ?? 0), 0);
+                    const totalDone = filtered.reduce((s, r) => s + (r.months[mIdx]?.done ?? 0), 0);
+                    const totalReq = filtered.reduce((s, r) => s + (r.months[mIdx]?.required ?? 0), 0);
+                    const totalMiss = filtered.reduce((s, r) => s + (r.months[mIdx]?.missed ?? 0), 0);
                     return (
-                      <td key={ym} className="border-r border-zinc-800 text-center py-2">
-                        {total > 0
-                          ? <span className="text-red-400 font-black text-[11px]">{total}</span>
-                          : <span className="text-emerald-600 text-[10px]">—</span>}
+                      <td key={ym} className="border-r border-zinc-800 text-center py-2 px-1">
+                        {totalReq === 0 ? (
+                          <span className="text-zinc-700 text-[9px]">—</span>
+                        ) : (
+                          <div className="flex flex-col items-center leading-tight">
+                            <span className={`font-black text-[11px] ${totalMiss === 0 ? 'text-emerald-400' : totalMiss <= 5 ? 'text-amber-400' : 'text-red-400'}`}>
+                              {totalDone}/{totalReq}
+                            </span>
+                            {totalMiss > 0 && <span className="text-red-400 text-[8px] font-bold">-{totalMiss}</span>}
+                          </div>
+                        )}
                       </td>
                     );
                   })}
-                  <td className="px-3 py-2 text-center border-l border-zinc-600 bg-zinc-900/50">
+                  <td className="px-3 py-2.5 text-center border-l-2 border-zinc-600 bg-emerald-950/20">
+                    <span className="text-emerald-400 font-black text-[13px]">
+                      {filtered.reduce((s, r) => s + r.totalDone, 0)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center border-l border-zinc-700 bg-red-950/20">
                     <span className="text-red-400 font-black text-[13px]">
                       {filtered.reduce((s, r) => s + r.totalMissed, 0)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-center border-l border-zinc-700">
-                    <span className="text-zinc-500 font-bold text-[10px]">
+                  <td className="px-3 py-2.5 text-center border-l border-zinc-700">
+                    <span className="text-zinc-400 font-bold text-[11px]">
                       {filtered.reduce((s, r) => s + r.totalRequired, 0)}
                     </span>
                   </td>
