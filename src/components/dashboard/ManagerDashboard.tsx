@@ -2,11 +2,13 @@ import * as React from 'react';
 import {
   Users, TrendingUp, AlertCircle, Clock, BookOpen,
   CheckCircle2, Trophy, XCircle, Target, Activity, Play, UserX, Zap,
+  CalendarCheck,
 } from 'lucide-react';
 import { Card, Badge, Progress } from '../ui';
 import type {
   DashboardKPI, OverdueItem, ActivityItem, TeamMemberProgress,
 } from '../../services/dashboardDataService';
+import { getEmployeesMonthlyQuizStats, type MonthlyQuizStat } from '../../services/attendanceService';
 
 function KpiCard({ label, value, icon: Icon, color, bg, ring }: {
   label: string; value: string | number; icon: React.ElementType; color: string; bg: string; ring: string;
@@ -73,6 +75,18 @@ interface ManagerDashboardProps {
 }
 
 export function ManagerDashboardView({ department, data, loading }: ManagerDashboardProps) {
+  const currentYM = React.useMemo(() => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7), []);
+  const [curM, curY] = currentYM.split('-');
+
+  const [quizStatsMap, setQuizStatsMap] = React.useState<Map<string, MonthlyQuizStat>>(new Map());
+  React.useEffect(() => {
+    if (!data?.teamMembers?.length) return;
+    const ids = data.teamMembers.map(m => m.employeeId);
+    getEmployeesMonthlyQuizStats(ids, currentYM)
+      .then(setQuizStatsMap)
+      .catch(e => console.error('Manager quiz stats error:', e));
+  }, [data, currentYM]);
+
   if (loading || !data) {
     return (
       <div className="flex h-[60vh] items-center justify-center">
@@ -124,39 +138,64 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-zinc-900">
-                {['Nhân viên', 'Hoàn thành', 'Tỷ lệ', 'Điểm TB', 'Trạng thái'].map(h => (
-                  <th key={h} className="px-4 py-3 text-[9px] font-black text-zinc-600 uppercase tracking-widest">{h}</th>
+                {['Nhân viên', 'Hoàn thành', 'Tỷ lệ', 'Điểm TB', `Kiểm tra T${curM}/${curY}`, 'Trạng thái'].map(h => (
+                  <th key={h} className="px-4 py-3 text-[9px] font-black text-zinc-600 uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {teamMembers.map(m => (
-                <tr key={m.employeeId} className="border-b border-zinc-900/50 hover:bg-zinc-900/30 transition-colors">
-                  <td className="px-4 py-3">
-                    <p className="text-xs font-black text-zinc-200">{m.employeeName}</p>
-                    <p className="text-[9px] text-zinc-600 font-bold">{m.email}</p>
-                  </td>
-                  <td className="px-4 py-3 text-xs font-bold text-zinc-300 tabular-nums">{m.completedCourses}/{m.totalCourses}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-16 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${m.completionRate}%` }} />
+              {teamMembers.map(m => {
+                const qs = quizStatsMap.get(m.employeeId);
+                return (
+                  <tr key={m.employeeId} className="border-b border-zinc-900/50 hover:bg-zinc-900/30 transition-colors">
+                    <td className="px-4 py-3">
+                      <p className="text-xs font-black text-zinc-200">{m.employeeName}</p>
+                      <p className="text-[9px] text-zinc-600 font-bold">{m.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-xs font-bold text-zinc-300 tabular-nums">{m.completedCourses}/{m.totalCourses}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-16 bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full transition-all" style={{ width: `${m.completionRate}%` }} />
+                        </div>
+                        <span className="text-[10px] font-black text-emerald-400 tabular-nums">{m.completionRate}%</span>
                       </div>
-                      <span className="text-[10px] font-black text-emerald-400 tabular-nums">{m.completionRate}%</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs font-black text-zinc-300 tabular-nums">{m.avgScore || '—'}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1.5">
-                      {m.isOverdue && <Badge variant="warning" className="text-[8px] px-2 py-0.5">Quá hạn</Badge>}
-                      {m.hasFailed && <Badge variant="warning" className="text-[8px] px-2 py-0.5 bg-rose-500/10 text-rose-400 border-rose-500/20">Fail</Badge>}
-                      {!m.isOverdue && !m.hasFailed && m.completionRate === 100 && <Badge variant="success" className="text-[8px] px-2 py-0.5">Hoàn thành</Badge>}
-                      {!m.isOverdue && !m.hasFailed && m.completionRate < 100 && m.completedCourses > 0 && <span className="text-[9px] text-amber-400 font-bold">Đang học</span>}
-                      {m.completedCourses === 0 && !m.isOverdue && <span className="text-[9px] text-zinc-600 font-bold">Chưa học</span>}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-4 py-3 text-xs font-black text-zinc-300 tabular-nums">{m.avgScore || '—'}</td>
+                    <td className="px-4 py-3">
+                      {qs ? (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <CalendarCheck className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                            <span className="text-[10px] font-black text-emerald-400 tabular-nums">{qs.done}</span>
+                            <span className="text-[9px] text-zinc-600 font-bold">/ {qs.required} ngày</span>
+                            {qs.missed > 0 && <span className="text-[9px] text-red-400 font-black ml-1">· {qs.missed} chưa làm</span>}
+                          </div>
+                          <div className="w-24 bg-zinc-800 rounded-full h-1 flex overflow-hidden">
+                            {qs.required > 0 && (
+                              <>
+                                <div className="h-full bg-emerald-500" style={{ width: `${qs.done / qs.required * 100}%` }} />
+                                <div className="h-full bg-red-500/60" style={{ width: `${qs.missed / qs.required * 100}%` }} />
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] text-zinc-700 font-bold">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1.5">
+                        {m.isOverdue && <Badge variant="warning" className="text-[8px] px-2 py-0.5">Quá hạn</Badge>}
+                        {m.hasFailed && <Badge variant="warning" className="text-[8px] px-2 py-0.5 bg-rose-500/10 text-rose-400 border-rose-500/20">Fail</Badge>}
+                        {!m.isOverdue && !m.hasFailed && m.completionRate === 100 && <Badge variant="success" className="text-[8px] px-2 py-0.5">Hoàn thành</Badge>}
+                        {!m.isOverdue && !m.hasFailed && m.completionRate < 100 && m.completedCourses > 0 && <span className="text-[9px] text-amber-400 font-bold">Đang học</span>}
+                        {m.completedCourses === 0 && !m.isOverdue && <span className="text-[9px] text-zinc-600 font-bold">Chưa học</span>}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

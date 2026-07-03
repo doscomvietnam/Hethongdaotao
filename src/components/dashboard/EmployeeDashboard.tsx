@@ -2,10 +2,12 @@ import * as React from 'react';
 import {
   BookOpen, CheckCircle2, Zap, AlertCircle, Clock,
   Trophy, Target, Star, Award, Flame, ArrowRight, Play, TrendingUp,
+  CalendarCheck, CalendarX,
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
 import { getYesterdayOverdueForUser } from '../../services/dailyAttendanceService';
+import { getEmployeesMonthlyQuizStats, type MonthlyQuizStat } from '../../services/attendanceService';
 
 // ── Helper: level info ──────────────────────────────────────────────────
 function getLevelInfo(rate: number) {
@@ -69,6 +71,18 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
       .catch((e) => console.error('Overdue check failed:', e));
   }, [employeeId, department]);
 
+  // Thống kê kiểm tra hằng ngày tháng hiện tại
+  const currentYM = React.useMemo(() => {
+    return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7);
+  }, []);
+  const [quizStat, setQuizStat] = React.useState<MonthlyQuizStat | null>(null);
+  React.useEffect(() => {
+    if (!employeeId) return;
+    getEmployeesMonthlyQuizStats([employeeId], currentYM)
+      .then(map => setQuizStat(map.get(employeeId) || null))
+      .catch(e => console.error('Quiz stat error:', e));
+  }, [employeeId, currentYM]);
+
   const completedCourses = courses.filter(c => c.progress === 100 || c.isCompleted);
   const ongoingCourses = courses.filter(c => c.progress > 0 && c.progress < 100 && !c.isCompleted);
   const overdueCourses = courses.filter(c => c.endDate && new Date(c.endDate) < now && !c.isCompleted);
@@ -92,13 +106,15 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
 
   const levelInfo = getLevelInfo(completionRate);
 
+  const [curM, curY] = currentYM.split('-');
   const kpiCards = [
     { label: 'KHÓA ĐƯỢC GIAO', value: courses.length, icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20' },
     { label: 'ĐÃ HOÀN THÀNH', value: completedCourses.length, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
     { label: 'ĐANG HỌC', value: ongoingCourses.length, icon: Zap, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
     { label: 'QUÁ HẠN', value: overdueCourses.length, icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/10', ring: 'ring-red-500/20' },
     { label: 'TỶ LỆ HOÀN THÀNH', value: `${completionRate}%`, icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
-    { label: 'ĐIỂM QUIZ GẦN NHẤT', value: latestScore || '—', icon: Target, color: 'text-cyan-400', bg: 'bg-cyan-500/10', ring: 'ring-cyan-500/20' },
+    { label: `ĐÃ LÀM T${curM}/${curY}`, value: quizStat ? `${quizStat.done}/${quizStat.required}` : '—', icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
+    { label: `CHƯA LÀM T${curM}/${curY}`, value: quizStat ? quizStat.missed : '—', icon: CalendarX, color: quizStat && quizStat.missed > 0 ? 'text-red-400' : 'text-zinc-500', bg: quizStat && quizStat.missed > 0 ? 'bg-red-500/10' : 'bg-zinc-500/10', ring: quizStat && quizStat.missed > 0 ? 'ring-red-500/20' : 'ring-zinc-500/20' },
     { label: 'ĐIỂM CAO NHẤT', value: highestScore || '—', icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
   ];
 
@@ -126,9 +142,47 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-7 gap-3 lg:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 lg:gap-4">
         {kpiCards.map((kpi, i) => <KpiCard key={i} {...kpi} />)}
       </div>
+
+      {/* Thanh tiến trình kiểm tra hằng ngày tháng này */}
+      {quizStat && (
+        <Card className="p-5 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/30 flex items-center justify-center">
+                <CalendarCheck className="w-4 h-4 text-emerald-400" />
+              </div>
+              <div>
+                <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Kiểm tra hằng ngày · Tháng {curM}/{curY}</p>
+                <p className="text-sm font-black text-white">
+                  <span className="text-emerald-400">{quizStat.done}</span>
+                  <span className="text-zinc-600"> / {quizStat.required} ngày</span>
+                </p>
+              </div>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <div className="flex items-center justify-between text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
+                <span>{quizStat.required > 0 ? Math.round(quizStat.done / quizStat.required * 100) : 0}% hoàn thành</span>
+                <span className="flex gap-3">
+                  <span className="text-emerald-400">{quizStat.done} đã làm</span>
+                  {quizStat.missed > 0 && <span className="text-red-400">{quizStat.missed} chưa làm</span>}
+                  {quizStat.absent > 0 && <span className="text-zinc-500">{quizStat.absent} nghỉ làm</span>}
+                </span>
+              </div>
+              <div className="w-full bg-zinc-900 rounded-full h-2 flex overflow-hidden">
+                {quizStat.required > 0 && (
+                  <>
+                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${quizStat.done / quizStat.required * 100}%` }} />
+                    <div className="h-full bg-red-500/60 transition-all" style={{ width: `${quizStat.missed / quizStat.required * 100}%` }} />
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left: Continue learning + Assigned courses */}

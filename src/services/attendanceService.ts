@@ -252,6 +252,74 @@ export async function getYearlySummary(year: number, startMonth: number = 1): Pr
   return { months, rows };
 }
 
+export interface MonthlyQuizStat {
+  done: number;
+  missed: number;
+  required: number;
+  absent: number;
+}
+
+/** Bulk-load thống kê kiểm tra hằng ngày cho nhiều nhân viên trong 1 tháng */
+export async function getEmployeesMonthlyQuizStats(
+  employeeIds: string[],
+  yearMonth: string,
+): Promise<Map<string, MonthlyQuizStat>> {
+  if (employeeIds.length === 0) return new Map();
+
+  const todayVN = new Date(Date.now() + VN_OFFSET_MS).toISOString().slice(0, 10);
+  const currentYM = todayVN.slice(0, 7);
+  const [y, m] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const from = `${yearMonth}-01`;
+  const ceiling = yearMonth === currentYM ? todayVN : `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
+
+  const [holsRes, absRes, trainingRes, dailyRes] = await Promise.all([
+    supabase.from('company_holidays').select('date').gte('date', from).lte('date', ceiling),
+    supabase.from('employee_absences').select('employee_id, date').in('employee_id', employeeIds).gte('date', from).lte('date', ceiling),
+    supabase.from('training_progress').select('employee_id, quiz_completed_at').not('quiz_score', 'is', null).not('quiz_completed_at', 'is', null).in('employee_id', employeeIds),
+    supabase.from('daily_tests').select('employee_id, test_date').gte('test_date', from).lte('test_date', ceiling).eq('status', 'submitted').in('employee_id', employeeIds),
+  ]);
+
+  const holidaySet = new Set<string>((holsRes.data || []).map((r: any) => r.date as string));
+
+  const absMap = new Map<string, Set<string>>();
+  for (const r of absRes.data || []) {
+    if (!absMap.has(r.employee_id)) absMap.set(r.employee_id, new Set());
+    absMap.get(r.employee_id)!.add(r.date as string);
+  }
+
+  const subMap = new Map<string, Set<string>>();
+  for (const r of (trainingRes.data || []) as any[]) {
+    const vnDate = isoToVNDateLocal(r.quiz_completed_at);
+    if (vnDate && vnDate >= from && vnDate <= ceiling) {
+      if (!subMap.has(r.employee_id)) subMap.set(r.employee_id, new Set());
+      subMap.get(r.employee_id)!.add(vnDate);
+    }
+  }
+  for (const r of (dailyRes.data || []) as any[]) {
+    if (!subMap.has(r.employee_id)) subMap.set(r.employee_id, new Set());
+    subMap.get(r.employee_id)!.add(r.test_date as string);
+  }
+
+  const result = new Map<string, MonthlyQuizStat>();
+  for (const empId of employeeIds) {
+    const empAbs = absMap.get(empId) || new Set<string>();
+    const empSub = subMap.get(empId) || new Set<string>();
+    let done = 0, missed = 0, required = 0, absent = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = `${yearMonth}-${String(d).padStart(2, '0')}`;
+      if (date > ceiling) break;
+      if (new Date(y, m - 1, d).getDay() === 0) continue;
+      if (holidaySet.has(date)) continue;
+      if (empAbs.has(date)) { absent++; continue; }
+      required++;
+      if (empSub.has(date)) done++; else missed++;
+    }
+    result.set(empId, { done, missed, required, absent });
+  }
+  return result;
+}
+
 // Tính số ngày phải làm = ngày làm việc - ngày lễ - ngày nghỉ cá nhân
 export function calcRequiredDays(
   yearMonth: string,
