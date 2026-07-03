@@ -286,6 +286,34 @@ export async function getAdminDashboardData() {
   return { kpi, deptStats, learningStatus, topCompleted, topFailed, overdueItems: overdueItems.slice(0, 20), recentActivity };
 }
 
+// Lightweight: chỉ lấy 20 hoạt động gần nhất (dùng cho auto-refresh)
+export async function getRecentActivityOnly(): Promise<ActivityItem[]> {
+  const { data, error } = await supabase
+    .from('training_progress')
+    .select(`
+      updated_at, quiz_completed_at, quiz_score, quiz_passed, video_progress, status,
+      employees!fk_employee(full_name, department),
+      courses!fk_course(course_name, video_url, quiz_id)
+    `)
+    .order('updated_at', { ascending: false })
+    .limit(20);
+  if (error || !data) return [];
+  return data.map((p: any) => {
+    let action: ActivityItem['action'] = 'started';
+    if (isProgressDone(p)) action = 'completed';
+    else if (p.quiz_score != null && !p.quiz_passed) action = 'quiz_fail';
+    else if (p.quiz_passed) action = 'quiz_pass';
+    return {
+      employeeName: p.employees?.full_name || '—',
+      department: p.employees?.department || '—',
+      courseName: p.courses?.course_name || '—',
+      action,
+      score: p.quiz_score ?? undefined,
+      timestamp: p.updated_at || p.quiz_completed_at || '',
+    };
+  });
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // MANAGER DASHBOARD DATA
 // ══════════════════════════════════════════════════════════════════════════

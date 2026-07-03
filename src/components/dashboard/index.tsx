@@ -9,7 +9,7 @@ import { Course, Employee } from '../../types';
 import { AdminDashboardView } from './AdminDashboard';
 import { ManagerDashboardView } from './ManagerDashboard';
 import { EmployeeDashboardView } from './EmployeeDashboard';
-import { getAdminDashboardData, getManagerDashboardData } from '../../services/dashboardDataService';
+import { getAdminDashboardData, getManagerDashboardData, getRecentActivityOnly } from '../../services/dashboardDataService';
 import { exportFilteredReportExcel } from '../../services/trainingProgressService';
 import { getAllTrainingProgress } from '../../services/trainingProgressService';
 
@@ -63,6 +63,17 @@ export const AdminDashboard = ({ employee }: AdminDashboardProps = {}) => {
     };
     fetchData();
   }, [isManager, managerDept]);
+
+  // Auto-refresh "Hoạt động gần đây" mỗi 60 giây
+  React.useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const recent = await getRecentActivityOnly();
+        setData((prev: any) => prev ? { ...prev, recentActivity: recent } : prev);
+      } catch { }
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleExport = async () => {
     setExporting(true);
