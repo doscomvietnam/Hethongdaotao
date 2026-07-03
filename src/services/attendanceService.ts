@@ -141,6 +141,7 @@ export interface MonthStat {
   required: number;
   done: number;
   missed: number;
+  absent: number;
 }
 
 export interface EmployeeYearlySummary {
@@ -149,6 +150,7 @@ export interface EmployeeYearlySummary {
   totalRequired: number;
   totalDone: number;
   totalMissed: number;
+  totalAbsent: number;
 }
 
 /** Bulk-load toàn bộ dữ liệu 1 năm, tính ngày vắng theo tháng cho mỗi nhân viên */
@@ -216,17 +218,17 @@ export async function getYearlySummary(year: number, startMonth: number = 1): Pr
   }
 
   const rows: EmployeeYearlySummary[] = employees.map((emp: any) => {
-    let totalRequired = 0, totalDone = 0, totalMissed = 0;
+    let totalRequired = 0, totalDone = 0, totalMissed = 0, totalAbsent = 0;
     const monthStats: MonthStat[] = months.map(ym => {
       const [y, m] = ym.split('-').map(Number);
       const daysInMonth = new Date(y, m, 0).getDate();
-      let required = 0, done = 0, missed = 0;
+      let required = 0, done = 0, missed = 0, absent = 0;
       for (let d = 1; d <= daysInMonth; d++) {
         const date = `${ym}-${String(d).padStart(2, '0')}`;
         if (date > todayVN) continue;
         if (new Date(y, m - 1, d).getDay() === 0) continue; // Chủ nhật
         if (holidaySet.has(date)) continue;
-        if (absMap.get(emp.id)?.has(date)) continue;
+        if (absMap.get(emp.id)?.has(date)) { absent++; continue; }
         required++;
         if (subMap.get(emp.id)?.has(date)) done++;
         else missed++;
@@ -234,7 +236,8 @@ export async function getYearlySummary(year: number, startMonth: number = 1): Pr
       totalRequired += required;
       totalDone     += done;
       totalMissed   += missed;
-      return { yearMonth: ym, required, done, missed };
+      totalAbsent   += absent;
+      return { yearMonth: ym, required, done, missed, absent };
     });
     return {
       employee: { id: emp.id, fullName: emp.full_name || '—', department: emp.department || '—' },
@@ -242,6 +245,7 @@ export async function getYearlySummary(year: number, startMonth: number = 1): Pr
       totalRequired,
       totalDone,
       totalMissed,
+      totalAbsent,
     };
   });
 

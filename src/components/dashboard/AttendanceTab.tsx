@@ -90,16 +90,17 @@ function calcEmployeeStats(
   absences: Map<string, Set<string>>,
   submissions: Map<string, Set<string>>,
   yesterday: string,
-): { required: number; done: number; missed: number } {
-  let required = 0, done = 0, missed = 0;
+): { required: number; done: number; missed: number; absent: number } {
+  let required = 0, done = 0, missed = 0, absent = 0;
   for (const d of dayNumbers) {
     const t = getCellType(yearMonth, d, empId, holidays, absences, submissions, yesterday);
-    if (t === 'sun' || t === 'hol' || t === 'abs' || t === 'pending') continue;
+    if (t === 'sun' || t === 'hol' || t === 'pending') continue;
+    if (t === 'abs') { absent++; continue; }
     required++;
     if (t === 'done') done++;
     else missed++;
   }
-  return { required, done, missed };
+  return { required, done, missed, absent };
 }
 
 // ── Excel export ─────────────────────────────────────────────────────────────
@@ -423,6 +424,9 @@ function ResultsView({
                   </th>
                 );
               })}
+              <th className="px-3 py-2 text-center text-violet-400/80 text-[10px] font-black uppercase tracking-widest min-w-[80px] border-l border-zinc-800">
+                Ngày nghỉ
+              </th>
               <th className="px-3 py-2 text-center text-red-500/80 text-[10px] font-black uppercase tracking-widest min-w-[90px] border-l border-zinc-800">
                 Không làm bài
               </th>
@@ -430,7 +434,7 @@ function ResultsView({
           </thead>
           <tbody>
             {filtered.map((emp, idx) => {
-              const { required, done, missed } = calcEmployeeStats(emp.id, month, dayNumbers, holidays, absences, submissions, yesterday);
+              const { required, done, missed, absent } = calcEmployeeStats(emp.id, month, dayNumbers, holidays, absences, submissions, yesterday);
               const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
               return (
                 <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
@@ -449,6 +453,11 @@ function ResultsView({
                       </td>
                     );
                   })}
+                  <td className="px-3 py-2 text-center border-l border-zinc-800">
+                    {absent > 0
+                      ? <span className="text-violet-400 font-black text-[12px]">{absent}</span>
+                      : <span className="text-zinc-700 text-[10px]">—</span>}
+                  </td>
                   <td className="px-3 py-2 text-center border-l border-zinc-800">
                     {missed > 0 ? (
                       <div>
@@ -649,6 +658,10 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                   <div className="text-[10px] font-black text-red-400 uppercase tracking-wide">Không làm bài</div>
                   <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
                 </th>
+                <th className="px-3 py-2.5 text-center min-w-[72px] border-l border-zinc-800 bg-violet-950/20">
+                  <div className="text-[10px] font-black text-violet-400 uppercase tracking-wide">Ngày nghỉ</div>
+                  <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
+                </th>
                 <th className="px-3 py-2.5 text-center min-w-[72px] border-l border-zinc-800">
                   <div className="text-[10px] font-black text-zinc-500 uppercase tracking-wide">Phải làm</div>
                   <div className="text-[8px] text-zinc-600 font-bold mt-0.5">ngày</div>
@@ -660,7 +673,7 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                 <React.Fragment key={dept}>
                   {/* Department header */}
                   <tr className="bg-zinc-900/70 border-b border-zinc-800">
-                    <td colSpan={months.length + 4} className="sticky left-0 px-4 py-2">
+                    <td colSpan={months.length + 5} className="sticky left-0 px-4 py-2">
                       <span className="text-[9px] font-black uppercase tracking-widest text-zinc-400">{dept}</span>
                     </td>
                   </tr>
@@ -681,7 +694,7 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                       <td className="px-3 py-2.5 text-center border-l-2 border-zinc-700 bg-emerald-950/10">
                         <span className="font-black text-emerald-400 text-[12px]">{row.totalDone}</span>
                       </td>
-                      {/* Vắng */}
+                      {/* Không làm bài */}
                       <td className="px-3 py-2.5 text-center border-l border-zinc-800 bg-red-950/10">
                         {row.totalMissed > 0 ? (
                           <span className={`font-black text-[12px] ${row.totalMissed >= 5 ? 'text-red-400' : row.totalMissed >= 3 ? 'text-amber-400' : 'text-zinc-300'}`}>
@@ -690,6 +703,12 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                         ) : (
                           <span className="text-emerald-500 font-black text-[12px]">0</span>
                         )}
+                      </td>
+                      {/* Ngày nghỉ */}
+                      <td className="px-3 py-2.5 text-center border-l border-zinc-800 bg-violet-950/10">
+                        {row.totalAbsent > 0
+                          ? <span className="text-violet-400 font-black text-[12px]">{row.totalAbsent}</span>
+                          : <span className="text-zinc-700 text-[10px]">—</span>}
                       </td>
                       {/* Phải làm */}
                       <td className="px-3 py-2.5 text-center border-l border-zinc-800">
@@ -729,6 +748,11 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                     <td className="px-3 py-2 text-center border-l border-zinc-800 bg-red-950/10">
                       <span className="text-red-400 font-black text-[11px]">
                         {deptRows.reduce((s, r) => s + r.totalMissed, 0)}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-center border-l border-zinc-800 bg-violet-950/10">
+                      <span className="text-violet-400 font-black text-[11px]">
+                        {deptRows.reduce((s, r) => s + r.totalAbsent, 0)}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-center border-l border-zinc-800">
@@ -773,6 +797,11 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
                   <td className="px-3 py-2.5 text-center border-l border-zinc-700 bg-red-950/20">
                     <span className="text-red-400 font-black text-[13px]">
                       {filtered.reduce((s, r) => s + r.totalMissed, 0)}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-center border-l border-zinc-700 bg-violet-950/20">
+                    <span className="text-violet-400 font-black text-[13px]">
+                      {filtered.reduce((s, r) => s + r.totalAbsent, 0)}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 text-center border-l border-zinc-700">
