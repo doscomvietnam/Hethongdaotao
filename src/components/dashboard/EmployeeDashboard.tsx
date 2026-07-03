@@ -2,12 +2,12 @@ import * as React from 'react';
 import {
   BookOpen, CheckCircle2, Zap, AlertCircle, Clock,
   Trophy, Target, Star, Award, Flame, ArrowRight, Play, TrendingUp,
-  CalendarCheck, CalendarX,
+  CalendarCheck, CalendarX, XCircle,
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
 import { getYesterdayOverdueForUser } from '../../services/dailyAttendanceService';
-import { getEmployeesMonthlyQuizStats, type MonthlyQuizStat } from '../../services/attendanceService';
+import { getEmployeeMonthlyQuizCalendar, type MonthlyQuizCalendar } from '../../services/attendanceService';
 
 // ── Helper: level info ──────────────────────────────────────────────────
 function getLevelInfo(rate: number) {
@@ -49,6 +49,110 @@ function SectionHeader({ icon: Icon, title, subtitle, color = 'text-emerald-500'
   );
 }
 
+// ── Monthly quiz calendar ───────────────────────────────────────────────
+function MonthlyCalendarCard({ calendar, yearMonth }: {
+  calendar: MonthlyQuizCalendar;
+  yearMonth: string;
+}) {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const firstDow = new Date(y, m - 1, 1).getDay(); // 0=Sun
+  const offset = firstDow === 0 ? 6 : firstDow - 1; // Mon-first: Mon=0..Sun=6
+  const dayHeaders = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+  const cells = [...Array(offset).fill(null) as null[], ...calendar.days];
+  const { stat } = calendar;
+  const pct = stat.required > 0 ? Math.round(stat.done / stat.required * 100) : 0;
+
+  return (
+    <Card className="p-5 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/30 flex items-center justify-center flex-shrink-0">
+            <CalendarCheck className="w-4 h-4 text-emerald-400" />
+          </div>
+          <div>
+            <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Lịch kiểm tra hằng ngày</p>
+            <p className="text-sm font-black text-white">
+              Tháng {m}/{y} · <span className="text-emerald-400">{pct}%</span> hoàn thành
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-3 text-[9px] font-bold uppercase tracking-widest">
+          <span className="text-emerald-400">{stat.done} đã làm</span>
+          {stat.missed > 0 && <span className="text-red-400">{stat.missed} chưa làm</span>}
+          {stat.absent > 0 && <span className="text-zinc-500">{stat.absent} nghỉ</span>}
+          <span className="text-zinc-600">/ {stat.required} ngày</span>
+        </div>
+      </div>
+
+      {/* Day headers */}
+      <div className="grid grid-cols-7 gap-1 mb-1">
+        {dayHeaders.map(h => (
+          <div key={h} className="text-center text-[9px] font-black text-zinc-600 uppercase py-1">{h}</div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((entry, i) => {
+          if (!entry) return <div key={`pad-${i}`} className="h-9" />;
+          const { day, status, date } = entry;
+
+          if (status === 'sunday') return (
+            <div key={date} className="h-9 flex items-center justify-center rounded-lg">
+              <span className="text-[10px] font-bold text-zinc-800">{day}</span>
+            </div>
+          );
+          if (status === 'future') return (
+            <div key={date} className="h-9 flex items-center justify-center rounded-lg bg-zinc-900/40">
+              <span className="text-[10px] font-bold text-zinc-700">{day}</span>
+            </div>
+          );
+          if (status === 'holiday') return (
+            <div key={date} className="h-9 flex flex-col items-center justify-center rounded-lg bg-amber-500/10 ring-1 ring-amber-500/20">
+              <span className="text-[9px] font-bold text-amber-500">{day}</span>
+              <span className="text-[7px] text-amber-700 leading-none">lễ</span>
+            </div>
+          );
+          if (status === 'absent') return (
+            <div key={date} className="h-9 flex flex-col items-center justify-center rounded-lg bg-zinc-800/40 ring-1 ring-zinc-700/20">
+              <span className="text-[9px] font-bold text-zinc-500">{day}</span>
+              <span className="text-[7px] text-zinc-600 leading-none">nghỉ</span>
+            </div>
+          );
+          if (status === 'done') return (
+            <div key={date} className="h-9 flex flex-col items-center justify-center rounded-lg bg-emerald-500/15 ring-1 ring-emerald-500/25">
+              <CheckCircle2 className="w-3 h-3 text-emerald-400 mb-0.5" />
+              <span className="text-[9px] font-black text-emerald-400 leading-none">{day}</span>
+            </div>
+          );
+          return (
+            <div key={date} className="h-9 flex flex-col items-center justify-center rounded-lg bg-red-500/10 ring-1 ring-red-500/20">
+              <XCircle className="w-3 h-3 text-red-400 mb-0.5" />
+              <span className="text-[9px] font-black text-red-400 leading-none">{day}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-4 mt-4 pt-3 border-t border-zinc-900">
+        {[
+          { cls: 'bg-emerald-500/20 ring-1 ring-emerald-500/30', label: 'Đã làm' },
+          { cls: 'bg-red-500/15 ring-1 ring-red-500/20', label: 'Chưa làm' },
+          { cls: 'bg-zinc-800/50 ring-1 ring-zinc-700/20', label: 'Nghỉ làm' },
+          { cls: 'bg-amber-500/10 ring-1 ring-amber-500/20', label: 'Ngày lễ' },
+        ].map(({ cls, label }) => (
+          <div key={label} className="flex items-center gap-1.5">
+            <div className={`w-3 h-3 rounded ${cls}`} />
+            <span className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest">{label}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // EMPLOYEE DASHBOARD
 // ══════════════════════════════════════════════════════════════════════════
@@ -75,11 +179,11 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
   const currentYM = React.useMemo(() => {
     return new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7);
   }, []);
-  const [quizStat, setQuizStat] = React.useState<MonthlyQuizStat | null>(null);
+  const [quizCalendar, setQuizCalendar] = React.useState<MonthlyQuizCalendar | null>(null);
   React.useEffect(() => {
     if (!employeeId) return;
-    getEmployeesMonthlyQuizStats([employeeId], currentYM)
-      .then(map => setQuizStat(map.get(employeeId) || null))
+    getEmployeeMonthlyQuizCalendar(employeeId, currentYM)
+      .then(setQuizCalendar)
       .catch(e => console.error('Quiz stat error:', e));
   }, [employeeId, currentYM]);
 
@@ -113,8 +217,8 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
     { label: 'ĐANG HỌC', value: ongoingCourses.length, icon: Zap, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
     { label: 'QUÁ HẠN', value: overdueCourses.length, icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/10', ring: 'ring-red-500/20' },
     { label: 'TỶ LỆ HOÀN THÀNH', value: `${completionRate}%`, icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
-    { label: `ĐÃ LÀM T${curM}/${curY}`, value: quizStat ? `${quizStat.done}/${quizStat.required}` : '—', icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
-    { label: `CHƯA LÀM T${curM}/${curY}`, value: quizStat ? quizStat.missed : '—', icon: CalendarX, color: quizStat && quizStat.missed > 0 ? 'text-red-400' : 'text-zinc-500', bg: quizStat && quizStat.missed > 0 ? 'bg-red-500/10' : 'bg-zinc-500/10', ring: quizStat && quizStat.missed > 0 ? 'ring-red-500/20' : 'ring-zinc-500/20' },
+    { label: `ĐÃ LÀM T${curM}/${curY}`, value: quizCalendar ? `${quizCalendar.stat.done}/${quizCalendar.stat.required}` : '—', icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
+    { label: `CHƯA LÀM T${curM}/${curY}`, value: quizCalendar ? quizCalendar.stat.missed : '—', icon: CalendarX, color: quizCalendar && quizCalendar.stat.missed > 0 ? 'text-red-400' : 'text-zinc-500', bg: quizCalendar && quizCalendar.stat.missed > 0 ? 'bg-red-500/10' : 'bg-zinc-500/10', ring: quizCalendar && quizCalendar.stat.missed > 0 ? 'ring-red-500/20' : 'ring-zinc-500/20' },
     { label: 'ĐIỂM CAO NHẤT', value: highestScore || '—', icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
   ];
 
@@ -146,42 +250,9 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
         {kpiCards.map((kpi, i) => <KpiCard key={i} {...kpi} />)}
       </div>
 
-      {/* Thanh tiến trình kiểm tra hằng ngày tháng này */}
-      {quizStat && (
-        <Card className="p-5 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/30 flex items-center justify-center">
-                <CalendarCheck className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div>
-                <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Kiểm tra hằng ngày · Tháng {curM}/{curY}</p>
-                <p className="text-sm font-black text-white">
-                  <span className="text-emerald-400">{quizStat.done}</span>
-                  <span className="text-zinc-600"> / {quizStat.required} ngày</span>
-                </p>
-              </div>
-            </div>
-            <div className="flex-1 space-y-1.5">
-              <div className="flex items-center justify-between text-[9px] font-bold text-zinc-600 uppercase tracking-widest">
-                <span>{quizStat.required > 0 ? Math.round(quizStat.done / quizStat.required * 100) : 0}% hoàn thành</span>
-                <span className="flex gap-3">
-                  <span className="text-emerald-400">{quizStat.done} đã làm</span>
-                  {quizStat.missed > 0 && <span className="text-red-400">{quizStat.missed} chưa làm</span>}
-                  {quizStat.absent > 0 && <span className="text-zinc-500">{quizStat.absent} nghỉ làm</span>}
-                </span>
-              </div>
-              <div className="w-full bg-zinc-900 rounded-full h-2 flex overflow-hidden">
-                {quizStat.required > 0 && (
-                  <>
-                    <div className="h-full bg-emerald-500 transition-all" style={{ width: `${quizStat.done / quizStat.required * 100}%` }} />
-                    <div className="h-full bg-red-500/60 transition-all" style={{ width: `${quizStat.missed / quizStat.required * 100}%` }} />
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
+      {/* Lịch kiểm tra hằng ngày tháng này */}
+      {quizCalendar && (
+        <MonthlyCalendarCard calendar={quizCalendar} yearMonth={currentYM} />
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

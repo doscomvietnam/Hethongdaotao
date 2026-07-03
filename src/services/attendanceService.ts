@@ -320,6 +320,78 @@ export async function getEmployeesMonthlyQuizStats(
   return result;
 }
 
+export type DayStatus = 'done' | 'missed' | 'absent' | 'holiday' | 'sunday' | 'future';
+
+export interface DayEntry {
+  date: string;
+  day: number;
+  status: DayStatus;
+}
+
+export interface MonthlyQuizCalendar {
+  days: DayEntry[];
+  stat: MonthlyQuizStat;
+}
+
+/** Lấy chi tiết từng ngày trong tháng cho 1 nhân viên */
+export async function getEmployeeMonthlyQuizCalendar(
+  employeeId: string,
+  yearMonth: string,
+): Promise<MonthlyQuizCalendar> {
+  const todayVN = new Date(Date.now() + VN_OFFSET_MS).toISOString().slice(0, 10);
+  const [y, m] = yearMonth.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const from = `${yearMonth}-01`;
+  const to = `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`;
+
+  const [holsRes, absRes, trainingRes, dailyRes] = await Promise.all([
+    supabase.from('company_holidays').select('date').gte('date', from).lte('date', to),
+    supabase.from('employee_absences').select('date').eq('employee_id', employeeId).gte('date', from).lte('date', to),
+    supabase.from('training_progress').select('quiz_completed_at').not('quiz_score', 'is', null).not('quiz_completed_at', 'is', null).eq('employee_id', employeeId),
+    supabase.from('daily_tests').select('test_date').gte('test_date', from).lte('test_date', to).eq('status', 'submitted').eq('employee_id', employeeId),
+  ]);
+
+  const holidaySet = new Set<string>((holsRes.data || []).map((r: any) => r.date as string));
+  const absSet = new Set<string>((absRes.data || []).map((r: any) => r.date as string));
+
+  const subSet = new Set<string>();
+  for (const r of (trainingRes.data || []) as any[]) {
+    const vnDate = isoToVNDateLocal(r.quiz_completed_at);
+    if (vnDate && vnDate >= from && vnDate <= to) subSet.add(vnDate);
+  }
+  for (const r of (dailyRes.data || []) as any[]) {
+    subSet.add(r.test_date as string);
+  }
+
+  const days: DayEntry[] = [];
+  let done = 0, missed = 0, required = 0, absent = 0;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const date = `${yearMonth}-${String(d).padStart(2, '0')}`;
+    const isSunday = new Date(y, m - 1, d).getDay() === 0;
+    let status: DayStatus;
+
+    if (isSunday) {
+      status = 'sunday';
+    } else if (date > todayVN) {
+      status = 'future';
+    } else if (holidaySet.has(date)) {
+      status = 'holiday';
+    } else if (absSet.has(date)) {
+      status = 'absent';
+      absent++;
+    } else {
+      required++;
+      if (subSet.has(date)) { status = 'done'; done++; }
+      else { status = 'missed'; missed++; }
+    }
+
+    days.push({ date, day: d, status });
+  }
+
+  return { days, stat: { done, missed, required, absent } };
+}
+
 // Tính số ngày phải làm = ngày làm việc - ngày lễ - ngày nghỉ cá nhân
 export function calcRequiredDays(
   yearMonth: string,
