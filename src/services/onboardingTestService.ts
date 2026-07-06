@@ -261,23 +261,25 @@ export async function getOnboardingTestReport(): Promise<OnboardingTestAdminRow[
       onboardingAvailableDate: emp.onboarding_available_date || null,
     };
 
+    // Có bài test thực tế → hiển thị kết quả dù onboarding_available_date có null hay không
+    if (t) {
+      return {
+        ...base,
+        testId: t.test_id,
+        status: t.status as 'pending' | 'submitted',
+        passed: t.passed ?? undefined,
+        scorePercent: t.score_percent ?? undefined,
+        correctCount: t.correct_count ?? undefined,
+        totalQuestions: t.total_questions,
+        submittedAt: t.submitted_at ?? undefined,
+        timeSeconds: t.time_seconds ?? undefined,
+      };
+    }
+    // Không có bài test: N/A nếu không có ngày mở, chưa làm nếu có ngày mở
     if (!emp.onboarding_available_date) {
       return { ...base, testId: null, status: 'not_applicable' as const };
     }
-    if (!t) {
-      return { ...base, testId: null, status: 'not_started' as const };
-    }
-    return {
-      ...base,
-      testId: t.test_id,
-      status: t.status as 'pending' | 'submitted',
-      passed: t.passed ?? undefined,
-      scorePercent: t.score_percent ?? undefined,
-      correctCount: t.correct_count ?? undefined,
-      totalQuestions: t.total_questions,
-      submittedAt: t.submitted_at ?? undefined,
-      timeSeconds: t.time_seconds ?? undefined,
-    };
+    return { ...base, testId: null, status: 'not_started' as const };
   });
 }
 
