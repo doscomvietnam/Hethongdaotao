@@ -1,7 +1,7 @@
 import * as React from 'react';
 import {
   BarChart3, Save, Loader2, CheckCircle2,
-  Users, GraduationCap, Box, HelpCircle, FileText, Tag,
+  Users, GraduationCap, Box, HelpCircle, FileText, Tag, Brain, ClipboardCheck,
 } from 'lucide-react';
 import { Field, TextInput, Select } from './AdminModal';
 import { supabase } from '../../services/supabaseClient';
@@ -43,6 +43,8 @@ interface CountStats {
   quizzes: number;
   questions: number;
   progress: number;
+  dailyTests: number;
+  onboardingTests: number;
 }
 
 export default function SystemSettings() {
@@ -56,7 +58,7 @@ export default function SystemSettings() {
   const refreshStats = React.useCallback(async () => {
     setLoadingStats(true);
     try {
-      const tables = ['employees', 'courses', 'products', 'quizzes', 'quiz_questions', 'training_progress'] as const;
+      const tables = ['employees', 'courses', 'products', 'quizzes', 'quiz_questions', 'training_progress', 'daily_tests', 'onboarding_tests'] as const;
       const results = await Promise.all(
         tables.map(t => supabase.from(t).select('*', { count: 'exact', head: true }))
       );
@@ -67,6 +69,8 @@ export default function SystemSettings() {
         quizzes: results[3].count || 0,
         questions: results[4].count || 0,
         progress: results[5].count || 0,
+        dailyTests: results[6].count || 0,
+        onboardingTests: results[7].count || 0,
       });
     } catch (e) {
       console.error('Stats error:', e);
@@ -102,6 +106,8 @@ export default function SystemSettings() {
     { label: 'Quiz', value: stats?.quizzes, icon: HelpCircle, color: 'text-purple-400', bg: 'bg-purple-500/10' },
     { label: 'Câu hỏi', value: stats?.questions, icon: FileText, color: 'text-pink-400', bg: 'bg-pink-500/10' },
     { label: 'Tiến độ học', value: stats?.progress, icon: BarChart3, color: 'text-cyan-400', bg: 'bg-cyan-500/10' },
+    { label: 'Quiz hằng ngày', value: stats?.dailyTests, icon: Brain, color: 'text-violet-400', bg: 'bg-violet-500/10' },
+    { label: 'Test Onboarding', value: stats?.onboardingTests, icon: ClipboardCheck, color: 'text-teal-400', bg: 'bg-teal-500/10' },
   ];
 
   return (
@@ -118,7 +124,7 @@ export default function SystemSettings() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
           {STAT_CARDS.map((s, i) => (
             <div key={i} className="bg-[#0C0C0E] border border-zinc-900 rounded-2xl p-5 space-y-3 hover:border-zinc-800 transition-all">
               <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center`}>
