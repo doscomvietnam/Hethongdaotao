@@ -200,3 +200,18 @@ export interface DailyTestAdminRow {
   resetCount?: number;
 }
 
+export interface OnboardingTestAdminRow {
+  employeeId: string;
+  fullName: string;
+  department: string;
+  onboardingAvailableDate: string | null;
+  testId: string | null;
+  status: 'not_applicable' | 'not_started' | 'pending' | 'submitted';
+  passed?: boolean;
+  scorePercent?: number;
+  correctCount?: number;
+  totalQuestions?: number;
+  submittedAt?: string;
+  timeSeconds?: number;
+}
+

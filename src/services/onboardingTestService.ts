@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import type { OnboardingTestSession, OnboardingTestResult } from '../types';
+import type { OnboardingTestSession, OnboardingTestResult, OnboardingTestAdminRow } from '../types';
 
 const TOTAL_QUESTIONS = 30;
 const PASS_THRESHOLD = 25;
@@ -233,4 +233,89 @@ export async function submitOnboardingTest(
   return {
     result: { correctCount, totalQuestions: total, scorePercent, passed, passThreshold: test.pass_threshold },
   };
+}
+
+// ─── Admin: Report ────────────────────────────────────────────────────────────
+
+export async function getOnboardingTestReport(): Promise<OnboardingTestAdminRow[]> {
+  const [empsRes, testsRes] = await Promise.all([
+    supabase
+      .from('employees')
+      .select('id, full_name, department, onboarding_available_date, skip_daily_quiz')
+      .eq('employment_status', 'active')
+      .order('department')
+      .order('full_name'),
+    supabase.from('onboarding_tests').select('*'),
+  ]);
+
+  const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
+  const testMap = new Map<string, any>();
+  for (const t of testsRes.data || []) testMap.set(t.employee_id, t);
+
+  return employees.map((emp: any) => {
+    const t = testMap.get(emp.id);
+    const base = {
+      employeeId: emp.id,
+      fullName: emp.full_name || '—',
+      department: emp.department || '—',
+      onboardingAvailableDate: emp.onboarding_available_date || null,
+    };
+
+    if (!emp.onboarding_available_date) {
+      return { ...base, testId: null, status: 'not_applicable' as const };
+    }
+    if (!t) {
+      return { ...base, testId: null, status: 'not_started' as const };
+    }
+    return {
+      ...base,
+      testId: t.test_id,
+      status: t.status as 'pending' | 'submitted',
+      passed: t.passed ?? undefined,
+      scorePercent: t.score_percent ?? undefined,
+      correctCount: t.correct_count ?? undefined,
+      totalQuestions: t.total_questions,
+      submittedAt: t.submitted_at ?? undefined,
+      timeSeconds: t.time_seconds ?? undefined,
+    };
+  });
+}
+
+// ─── Admin: Reset ─────────────────────────────────────────────────────────────
+
+export async function adminResetOnboardingTest(
+  testId: string,
+  adminEmployeeId: string,
+  reason: string,
+): Promise<{ success: boolean; error?: string }> {
+  // Reset câu trả lời về null
+  await supabase
+    .from('onboarding_test_questions')
+    .update({ employee_answer: null, is_correct: null })
+    .eq('test_id', testId);
+
+  // Reset bài về pending
+  const { error } = await supabase
+    .from('onboarding_tests')
+    .update({
+      status: 'pending',
+      correct_count: null,
+      score_percent: null,
+      passed: null,
+      submitted_at: null,
+      time_seconds: null,
+    })
+    .eq('test_id', testId);
+
+  if (error) return { success: false, error: error.message };
+
+  // Ghi log vào bảng daily_test_resets (dùng chung, đánh dấu test_id onboarding)
+  await supabase.from('daily_test_resets').insert({
+    test_id: testId,
+    employee_id: (await supabase.from('onboarding_tests').select('employee_id').eq('test_id', testId).maybeSingle()).data?.employee_id,
+    reset_by: adminEmployeeId,
+    reset_reason: `[ONBOARDING] ${reason}`,
+  }).then(() => {}); // fire and forget, không block
+
+  return { success: true };
 }
