@@ -13,6 +13,7 @@ import DailyTestView from "./components/daily-test/DailyTestView";
 import OnboardingTestPage from "./components/onboarding-test/OnboardingTestPage";
 import OnboardingTestView from "./components/onboarding-test/OnboardingTestView";
 import { AttendanceTab } from "./components/dashboard/AttendanceTab";
+import LeaderboardPage from "./components/gamification/LeaderboardPage";
 
 import LoginPage from "./components/auth/LoginPage";
 import ForgotPasswordPage from "./components/auth/ForgotPasswordPage";
@@ -87,6 +88,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.DAILY_TEST]: '/daily-test',
   [ViewType.ONBOARDING_TEST]: '/onboarding-test',
   [ViewType.ATTENDANCE]: '/attendance',
+  [ViewType.LEADERBOARD]: '/leaderboard',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -125,6 +127,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.ONBOARDING_TEST };
     case 'attendance':
       return { view: ViewType.ATTENDANCE };
+    case 'leaderboard':
+      return { view: ViewType.LEADERBOARD };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -1023,6 +1027,9 @@ function App() {
       case ViewType.ATTENDANCE:
         if (employee.role === 'employee') return null;
         return <AttendanceTab />;
+
+      case ViewType.LEADERBOARD:
+        return <LeaderboardPage employeeId={employee.id} />;
 
       default:
         return null;
