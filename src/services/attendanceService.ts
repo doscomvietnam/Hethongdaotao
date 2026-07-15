@@ -48,13 +48,14 @@ export interface AttendanceEmployee {
   id: string;
   fullName: string;
   department: string;
+  startDate?: string | null; // YYYY-MM-DD
 }
 
 // Lấy nhân viên active, trừ người có skip_daily_quiz = true (chủ tịch, v.v.)
 export async function getAttendanceEmployees(): Promise<AttendanceEmployee[]> {
   const { data, error } = await supabase
     .from('employees')
-    .select('id, full_name, department, skip_daily_quiz')
+    .select('id, full_name, department, skip_daily_quiz, start_date')
     .eq('employment_status', 'active')
     .order('department')
     .order('full_name');
@@ -65,6 +66,7 @@ export async function getAttendanceEmployees(): Promise<AttendanceEmployee[]> {
       id: e.id,
       fullName: e.full_name || '—',
       department: e.department || '—',
+      startDate: e.start_date || null,
     }));
 }
 

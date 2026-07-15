@@ -62,28 +62,29 @@ const DOW_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
 // ── Cell logic for quiz results ───────────────────────────────────────────────
 
-type CellType = 'sun' | 'hol' | 'abs' | 'done' | 'miss' | 'pending';
+type CellType = 'sun' | 'hol' | 'abs' | 'done' | 'miss' | 'pending' | 'before_join';
 
 function getCellType(
   yearMonth: string,
   day: number,
-  empId: string,
+  emp: { id: string; startDate?: string | null },
   holidays: Set<string>,
   absences: Map<string, Set<string>>,
   submissions: Map<string, Set<string>>,
   yesterday: string,
 ): CellType {
   const date = dateStr(yearMonth, day);
+  if (emp.startDate && date < emp.startDate) return 'before_join';
   if (isSunday(yearMonth, day)) return 'sun';
   if (holidays.has(date)) return 'hol';
-  if (absences.get(empId)?.has(date)) return 'abs';
+  if (absences.get(emp.id)?.has(date)) return 'abs';
   if (date > yesterday) return 'pending';
-  if (submissions.get(empId)?.has(date)) return 'done';
+  if (submissions.get(emp.id)?.has(date)) return 'done';
   return 'miss';
 }
 
 function calcEmployeeStats(
-  empId: string,
+  emp: { id: string; startDate?: string | null },
   yearMonth: string,
   dayNumbers: number[],
   holidays: Set<string>,
@@ -93,8 +94,8 @@ function calcEmployeeStats(
 ): { required: number; done: number; missed: number; absent: number } {
   let required = 0, done = 0, missed = 0, absent = 0;
   for (const d of dayNumbers) {
-    const t = getCellType(yearMonth, d, empId, holidays, absences, submissions, yesterday);
-    if (t === 'sun' || t === 'hol' || t === 'pending') continue;
+    const t = getCellType(yearMonth, d, emp, holidays, absences, submissions, yesterday);
+    if (t === 'sun' || t === 'hol' || t === 'pending' || t === 'before_join') continue;
     if (t === 'abs') { absent++; continue; }
     required++;
     if (t === 'done') done++;
@@ -122,7 +123,7 @@ async function exportSalaryReport(
   // ─── Sheet 1: Tổng hợp ───────────────────────────────────────────────────
   const S1_HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Ngày phải làm', 'Ngày làm bài', 'Ngày không làm bài'];
   const summaryRows = employees.map((emp, i) => {
-    const { required, done, missed } = calcEmployeeStats(emp.id, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
+    const { required, done, missed } = calcEmployeeStats(emp, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
     return [i + 1, emp.fullName, emp.department, required, done, missed];
   });
   const ws1 = XLSX.utils.aoa_to_sheet([
@@ -150,7 +151,7 @@ async function exportSalaryReport(
 
   // ─── Sheet 2: Chi tiết ngày ───────────────────────────────────────────────
   const cellLabel = (t: CellType) =>
-    ({ sun: 'CN', hol: 'Lễ', abs: 'Nghỉ', done: '✓', miss: 'X', pending: '·' })[t];
+    ({ sun: 'CN', hol: 'Lễ', abs: 'Nghỉ', done: '✓', miss: 'X', pending: '·', before_join: '-' })[t];
 
   const S2_HEADERS = [
     'Họ và tên', 'Phòng ban',
@@ -159,9 +160,9 @@ async function exportSalaryReport(
   ];
   const detailRows = employees.map(emp => {
     const cells = dayNumbers.map(d =>
-      cellLabel(getCellType(yearMonth, d, emp.id, holidays, absences, submissions, yesterday))
+      cellLabel(getCellType(yearMonth, d, emp, holidays, absences, submissions, yesterday))
     );
-    const { missed } = calcEmployeeStats(emp.id, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
+    const { missed } = calcEmployeeStats(emp, yearMonth, dayNumbers, holidays, absences, submissions, yesterday);
     return [emp.fullName, emp.department, ...cells, missed];
   });
   const ws2 = XLSX.utils.aoa_to_sheet([
@@ -328,16 +329,18 @@ function ResultsView({
     done: 'bg-emerald-500/10',
     miss: 'bg-red-500/20',
     pending: '',
+    before_join: '',
   };
 
   const renderCell = (t: CellType) => {
     switch (t) {
-      case 'sun':     return <span className="text-zinc-800 text-[9px]">·</span>;
-      case 'hol':     return <span className="text-orange-400 font-black text-[9px]">L</span>;
-      case 'abs':     return <span className="text-violet-400 font-black text-[9px]">N</span>;
-      case 'done':    return <span className="text-emerald-400 font-black text-[11px]">✓</span>;
-      case 'miss':    return <span className="text-red-400 font-black text-[10px]">X</span>;
-      case 'pending': return <span className="text-zinc-700 text-[9px]">·</span>;
+      case 'sun':         return <span className="text-zinc-800 text-[9px]">·</span>;
+      case 'hol':         return <span className="text-orange-400 font-black text-[9px]">L</span>;
+      case 'abs':         return <span className="text-violet-400 font-black text-[9px]">N</span>;
+      case 'done':        return <span className="text-emerald-400 font-black text-[11px]">✓</span>;
+      case 'miss':        return <span className="text-red-400 font-black text-[10px]">X</span>;
+      case 'pending':     return <span className="text-zinc-700 text-[9px]">·</span>;
+      case 'before_join': return <span className="text-zinc-600 text-[9px]">-</span>;
     }
   };
 
@@ -434,7 +437,7 @@ function ResultsView({
           </thead>
           <tbody>
             {filtered.map((emp, idx) => {
-              const { required, done, missed, absent } = calcEmployeeStats(emp.id, month, dayNumbers, holidays, absences, submissions, yesterday);
+              const { required, done, missed, absent } = calcEmployeeStats(emp, month, dayNumbers, holidays, absences, submissions, yesterday);
               const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
               return (
                 <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
@@ -443,7 +446,7 @@ function ResultsView({
                     <div className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</div>
                   </td>
                   {dayNumbers.map(d => {
-                    const t = getCellType(month, d, emp.id, holidays, absences, submissions, yesterday);
+                    const t = getCellType(month, d, emp, holidays, absences, submissions, yesterday);
                     const date = dateStr(month, d);
                     const isToday = date === todayStr;
                     return (
@@ -486,7 +489,7 @@ function ResultsView({
                     return <td key={d} className="border-r border-zinc-900 last:border-r-0 text-center bg-zinc-900/30" />;
                   }
                   const missCount = filtered.filter(emp => {
-                    const t = getCellType(month, d, emp.id, holidays, absences, submissions, yesterday);
+                    const t = getCellType(month, d, emp, holidays, absences, submissions, yesterday);
                     return t === 'miss';
                   }).length;
                   return (
@@ -502,7 +505,7 @@ function ResultsView({
                 <td className="px-3 py-2 text-center border-l border-zinc-800">
                   <span className="text-red-400 font-black text-[11px]">
                     {filtered.reduce((sum, emp) => {
-                      const { missed } = calcEmployeeStats(emp.id, month, dayNumbers, holidays, absences, submissions, yesterday);
+                      const { missed } = calcEmployeeStats(emp, month, dayNumbers, holidays, absences, submissions, yesterday);
                       return sum + missed;
                     }, 0)}
                   </span>
