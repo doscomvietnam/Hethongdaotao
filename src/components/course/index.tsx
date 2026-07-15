@@ -630,8 +630,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   const totalAttempts = Math.max(course.attempts, localAttempts);
   const hasUsedAttempt = totalAttempts >= 1;
 
-  // Quiz section chỉ hiện với brand không phải Doscom (dùng menu Kiểm tra thay thế)
-  const showQuizSection = hasQuiz && course.brand !== 'Doscom';
+  const showQuizSection = hasQuiz;
 
   // ── Course progress real-time: video = 50%, submit quiz (pass/fail) = +50%
   const computedCourseProgress = React.useMemo(() => {
