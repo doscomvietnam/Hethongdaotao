@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Plus, Search, Pencil, Trash2, Loader2, GraduationCap, HelpCircle, CalendarClock } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Loader2, GraduationCap, HelpCircle, CalendarClock, Eye, CheckCircle2, XCircle } from 'lucide-react';
 import { AdminModal, ConfirmDialog, Field, TextInput, TextArea } from './AdminModal';
 import { ImageUpload } from './ImageUpload';
 import {
@@ -105,6 +105,16 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
   const [deleteTarget, setDeleteTarget] = React.useState<any | null>(null);
   const [deleting, setDeleting] = React.useState(false);
   const [hasDeadline, setHasDeadline] = React.useState(false);
+
+  // Quiz quick-view
+  const [quizViewData, setQuizViewData] = React.useState<{
+    courseName: string;
+    quizId: string;
+    quizTitle: string;
+    passScore: number;
+    questions: InlineQuestionDraft[];
+  } | null>(null);
+  const [quizViewLoading, setQuizViewLoading] = React.useState(false);
 
   const refresh = React.useCallback(async () => {
     setLoading(true);
@@ -408,6 +418,38 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
     }
   };
 
+  const openQuizView = async (row: any) => {
+    if (!row.quiz_id) return;
+    setQuizViewLoading(true);
+    setQuizViewData(null);
+    try {
+      const [allQuizzes, questions] = await Promise.all([
+        getAllQuizzesRaw(),
+        getAllQuestionsRaw(row.quiz_id),
+      ]);
+      const quiz = allQuizzes.find((q: any) => q.quiz_id === row.quiz_id);
+      setQuizViewData({
+        courseName: row.course_name,
+        quizId: row.quiz_id,
+        quizTitle: quiz?.quiz_title || row.quiz_id,
+        passScore: Number(quiz?.pass_score) || 80,
+        questions: (questions || []).map((q: any) => ({
+          id: q.question_id,
+          question_text: q.question_text || '',
+          option_a: q.option_a || '',
+          option_b: q.option_b || '',
+          option_c: q.option_c || '',
+          option_d: q.option_d || '',
+          correct_answer: letterToCorrect(q.correct_answer),
+        })),
+      });
+    } catch (e: any) {
+      alert('Không tải được quiz: ' + (e?.message || e));
+    } finally {
+      setQuizViewLoading(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -517,6 +559,11 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
                     </td>
                     <td className="px-3 py-4">
                       <div className="flex items-center gap-1 justify-end">
+                        {row.quiz_id && (
+                          <button onClick={() => openQuizView(row)} disabled={quizViewLoading} className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-violet-500/20 text-zinc-400 hover:text-violet-400 flex items-center justify-center transition-all" title="Xem quiz">
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                         {canEditRow(row) ? (
                           <>
                             <button onClick={() => openEdit(row)} className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-emerald-500/20 text-zinc-400 hover:text-emerald-500 flex items-center justify-center transition-all" title="Sửa">
@@ -907,6 +954,48 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
         onCancel={() => !deleting && setDeleteTarget(null)}
         loading={deleting}
       />
+      {/* Quiz Quick-View Modal */}
+      <AdminModal
+        open={quizViewData !== null}
+        onClose={() => setQuizViewData(null)}
+        title={quizViewData?.quizTitle || ''}
+        subtitle={`${quizViewData?.courseName || ''} · Điểm đạt: ${quizViewData?.passScore ?? 80}% · ${quizViewData?.questions.length ?? 0} câu`}
+        size="xl"
+        footer={
+          <button onClick={() => setQuizViewData(null)} className="px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest text-zinc-400 hover:text-white hover:bg-zinc-900 transition-colors">
+            Đóng
+          </button>
+        }
+      >
+        {quizViewData && (
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            {quizViewData.questions.length === 0 && (
+              <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest text-center py-8">Quiz chưa có câu hỏi</p>
+            )}
+            {quizViewData.questions.map((q, idx) => (
+              <div key={idx} className="rounded-xl border border-zinc-800 bg-zinc-950 p-4 space-y-3">
+                <p className="text-[11px] font-black text-emerald-500 uppercase tracking-widest">Câu {idx + 1}</p>
+                <p className="text-sm font-bold text-zinc-100">{q.question_text}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {(['A', 'B', 'C', 'D'] as const).map((letter, i) => {
+                    const opt = [q.option_a, q.option_b, q.option_c, q.option_d][i];
+                    const isCorrect = q.correct_answer === letter;
+                    return (
+                      <div key={letter} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${isCorrect ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-zinc-900/50 border-zinc-800 text-zinc-500'}`}>
+                        {isCorrect
+                          ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                          : <XCircle className="w-3.5 h-3.5 shrink-0 text-zinc-700" />}
+                        <span className="font-black">{letter}.</span> {opt}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </AdminModal>
+
     </div>
   );
 }

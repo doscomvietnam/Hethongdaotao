@@ -14,8 +14,8 @@ import type {
   DashboardKPI, DeptStat, LearningStatus, CourseRanking, OverdueItem, ActivityItem,
   LeaderboardData, EmployeeQuizActivity, MonthStat,
 } from '../../services/dashboardDataService';
-import { getLeaderboardData, getLeaderboardDateRange, getOnboardingLeaderboard, getQuizActivity3Months } from '../../services/dashboardDataService';
-import type { OnboardingLeaderboardEntry } from '../../services/dashboardDataService';
+import { getLeaderboardData, getLeaderboardDateRange, getOnboardingLeaderboard, getQuizActivity3Months, getMissedEmployeesForMonth, getMonthlyQuizRateSummary, getMonthlyQuizRateByDept } from '../../services/dashboardDataService';
+import type { OnboardingLeaderboardEntry, MissedEmployee, MonthlyQuizRateSummary } from '../../services/dashboardDataService';
 import {
   syncLeaderboardToLark,
   setLarkLeaderboardWebhookUrl,
@@ -372,6 +372,30 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
       .finally(() => setOnboardingLbLoading(false));
   }, []);
 
+  // Tỷ lệ hoàn thành quiz tháng hiện tại
+  const [quizRateSummary, setQuizRateSummary] = React.useState<MonthlyQuizRateSummary | null>(null);
+  const [deptQuizStats, setDeptQuizStats] = React.useState<DeptStat[]>([]);
+  React.useEffect(() => {
+    getMonthlyQuizRateSummary(currentMonthStr)
+      .then(setQuizRateSummary)
+      .catch(e => console.error('Quiz rate error:', e));
+    getMonthlyQuizRateByDept(currentMonthStr)
+      .then(setDeptQuizStats)
+      .catch(e => console.error('Dept quiz rate error:', e));
+  }, [currentMonthStr]);
+
+  // Nhân viên chưa làm bài trong tháng được chọn
+  const [missedEmployees, setMissedEmployees] = React.useState<MissedEmployee[]>([]);
+  const [missedEmpLoading, setMissedEmpLoading] = React.useState(true);
+  React.useEffect(() => {
+    setMissedEmpLoading(true);
+    const month = leaderboardMonth || currentMonthStr;
+    getMissedEmployeesForMonth(month)
+      .then(setMissedEmployees)
+      .catch(e => console.error('Missed employees error:', e))
+      .finally(() => setMissedEmpLoading(false));
+  }, [leaderboardMonth, currentMonthStr]);
+
   // Vắng làm bài (8h30-18h, trừ Chủ nhật, bỏ qua user đã hoàn thành tất cả khóa).
   // Admin có thể chọn ngày tùy ý để xem lịch sử. Mặc định = hôm qua.
   const [missedDate, setMissedDate] = React.useState<string>(getYesterdayDateStrVN());
@@ -480,8 +504,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
   const kpiCards = [
     { label: 'TỔNG NHÂN VIÊN', value: kpi.totalEmployees, icon: Users, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20' },
     { label: 'KHÓA HỌC ACTIVE', value: kpi.totalCourses, icon: BookOpen, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
-    { label: 'TỶ LỆ HOÀN THÀNH', value: `${kpi.completionRate}%`, icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
-    { label: 'NHÂN VIÊN CHƯA HỌC', value: kpi.inactiveEmployeesCount, icon: UserX, color: 'text-zinc-400', bg: 'bg-zinc-500/10', ring: 'ring-zinc-500/20' },
+    { label: 'QUIZ THÁNG NÀY', value: quizRateSummary ? `${quizRateSummary.rate}%` : '—', icon: TrendingUp, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
     { label: 'ĐIỂM KIỂM TRA TB', value: kpi.avgQuizScore || '—', icon: Target, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
     { label: 'LƯỢT KHÔNG ĐẠT', value: kpi.failedQuizCount, icon: XCircle, color: 'text-rose-400', bg: 'bg-rose-500/10', ring: 'ring-rose-500/20' },
   ];
@@ -772,13 +795,13 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Department completion bar chart */}
         <Card className="col-span-2 p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-          <SectionHeader icon={BarChart3} title="Hoàn thành theo phòng ban" subtitle="Tỷ lệ % hoàn thành đào tạo" />
+          <SectionHeader icon={BarChart3} title="Hoàn thành theo phòng ban" subtitle={`Tỷ lệ % quiz hoàn thành · T${currentMonthStr.slice(5, 7)}/${currentMonthStr.slice(0, 4)}`} />
           <div className="h-[280px]">
-            {deptStats.length === 0 ? (
+            {deptQuizStats.length === 0 ? (
               <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-12">Chưa có dữ liệu</p>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={deptStats} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                <BarChart data={deptQuizStats} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#18181B" />
                   <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#52525B', fontWeight: 700 }} />
                   <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#52525B', fontWeight: 700 }} tickFormatter={v => `${v}%`} />
@@ -960,39 +983,35 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
           )}
         </Card>
 
-        {/* Top 10 không làm bài */}
+        {/* Chưa làm bài trong tháng */}
         <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-          <SectionHeader icon={Flame} title="Top 10 Không Làm Bài" subtitle="Ít bài kiểm tra nhất trong kỳ" color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
-          {leaderboardLoading ? (
+          <SectionHeader
+            icon={Flame}
+            title="Nhân Viên Chưa Làm Bài"
+            subtitle={missedEmpLoading ? 'Đang tải...' : `${missedEmployees.length} nhân viên · T${(leaderboardMonth || currentMonthStr).slice(5, 7)}/${(leaderboardMonth || currentMonthStr).slice(0, 4)}`}
+            color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30"
+          />
+          {missedEmpLoading ? (
             <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest text-center py-8">Đang tải...</p>
-          ) : !leaderboard || leaderboard.topInactive.length === 0 ? (
+          ) : missedEmployees.length === 0 ? (
             <div className="text-center py-8">
               <CheckCircle2 className="w-8 h-8 text-emerald-500/20 mx-auto mb-2" />
               <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Tất cả đều tham gia đầy đủ!</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {leaderboard.topInactive.map((emp, i) => (
+            <div className="overflow-y-auto max-h-[590px] space-y-2">
+              {missedEmployees.map((emp) => (
                 <div key={emp.employeeId} className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
                   <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-[10px] font-black text-red-400 flex-shrink-0">
-                    #{i + 1}
+                    {emp.missed}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
                     <p className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    {emp.value === 0 ? (
-                      <>
-                        <p className="text-xs font-black text-red-500">0</p>
-                        <p className="text-[9px] text-zinc-600 font-bold">Chưa làm</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-sm font-black text-orange-400 tabular-nums">{emp.value}</p>
-                        <p className="text-[9px] text-zinc-600 font-bold">bài</p>
-                      </>
-                    )}
+                    <p className="text-sm font-black text-red-400 tabular-nums">{emp.missed}</p>
+                    <p className="text-[9px] text-zinc-600 font-bold">/{emp.required} ngày</p>
                   </div>
                 </div>
               ))}

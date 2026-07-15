@@ -1,19 +1,15 @@
 -- ============================================================
 -- SECURITY: RLS + Quiz Re-submission Trigger
 -- Chạy trong Supabase Dashboard → SQL Editor
+-- An toàn chạy nhiều lần (idempotent)
 -- ============================================================
 
 -- ── PHẦN 1: Quiz re-submission trigger ───────────────────────
--- Bảo vệ: khi quiz đã nộp (quiz_completed_at IS NOT NULL),
--- không cho ghi đè điểm dù upsert lại. Admin vẫn reset được
--- bằng cách DELETE row (trigger chỉ chặn UPDATE, không chặn DELETE).
-
 CREATE OR REPLACE FUNCTION prevent_quiz_rescore()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  -- Nếu bài đã nộp trước đó VÀ lần này cũng đang set completed → giữ nguyên điểm cũ
   IF OLD.quiz_completed_at IS NOT NULL AND NEW.quiz_completed_at IS NOT NULL THEN
     NEW.quiz_score          := OLD.quiz_score;
     NEW.quiz_time_seconds   := OLD.quiz_time_seconds;
@@ -31,10 +27,7 @@ CREATE TRIGGER prevent_quiz_rescore_trigger
   FOR EACH ROW
   EXECUTE FUNCTION prevent_quiz_rescore();
 
--- ── PHẦN 2: Helper function để check role (SECURITY DEFINER) ──
--- Hàm này bypass RLS để đọc role của user hiện tại — tránh đệ quy
--- khi policy trên bảng employees tự gọi lại employees.
-
+-- ── PHẦN 2: Helper function (SECURITY DEFINER) ───────────────
 CREATE OR REPLACE FUNCTION public.current_user_role()
 RETURNS text
 LANGUAGE sql
@@ -44,130 +37,132 @@ AS $$
   SELECT role FROM public.employees WHERE auth_user_id = auth.uid() LIMIT 1
 $$;
 
--- ── PHẦN 3: Bật RLS và thêm policies ─────────────────────────
-
--- Bảng EMPLOYEES
+-- ── PHẦN 3: RLS — EMPLOYEES ──────────────────────────────────
 ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
 
--- Nhân viên chỉ xem được record của mình
+DROP POLICY IF EXISTS "employee_select_own"          ON employees;
+DROP POLICY IF EXISTS "admin_select_all_employees"   ON employees;
+DROP POLICY IF EXISTS "admin_insert_employees"       ON employees;
+DROP POLICY IF EXISTS "admin_update_employees"       ON employees;
+DROP POLICY IF EXISTS "admin_delete_employees"       ON employees;
+
 CREATE POLICY "employee_select_own" ON employees
-  FOR SELECT
-  USING (auth_user_id = auth.uid());
+  FOR SELECT USING (auth_user_id = auth.uid());
 
--- Admin/manager xem được tất cả
 CREATE POLICY "admin_select_all_employees" ON employees
-  FOR SELECT
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR SELECT USING (current_user_role() IN ('admin', 'manager'));
 
--- Chỉ admin/manager mới được thêm/sửa/xóa nhân viên
 CREATE POLICY "admin_insert_employees" ON employees
-  FOR INSERT
-  WITH CHECK (current_user_role() IN ('admin', 'manager'));
+  FOR INSERT WITH CHECK (current_user_role() IN ('admin', 'manager'));
 
 CREATE POLICY "admin_update_employees" ON employees
-  FOR UPDATE
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR UPDATE USING (current_user_role() IN ('admin', 'manager'));
 
 CREATE POLICY "admin_delete_employees" ON employees
-  FOR DELETE
-  USING (current_user_role() = 'admin');
+  FOR DELETE USING (current_user_role() = 'admin');
 
--- Bảng TRAINING_PROGRESS
+-- ── PHẦN 4: RLS — TRAINING_PROGRESS ──────────────────────────
 ALTER TABLE training_progress ENABLE ROW LEVEL SECURITY;
 
--- Nhân viên xem tiến độ của mình
+DROP POLICY IF EXISTS "employee_select_own_progress"  ON training_progress;
+DROP POLICY IF EXISTS "admin_select_all_progress"     ON training_progress;
+DROP POLICY IF EXISTS "employee_upsert_own_progress"  ON training_progress;
+DROP POLICY IF EXISTS "admin_manage_all_progress"     ON training_progress;
+
 CREATE POLICY "employee_select_own_progress" ON training_progress
-  FOR SELECT
-  USING (employee_id IN (
+  FOR SELECT USING (employee_id IN (
     SELECT id FROM employees WHERE auth_user_id = auth.uid()
   ));
 
--- Admin/manager xem tất cả
 CREATE POLICY "admin_select_all_progress" ON training_progress
-  FOR SELECT
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR SELECT USING (current_user_role() IN ('admin', 'manager'));
 
--- Nhân viên tự save tiến độ của mình
 CREATE POLICY "employee_upsert_own_progress" ON training_progress
-  FOR ALL
-  USING (employee_id IN (
+  FOR ALL USING (employee_id IN (
     SELECT id FROM employees WHERE auth_user_id = auth.uid()
   ));
 
--- Admin/manager có thể sửa/xóa tất cả (reset)
 CREATE POLICY "admin_manage_all_progress" ON training_progress
-  FOR ALL
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR ALL USING (current_user_role() IN ('admin', 'manager'));
 
--- Bảng DAILY_TESTS
+-- ── PHẦN 5: RLS — DAILY_TESTS ────────────────────────────────
 ALTER TABLE daily_tests ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "employee_select_own_daily"  ON daily_tests;
+DROP POLICY IF EXISTS "admin_select_all_daily"     ON daily_tests;
+DROP POLICY IF EXISTS "employee_manage_own_daily"  ON daily_tests;
+DROP POLICY IF EXISTS "admin_manage_all_daily"     ON daily_tests;
+
 CREATE POLICY "employee_select_own_daily" ON daily_tests
-  FOR SELECT
-  USING (employee_id IN (
+  FOR SELECT USING (employee_id IN (
     SELECT id FROM employees WHERE auth_user_id = auth.uid()
   ));
 
 CREATE POLICY "admin_select_all_daily" ON daily_tests
-  FOR SELECT
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR SELECT USING (current_user_role() IN ('admin', 'manager'));
 
 CREATE POLICY "employee_manage_own_daily" ON daily_tests
-  FOR ALL
-  USING (employee_id IN (
+  FOR ALL USING (employee_id IN (
     SELECT id FROM employees WHERE auth_user_id = auth.uid()
   ));
 
 CREATE POLICY "admin_manage_all_daily" ON daily_tests
-  FOR ALL
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR ALL USING (current_user_role() IN ('admin', 'manager'));
 
--- Bảng DAILY_TEST_QUESTIONS
+-- ── PHẦN 6: RLS — DAILY_TEST_QUESTIONS ───────────────────────
 ALTER TABLE daily_test_questions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "employee_select_own_daily_q"  ON daily_test_questions;
+DROP POLICY IF EXISTS "admin_select_all_daily_q"     ON daily_test_questions;
+DROP POLICY IF EXISTS "employee_manage_own_daily_q"  ON daily_test_questions;
+DROP POLICY IF EXISTS "admin_manage_all_daily_q"     ON daily_test_questions;
+
 CREATE POLICY "employee_select_own_daily_q" ON daily_test_questions
-  FOR SELECT
-  USING (test_id IN (
+  FOR SELECT USING (test_id IN (
     SELECT test_id FROM daily_tests
     WHERE employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())
   ));
 
 CREATE POLICY "admin_select_all_daily_q" ON daily_test_questions
-  FOR SELECT
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR SELECT USING (current_user_role() IN ('admin', 'manager'));
 
 CREATE POLICY "employee_manage_own_daily_q" ON daily_test_questions
-  FOR ALL
-  USING (test_id IN (
+  FOR ALL USING (test_id IN (
     SELECT test_id FROM daily_tests
     WHERE employee_id IN (SELECT id FROM employees WHERE auth_user_id = auth.uid())
   ));
 
 CREATE POLICY "admin_manage_all_daily_q" ON daily_test_questions
-  FOR ALL
-  USING (current_user_role() IN ('admin', 'manager'));
+  FOR ALL USING (current_user_role() IN ('admin', 'manager'));
 
--- Bảng COURSES, QUIZ_QUESTIONS, DAILY_QUESTIONS (chỉ đọc cho tất cả authenticated)
+-- ── PHẦN 7: RLS — COURSES / QUIZZES / QUESTIONS (read-only cho tất cả) ──
 ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_read_courses" ON courses;
+DROP POLICY IF EXISTS "admin_manage_courses"       ON courses;
 CREATE POLICY "authenticated_read_courses" ON courses
   FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "admin_manage_courses" ON courses
   FOR ALL USING (current_user_role() = 'admin');
 
 ALTER TABLE quiz_questions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_read_quiz_questions" ON quiz_questions;
+DROP POLICY IF EXISTS "admin_manage_quiz_questions"       ON quiz_questions;
 CREATE POLICY "authenticated_read_quiz_questions" ON quiz_questions
   FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "admin_manage_quiz_questions" ON quiz_questions
   FOR ALL USING (current_user_role() = 'admin');
 
 ALTER TABLE daily_questions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_read_daily_questions" ON daily_questions;
+DROP POLICY IF EXISTS "admin_manage_daily_questions"       ON daily_questions;
 CREATE POLICY "authenticated_read_daily_questions" ON daily_questions
   FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "admin_manage_daily_questions" ON daily_questions
   FOR ALL USING (current_user_role() = 'admin');
 
--- Bảng QUIZZES (quiz config)
 ALTER TABLE quizzes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "authenticated_read_quizzes" ON quizzes;
+DROP POLICY IF EXISTS "admin_manage_quizzes"       ON quizzes;
 CREATE POLICY "authenticated_read_quizzes" ON quizzes
   FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "admin_manage_quizzes" ON quizzes

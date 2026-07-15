@@ -3,6 +3,7 @@
  * Cung cấp dữ liệu dashboard cho 3 role: Admin, Manager, Employee
  */
 import { supabase } from './supabaseClient';
+import { getEmployeesMonthlyQuizStats } from './attendanceService';
 
 // Phòng ban bị ẩn khỏi toàn bộ dashboard
 const EXCLUDED_DEPARTMENTS = ['chủ tịch'];
@@ -855,4 +856,123 @@ const [testsRes, coursesRes, empsRes] = await Promise.all([
   );
 
   return { activities, monthLabels: monthKeys };
+}
+
+// ── Monthly quiz rate by department ──────────────────────────────────────────
+
+export async function getMonthlyQuizRateByDept(yearMonth: string): Promise<DeptStat[]> {
+  const { data: emps } = await supabase
+    .from('employees')
+    .select('id, department, skip_daily_quiz')
+    .eq('employment_status', 'active');
+
+  const filtered = ((emps || []) as any[]).filter(
+    e => !e.skip_daily_quiz && !isExcludedDept(e.department || ''),
+  );
+  if (!filtered.length) return [];
+
+  const ids = filtered.map(e => e.id);
+  const statsMap = await getEmployeesMonthlyQuizStats(ids, yearMonth);
+
+  const deptMap: Record<string, { done: number; required: number }> = {};
+  for (const emp of filtered) {
+    const dept = emp.department || 'Khác';
+    if (!deptMap[dept]) deptMap[dept] = { done: 0, required: 0 };
+    const stat = statsMap.get(emp.id);
+    if (stat) {
+      deptMap[dept].done += stat.done;
+      deptMap[dept].required += stat.required;
+    }
+  }
+
+  return Object.entries(deptMap)
+    .map(([name, d]) => ({
+      name,
+      completion: d.required > 0 ? Math.round((d.done / d.required) * 100) : 0,
+      avgScore: 0,
+      total: d.required,
+      completed: d.done,
+    }))
+    .sort((a, b) => b.completion - a.completion);
+}
+
+// ── Monthly quiz overall rate ─────────────────────────────────────────────────
+
+export interface MonthlyQuizRateSummary {
+  done: number;
+  required: number;
+  rate: number;
+  neverDone: number;   // số NV có required > 0 nhưng chưa làm bài nào trong tháng
+  totalParticipants: number; // tổng NV tham gia hệ thống quiz
+}
+
+export async function getMonthlyQuizRateSummary(yearMonth: string): Promise<MonthlyQuizRateSummary> {
+  const { data: emps } = await supabase
+    .from('employees')
+    .select('id, skip_daily_quiz, department')
+    .eq('employment_status', 'active');
+
+  const ids = ((emps || []) as any[])
+    .filter(e => !e.skip_daily_quiz && !isExcludedDept(e.department || ''))
+    .map(e => e.id);
+
+  if (!ids.length) return { done: 0, required: 0, rate: 0, neverDone: 0, totalParticipants: 0 };
+
+  const statsMap = await getEmployeesMonthlyQuizStats(ids, yearMonth);
+
+  let totalDone = 0;
+  let totalRequired = 0;
+  let neverDone = 0;
+  for (const stat of statsMap.values()) {
+    totalDone += stat.done;
+    totalRequired += stat.required;
+    if (stat.required > 0 && stat.done === 0) neverDone++;
+  }
+
+  const rate = totalRequired > 0 ? Math.round((totalDone / totalRequired) * 1000) / 10 : 0;
+  return { done: totalDone, required: totalRequired, rate, neverDone, totalParticipants: ids.length };
+}
+
+// ── Missed employees for a specific month ────────────────────────────────────
+
+export interface MissedEmployee {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  missed: number;
+  done: number;
+  required: number;
+}
+
+export async function getMissedEmployeesForMonth(yearMonth: string): Promise<MissedEmployee[]> {
+  const { data: emps } = await supabase
+    .from('employees')
+    .select('id, full_name, department, skip_daily_quiz')
+    .eq('employment_status', 'active');
+
+  const employees = ((emps || []) as any[]).filter(
+    e => !e.skip_daily_quiz && !isExcludedDept(e.department || ''),
+  );
+  if (!employees.length) return [];
+
+  const ids = employees.map(e => e.id);
+  const statsMap = await getEmployeesMonthlyQuizStats(ids, yearMonth);
+
+  const result: MissedEmployee[] = [];
+  for (const emp of employees) {
+    const stat = statsMap.get(emp.id);
+    if (!stat || stat.missed === 0) continue;
+    result.push({
+      employeeId: emp.id,
+      employeeName: emp.full_name || '—',
+      department: emp.department || '—',
+      missed: stat.missed,
+      done: stat.done,
+      required: stat.required,
+    });
+  }
+
+  return result.sort(
+    (a, b) => b.missed - a.missed || a.employeeName.localeCompare(b.employeeName, 'vi'),
+  );
 }
