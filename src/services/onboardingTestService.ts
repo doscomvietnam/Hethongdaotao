@@ -36,7 +36,8 @@ export function getOnboardingAvailability(
 ): OnboardingAvailability {
   if (!onboardingAvailableDate) return { state: 'not_applicable' };
 
-  if (testStatus === 'submitted') {
+  // Hiện kết quả nếu đã submitted HOẶC pending nhưng đã có điểm (bị kẹt)
+  if (testStatus === 'submitted' || (testStatus === 'pending' && correctCount != null)) {
     return {
       state: 'done',
       passed: passed ?? false,
@@ -263,11 +264,15 @@ export async function getOnboardingTestReport(): Promise<OnboardingTestAdminRow[
     };
 
     // Có bài test thực tế → hiển thị kết quả dù onboarding_available_date có null hay không
+    // Nếu pending nhưng có điểm (bị kẹt) → treat as submitted
     if (t) {
+      const effectiveStatus = (t.status === 'pending' && t.correct_count != null)
+        ? 'submitted'
+        : t.status as 'pending' | 'submitted';
       return {
         ...base,
         testId: t.test_id,
-        status: t.status as 'pending' | 'submitted',
+        status: effectiveStatus,
         passed: t.passed ?? undefined,
         scorePercent: t.score_percent ?? undefined,
         correctCount: t.correct_count ?? undefined,

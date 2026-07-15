@@ -27,14 +27,15 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
       .eq('employee_id', employeeId)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (!error && data?.status === 'submitted') {
-          // Đã làm xong → luôn hiện kết quả
+        const hasScore = !error && data?.correct_count != null;
+        if (hasScore) {
+          // Đã có điểm (submitted hoặc pending bị kẹt) → luôn hiện kết quả
           setAvailability(getOnboardingAvailability(
             onboardingAvailableDate || new Date().toISOString().slice(0, 10),
-            data.status,
-            data.passed,
-            data.correct_count,
-            data.score_percent,
+            data!.status,
+            data!.passed,
+            data!.correct_count,
+            data!.score_percent,
           ));
         } else if (!onboardingAvailableDate) {
           setAvailability({ state: 'not_applicable' });
