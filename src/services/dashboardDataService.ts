@@ -677,8 +677,7 @@ export async function getOnboardingLeaderboard(): Promise<OnboardingLeaderboardE
     `)
     .eq('status', 'submitted')
     .order('score_percent', { ascending: false })
-    .order('time_seconds', { ascending: true })
-    .limit(10);
+    .order('time_seconds', { ascending: true });
 
   if (error) throw error;
   return (data || []).map((row: any) => ({
@@ -863,7 +862,7 @@ const [testsRes, coursesRes, empsRes] = await Promise.all([
 export async function getMonthlyQuizRateByDept(yearMonth: string): Promise<DeptStat[]> {
   const { data: emps } = await supabase
     .from('employees')
-    .select('id, department, skip_daily_quiz')
+    .select('id, department, skip_daily_quiz, start_date')
     .eq('employment_status', 'active');
 
   const filtered = ((emps || []) as any[]).filter(
@@ -871,8 +870,10 @@ export async function getMonthlyQuizRateByDept(yearMonth: string): Promise<DeptS
   );
   if (!filtered.length) return [];
 
-  const ids = filtered.map(e => e.id);
-  const statsMap = await getEmployeesMonthlyQuizStats(ids, yearMonth);
+  const statsMap = await getEmployeesMonthlyQuizStats(
+    filtered.map(e => ({ id: e.id, start_date: e.start_date })),
+    yearMonth,
+  );
 
   const deptMap: Record<string, { done: number; required: number }> = {};
   for (const emp of filtered) {
@@ -909,16 +910,18 @@ export interface MonthlyQuizRateSummary {
 export async function getMonthlyQuizRateSummary(yearMonth: string): Promise<MonthlyQuizRateSummary> {
   const { data: emps } = await supabase
     .from('employees')
-    .select('id, skip_daily_quiz, department')
+    .select('id, skip_daily_quiz, department, start_date')
     .eq('employment_status', 'active');
 
-  const ids = ((emps || []) as any[])
-    .filter(e => !e.skip_daily_quiz && !isExcludedDept(e.department || ''))
-    .map(e => e.id);
+  const filtered = ((emps || []) as any[])
+    .filter(e => !e.skip_daily_quiz && !isExcludedDept(e.department || ''));
 
-  if (!ids.length) return { done: 0, required: 0, rate: 0, neverDone: 0, totalParticipants: 0 };
+  if (!filtered.length) return { done: 0, required: 0, rate: 0, neverDone: 0, totalParticipants: 0 };
 
-  const statsMap = await getEmployeesMonthlyQuizStats(ids, yearMonth);
+  const statsMap = await getEmployeesMonthlyQuizStats(
+    filtered.map(e => ({ id: e.id, start_date: e.start_date })),
+    yearMonth,
+  );
 
   let totalDone = 0;
   let totalRequired = 0;
@@ -930,7 +933,7 @@ export async function getMonthlyQuizRateSummary(yearMonth: string): Promise<Mont
   }
 
   const rate = totalRequired > 0 ? Math.round((totalDone / totalRequired) * 1000) / 10 : 0;
-  return { done: totalDone, required: totalRequired, rate, neverDone, totalParticipants: ids.length };
+  return { done: totalDone, required: totalRequired, rate, neverDone, totalParticipants: filtered.length };
 }
 
 // ── Missed employees for a specific month ────────────────────────────────────
@@ -947,7 +950,7 @@ export interface MissedEmployee {
 export async function getMissedEmployeesForMonth(yearMonth: string): Promise<MissedEmployee[]> {
   const { data: emps } = await supabase
     .from('employees')
-    .select('id, full_name, department, skip_daily_quiz')
+    .select('id, full_name, department, skip_daily_quiz, start_date')
     .eq('employment_status', 'active');
 
   const employees = ((emps || []) as any[]).filter(
@@ -955,8 +958,10 @@ export async function getMissedEmployeesForMonth(yearMonth: string): Promise<Mis
   );
   if (!employees.length) return [];
 
-  const ids = employees.map(e => e.id);
-  const statsMap = await getEmployeesMonthlyQuizStats(ids, yearMonth);
+  const statsMap = await getEmployeesMonthlyQuizStats(
+    employees.map(e => ({ id: e.id, start_date: e.start_date })),
+    yearMonth,
+  );
 
   const result: MissedEmployee[] = [];
   for (const emp of employees) {

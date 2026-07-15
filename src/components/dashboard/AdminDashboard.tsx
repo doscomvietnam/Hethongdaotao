@@ -1054,12 +1054,12 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
       </div>
       </div>
 
-      {/* Top 10 Onboarding Test */}
+      {/* Tất cả kết quả Onboarding Test */}
       <Card className="p-5 lg:p-6 xl:p-8 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
         <SectionHeader
           icon={Trophy}
-          title="Top 10 Onboarding Test"
-          subtitle="Nhân viên đạt điểm cao nhất bài kiểm tra onboarding (cùng điểm → thời gian ngắn hơn xếp trên)"
+          title="Kết Quả Onboarding Test"
+          subtitle={onboardingLbLoading ? 'Đang tải...' : `${onboardingLb.length} nhân viên đã nộp bài · xếp theo điểm cao nhất`}
           color="text-violet-400"
           bg="bg-violet-500/10"
           ring="ring-violet-500/30"
@@ -1072,7 +1072,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
             <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Chưa có nhân viên nào nộp bài</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[590px] overflow-y-auto pr-1">
             {onboardingLb.map((emp, i) => {
               const totalQ = 30;
               const mm = Math.floor(emp.timeSeconds / 60);

@@ -81,8 +81,7 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
   const [quizStatsMap, setQuizStatsMap] = React.useState<Map<string, MonthlyQuizStat>>(new Map());
   React.useEffect(() => {
     if (!data?.teamMembers?.length) return;
-    const ids = data.teamMembers.map(m => m.employeeId);
-    getEmployeesMonthlyQuizStats(ids, currentYM)
+    getEmployeesMonthlyQuizStats(data.teamMembers.map(m => ({ id: m.employeeId })), currentYM)
       .then(setQuizStatsMap)
       .catch(e => console.error('Manager quiz stats error:', e));
   }, [data, currentYM]);

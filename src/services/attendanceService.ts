@@ -261,10 +261,17 @@ export interface MonthlyQuizStat {
 
 /** Bulk-load thống kê kiểm tra hằng ngày cho nhiều nhân viên trong 1 tháng */
 export async function getEmployeesMonthlyQuizStats(
-  employeeIds: string[],
+  employees: Array<{ id: string; start_date?: string | null }>,
   yearMonth: string,
 ): Promise<Map<string, MonthlyQuizStat>> {
+  const employeeIds = employees.map(e => e.id);
   if (employeeIds.length === 0) return new Map();
+
+  // Map empId → ngày vào làm (YYYY-MM-DD), chỉ tính ngày từ đó trở đi
+  const startDateMap = new Map<string, string>();
+  for (const e of employees) {
+    if (e.start_date) startDateMap.set(e.id, e.start_date.slice(0, 10));
+  }
 
   const todayVN = new Date(Date.now() + VN_OFFSET_MS).toISOString().slice(0, 10);
   const currentYM = todayVN.slice(0, 7);
@@ -302,13 +309,16 @@ export async function getEmployeesMonthlyQuizStats(
   }
 
   const result = new Map<string, MonthlyQuizStat>();
-  for (const empId of employeeIds) {
+  for (const emp of employees) {
+    const empId = emp.id;
+    const empStartDate = startDateMap.get(empId); // YYYY-MM-DD hoặc undefined
     const empAbs = absMap.get(empId) || new Set<string>();
     const empSub = subMap.get(empId) || new Set<string>();
     let done = 0, missed = 0, required = 0, absent = 0;
     for (let d = 1; d <= daysInMonth; d++) {
       const date = `${yearMonth}-${String(d).padStart(2, '0')}`;
       if (date > ceiling) break;
+      if (empStartDate && date < empStartDate) continue; // bỏ qua ngày trước khi vào làm
       if (new Date(y, m - 1, d).getDay() === 0) continue;
       if (holidaySet.has(date)) continue;
       if (empAbs.has(date)) { absent++; continue; }
