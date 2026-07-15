@@ -20,26 +20,33 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
   const [checking, setChecking] = React.useState(true);
 
   React.useEffect(() => {
-    if (!onboardingAvailableDate) {
-      setAvailability({ state: 'not_applicable' });
-      setChecking(false);
-      return;
-    }
-
-    // Kiểm tra đã có bài test chưa
+    // Luôn query DB trước — nếu đã submitted thì hiện kết quả dù onboardingAvailableDate có null
     supabase
       .from('onboarding_tests')
       .select('status, passed, correct_count, score_percent')
       .eq('employee_id', employeeId)
       .maybeSingle()
-      .then(({ data }) => {
-        setAvailability(getOnboardingAvailability(
-          onboardingAvailableDate,
-          data?.status,
-          data?.passed,
-          data?.correct_count,
-          data?.score_percent,
-        ));
+      .then(({ data, error }) => {
+        if (!error && data?.status === 'submitted') {
+          // Đã làm xong → luôn hiện kết quả
+          setAvailability(getOnboardingAvailability(
+            onboardingAvailableDate || new Date().toISOString().slice(0, 10),
+            data.status,
+            data.passed,
+            data.correct_count,
+            data.score_percent,
+          ));
+        } else if (!onboardingAvailableDate) {
+          setAvailability({ state: 'not_applicable' });
+        } else {
+          setAvailability(getOnboardingAvailability(
+            onboardingAvailableDate,
+            data?.status,
+            data?.passed,
+            data?.correct_count,
+            data?.score_percent,
+          ));
+        }
         setChecking(false);
       });
   }, [employeeId, onboardingAvailableDate]);

@@ -248,7 +248,8 @@ export async function getOnboardingTestReport(): Promise<OnboardingTestAdminRow[
     supabase.from('onboarding_tests').select('*'),
   ]);
 
-  const employees = (empsRes.data || []).filter((e: any) => !e.skip_daily_quiz);
+  // Không lọc skip_daily_quiz — onboarding test độc lập với daily quiz
+  const employees = empsRes.data || [];
   const testMap = new Map<string, any>();
   for (const t of testsRes.data || []) testMap.set(t.employee_id, t);
 
