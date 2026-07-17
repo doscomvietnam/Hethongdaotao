@@ -92,7 +92,12 @@ function HistoryPanel({ employeeId }: { employeeId: string }) {
     </div>
   );
 
-  const streak = history.reduce((acc, h) => (h.passed ? acc + 1 : 0), 0);
+  // history là mới nhất trước → đếm từ đầu cho đến bài không đạt đầu tiên
+  let streak = 0;
+  for (const h of history) {
+    if (!h.passed) break;
+    streak++;
+  }
 
   return (
     <div className="space-y-4">
