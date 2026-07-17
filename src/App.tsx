@@ -580,6 +580,10 @@ function App() {
       case "attendance":
         setCurrentView(ViewType.ATTENDANCE);
         break;
+      case "my-dashboard":
+        setCurrentView(ViewType.MY_DASHBOARD);
+        initData(true);
+        break;
       default:
         setCurrentView(ViewType.DASHBOARD);
         initData(true);
