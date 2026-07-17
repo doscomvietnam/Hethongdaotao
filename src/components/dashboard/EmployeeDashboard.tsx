@@ -1,7 +1,7 @@
 import * as React from 'react';
 import {
   BookOpen, CheckCircle2, Zap, AlertCircle, Clock,
-  Trophy, Target, Star, Award, Flame, ArrowRight, Play, TrendingUp,
+  Trophy, Star, Award, Flame, ArrowRight, Play, TrendingUp,
   CalendarCheck, CalendarX, XCircle,
 } from 'lucide-react';
 import { Course } from '../../types';
@@ -219,9 +219,6 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
   const highestScore = coursesWithScores.length > 0
     ? Math.max(...coursesWithScores.map(c => c.lastQuizScore || 0))
     : 0;
-  const latestQuizCourse = coursesWithScores.sort((a, b) => (b.lastQuizScore || 0) - (a.lastQuizScore || 0))[0];
-  const latestScore = latestQuizCourse?.lastQuizScore || 0;
-
   // Continue learning — most recent ongoing course
   const continueCourse = ongoingCourses.length > 0 ? ongoingCourses[0] : null;
 
@@ -435,34 +432,8 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
           )}
         </div>
 
-        {/* Right sidebar: Quiz results + Achievements */}
+        {/* Right sidebar: Achievements */}
         <div className="space-y-6">
-          {/* Recent quiz results */}
-          <Card className="p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-            <SectionHeader icon={Target} title="Kết quả quiz" subtitle="Điểm số gần đây" color="text-cyan-400" bg="bg-cyan-500/10" ring="ring-cyan-500/30" />
-            <div className="space-y-2">
-              {coursesWithScores.length === 0 ? (
-                <div className="text-center py-8">
-                  <Target className="w-8 h-8 text-zinc-800 mx-auto mb-2" />
-                  <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">Chưa có kết quả quiz</p>
-                </div>
-              ) : coursesWithScores.slice(0, 5).map(course => (
-                <div key={course.id} className="flex items-center gap-3 p-3 rounded-xl bg-zinc-950 border border-zinc-900">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-black text-zinc-200 truncate">{course.title}</p>
-                    <p className="text-[9px] text-zinc-600 font-bold">{course.brand}</p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className={`text-xl font-black tabular-nums ${(course.lastQuizScore || 0) >= 80 ? 'text-emerald-400' : 'text-red-400'}`}>
-                      {course.lastQuizScore}
-                    </p>
-                    <p className="text-[8px] text-zinc-600 font-bold uppercase">điểm</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
           {/* Achievement card */}
           <Card className="p-0 bg-white border-zinc-200 shadow-[0_20px_60px_rgba(0,0,0,0.08)] rounded-2xl overflow-hidden">
             <div className={`bg-gradient-to-r ${levelInfo.gradient} px-6 pt-6 pb-8 relative`}>
