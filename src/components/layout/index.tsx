@@ -23,6 +23,7 @@ import {
   ExternalLink,
   ClipboardCheck,
   CalendarDays,
+  UserCircle,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -88,7 +89,9 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
   const hasOnboarding = isAdmin || Boolean(employee.onboarding_available_date) || isWithin6Months(employee.start_date);
 
   const allMenuItems = [
-    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['admin', 'manager', 'employee'], show: true },
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan tổ chức', roles: ['admin', 'manager'], show: true },
+    { id: ViewType.MY_DASHBOARD, icon: UserCircle, label: 'Tổng quan cá nhân', roles: ['admin', 'manager'], show: true },
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['employee'], show: true },
     { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
@@ -783,6 +786,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.DAILY_TEST]: 'exam-hub',
       [ViewType.ONBOARDING_TEST]: 'onboarding-test',
       [ViewType.ATTENDANCE]: 'attendance',
+      [ViewType.MY_DASHBOARD]: 'my-dashboard',
     };
     onNavigate(viewMap[view] || 'dashboard');
   };

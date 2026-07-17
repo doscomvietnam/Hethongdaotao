@@ -1,6 +1,7 @@
 import React from "react";
 import Layout from "./components/layout";
 import Dashboard, { AdminDashboard } from "./components/dashboard";
+import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
 import ProductModule from "./components/product";
 import CourseModule from "./components/course";
 import QuizView from "./components/course/QuizView";
@@ -87,6 +88,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.DAILY_TEST]: '/daily-test',
   [ViewType.ONBOARDING_TEST]: '/onboarding-test',
   [ViewType.ATTENDANCE]: '/attendance',
+  [ViewType.MY_DASHBOARD]: '/my-dashboard',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -125,6 +127,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.ONBOARDING_TEST };
     case 'attendance':
       return { view: ViewType.ATTENDANCE };
+    case 'my-dashboard':
+      return { view: ViewType.MY_DASHBOARD };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -803,7 +807,6 @@ function App() {
 
     switch (currentView) {
       case ViewType.DASHBOARD:
-        // Employee: xem dashboard cá nhân, Manager/Admin: xem dashboard tổng quan
         if (employee.role === 'employee') {
           return (
             <Dashboard
@@ -815,8 +818,16 @@ function App() {
             />
           );
         }
+        return <AdminDashboard employee={employee} />;
+
+      case ViewType.MY_DASHBOARD:
         return (
-          <AdminDashboard employee={employee} />
+          <EmployeeDashboardView
+            courses={courses}
+            onCourseClick={(course: Course) => handleOpenCourse(course.id)}
+            employeeId={employee.id}
+            department={employee.department || ''}
+          />
         );
 
       case ViewType.PRODUCT_LIBRARY:

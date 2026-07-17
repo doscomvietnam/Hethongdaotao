@@ -12,7 +12,6 @@ import { EmployeeDashboardView } from './EmployeeDashboard';
 import { getAdminDashboardData, getManagerDashboardData, getRecentActivityOnly } from '../../services/dashboardDataService';
 import { exportFilteredReportExcel } from '../../services/trainingProgressService';
 import { getAllTrainingProgress } from '../../services/trainingProgressService';
-import { GamificationWidget } from '../gamification/GamificationWidget';
 
 // ── Employee Dashboard (default export for backward compat) ─────────────
 interface DashboardProps {
@@ -107,28 +106,22 @@ export const AdminDashboard = ({ employee }: AdminDashboardProps = {}) => {
 
   if (isManager) {
     return (
-      <div className="space-y-6">
-        {employee?.id && <GamificationWidget employeeId={employee.id} />}
-        <ManagerDashboardView
-          department={managerDept}
-          data={data}
-          loading={loading}
-        />
-      </div>
+      <ManagerDashboardView
+        department={managerDept}
+        data={data}
+        loading={loading}
+      />
     );
   }
 
   return (
-    <div className="space-y-6">
-      {employee?.id && <GamificationWidget employeeId={employee.id} />}
-      <AdminDashboardView
-        data={data}
-        loading={loading}
-        onExport={handleExport}
-        exporting={exporting}
-        onLarkSync={handleLarkSync}
-      />
-    </div>
+    <AdminDashboardView
+      data={data}
+      loading={loading}
+      onExport={handleExport}
+      exporting={exporting}
+      onLarkSync={handleLarkSync}
+    />
   );
 };
 
