@@ -157,6 +157,10 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
   const total = session.totalQuestions;
   const threshold = session.passThreshold;
 
+  const xpBase = correct * 10;
+  const xpBonus = score >= 100 ? 30 : 0;
+  const xpEarned = xpBase + xpBonus;
+
   return (
     <div className="min-h-screen bg-[#09090B] p-6 overflow-y-auto">
       <div className="max-w-2xl mx-auto space-y-8 py-8">
@@ -200,6 +204,42 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
             <p className="text-3xl font-black font-mono text-zinc-300">{formatTime(timeSpent)}</p>
           </div>
         </div>
+
+        {/* XP reward */}
+        <motion.div
+          initial={{ scale: 0.7, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, type: 'spring', stiffness: 300, damping: 20 }}
+          className="relative overflow-hidden rounded-2xl border border-amber-500/30 bg-amber-500/10 px-6 py-5"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 ring-1 ring-amber-500/40 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Kinh nghiệm nhận được</p>
+                <div className="flex items-baseline gap-2 mt-0.5">
+                  <motion.span
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="text-3xl font-black text-amber-400 tabular-nums leading-none"
+                  >
+                    +{xpEarned}
+                  </motion.span>
+                  <span className="text-sm font-black text-amber-600">XP</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right space-y-1">
+              <p className="text-[9px] text-amber-700 font-bold">{correct} câu đúng × 10 = {xpBase} XP</p>
+              {xpBonus > 0 && (
+                <p className="text-[9px] text-amber-500 font-black">💯 Điểm tuyệt đối +{xpBonus} XP</p>
+              )}
+            </div>
+          </div>
+        </motion.div>
 
         <div className="px-5 py-3 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex items-center justify-between">
           <span className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Ngưỡng đạt</span>
