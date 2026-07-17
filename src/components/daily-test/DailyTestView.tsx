@@ -587,6 +587,9 @@ function AlreadySubmittedScreen({ session, onBack }: { session: DailyTestSession
   }
 
   const passed = session.passed ?? false;
+  const xpBase = (session.correctCount ?? 0) * 10;
+  const xpBonus = (session.scorePercent ?? 0) >= 100 ? 30 : 0;
+  const xpEarned = xpBase + xpBonus;
 
   return (
     <div className="min-h-screen bg-[#09090B] p-6">
@@ -617,6 +620,18 @@ function AlreadySubmittedScreen({ session, onBack }: { session: DailyTestSession
           <div className="p-5 bg-zinc-900 border border-zinc-800 rounded-2xl text-center">
             <p className="text-[9px] font-black text-zinc-600 uppercase tracking-widest mb-2">Thời gian</p>
             <p className="text-3xl font-black font-mono text-zinc-300">{formatTime(session.timeSeconds ?? 0)}</p>
+          </div>
+        </div>
+
+        {/* XP tóm tắt */}
+        <div className="flex items-center justify-between px-5 py-4 rounded-2xl border border-amber-500/30 bg-amber-500/10">
+          <div className="flex items-center gap-3">
+            <Zap className="w-5 h-5 text-amber-400" />
+            <span className="text-xs font-black text-amber-600 uppercase tracking-widest">Kinh nghiệm bài này</span>
+          </div>
+          <div className="text-right">
+            <span className="text-xl font-black text-amber-400 tabular-nums">+{xpEarned} XP</span>
+            {xpBonus > 0 && <p className="text-[9px] text-amber-600 font-bold">gồm +{xpBonus} XP điểm tuyệt đối 💯</p>}
           </div>
         </div>
 
