@@ -207,18 +207,8 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
   const completedCourses = courses.filter(c => c.progress === 100 || c.isCompleted);
   const ongoingCourses = courses.filter(c => c.progress > 0 && c.progress < 100 && !c.isCompleted);
   const overdueCourses = courses.filter(c => c.endDate && new Date(c.endDate) < now && !c.isCompleted);
-  const notStarted = courses.filter(c => c.progress === 0 && !c.isCompleted);
-
   const completionRate = courses.length > 0 ? Math.round((completedCourses.length / courses.length) * 100) : 0;
 
-  // Quiz scores
-  const coursesWithScores = courses.filter(c => c.lastQuizScore != null && c.lastQuizScore > 0);
-  const avgQuizScore = coursesWithScores.length > 0
-    ? Math.round(coursesWithScores.reduce((sum, c) => sum + (c.lastQuizScore || 0), 0) / coursesWithScores.length * 10) / 10
-    : 0;
-  const highestScore = coursesWithScores.length > 0
-    ? Math.max(...coursesWithScores.map(c => c.lastQuizScore || 0))
-    : 0;
   // Continue learning — most recent ongoing course
   const continueCourse = ongoingCourses.length > 0 ? ongoingCourses[0] : null;
 
@@ -233,7 +223,6 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
     { label: 'TỶ LỆ HOÀN THÀNH', value: `${completionRate}%`, icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
     { label: `ĐÃ LÀM T${curM}/${curY}`, value: quizCalendar ? `${quizCalendar.stat.done}/${quizCalendar.stat.required}` : '—', icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
     { label: `CHƯA LÀM T${curM}/${curY}`, value: quizCalendar ? quizCalendar.stat.missed : '—', icon: CalendarX, color: quizCalendar && quizCalendar.stat.missed > 0 ? 'text-red-400' : 'text-zinc-500', bg: quizCalendar && quizCalendar.stat.missed > 0 ? 'bg-red-500/10' : 'bg-zinc-500/10', ring: quizCalendar && quizCalendar.stat.missed > 0 ? 'ring-red-500/20' : 'ring-zinc-500/20' },
-    { label: 'ĐIỂM CAO NHẤT', value: highestScore || '—', icon: Trophy, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
   ];
 
   return (
@@ -461,33 +450,6 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
                 <div className="flex justify-between text-[8px] text-zinc-400 font-bold uppercase tracking-widest mt-2">
                   <span>{completedCourses.length} hoàn thành</span>
                   <span>{courses.length} tổng cộng</span>
-                </div>
-              </div>
-              {/* Quiz avg */}
-              <div className="p-4 bg-white rounded-xl border border-zinc-100 shadow-[0_2px_8px_rgba(0,0,0,0.03)]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em] mb-1">Điểm quiz TB</p>
-                    <p className="text-2xl font-black text-zinc-800 font-mono tabular-nums">{avgQuizScore || '—'}</p>
-                  </div>
-                  <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-emerald-500" />
-                  </div>
-                </div>
-              </div>
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-3 bg-zinc-50 rounded-xl text-center border border-zinc-100">
-                  <p className="text-lg font-black text-zinc-800 tabular-nums">{completedCourses.length}</p>
-                  <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Hoàn thành</p>
-                </div>
-                <div className="p-3 bg-zinc-50 rounded-xl text-center border border-zinc-100">
-                  <p className="text-lg font-black text-zinc-800 tabular-nums">{avgQuizScore || 0}</p>
-                  <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Điểm TB</p>
-                </div>
-                <div className="p-3 bg-zinc-50 rounded-xl text-center border border-zinc-100">
-                  <p className="text-lg font-black text-zinc-800 tabular-nums">{highestScore || 0}</p>
-                  <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Cao nhất</p>
                 </div>
               </div>
             </div>
