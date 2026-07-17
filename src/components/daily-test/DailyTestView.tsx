@@ -92,10 +92,18 @@ function HistoryPanel({ employeeId }: { employeeId: string }) {
     </div>
   );
 
-  // history là mới nhất trước → đếm từ đầu cho đến bài không đạt đầu tiên
+  // history là mới nhất trước → đếm liên tiếp, kiểm tra ngày liên tục (bỏ qua CN)
+  function prevWorkDay(dateStr: string): string {
+    const d = new Date(dateStr + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    while (d.getDay() === 0) d.setDate(d.getDate() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
   let streak = 0;
-  for (const h of history) {
+  for (let i = 0; i < history.length; i++) {
+    const h = history[i];
     if (!h.passed) break;
+    if (i > 0 && h.testDate !== prevWorkDay(history[i - 1].testDate)) break;
     streak++;
   }
 
