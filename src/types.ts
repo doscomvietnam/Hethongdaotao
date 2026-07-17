@@ -77,7 +77,7 @@ export interface OnboardingTestResult {
   passThreshold: number;
 }
 
-export type Brand = 'Tổng Quan Về Công Ty' | 'Đào Tạo Onboarding' | 'Nội Quy - Quy Chế' | 'Văn Hóa Công Ty' | 'Nội bộ' | 'Doscom' | 'Noma' | 'Claude';
+export type Brand = 'Tổng Quan Về Công Ty' | 'Đào Tạo Onboarding' | 'Nội Quy - Quy Chế' | 'Văn Hóa Công Ty' | 'Nội bộ' | 'Doscom' | 'Noma' | 'Claude' | 'Khóa học sale thực chiến';
 
 export interface Product {
   id: string;

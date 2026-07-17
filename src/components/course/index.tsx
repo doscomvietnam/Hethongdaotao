@@ -89,7 +89,7 @@ interface CourseCatalogProps {
   courses: Course[];
   userId: string;
   onCourseClick: (course: Course) => void;
-  initialGroup?: 'product' | 'general' | null;
+  initialGroup?: 'product' | 'general' | 'department' | null;
 }
 
 const PRODUCT_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma'];
@@ -101,14 +101,22 @@ const GENERAL_BRAND_SET = new Set(['Tổng Quan Về Công Ty', 'Đào Tạo Onb
 export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
   const [activeSub, setActiveSub] = React.useState<string>('Tất cả');
-  const brands = initialGroup === 'product' ? PRODUCT_BRANDS : initialGroup === 'general' ? GENERAL_BRANDS : ALL_BRANDS;
 
   // Pre-filter courses theo nhóm trước khi áp dụng brand filter
+  const deptCourses = React.useMemo(() => courses.filter(c => !PRODUCT_BRAND_SET.has(c.brand) && !GENERAL_BRAND_SET.has(c.brand)), [courses]);
+  const deptBrands: (Brand | 'Tất cả')[] = React.useMemo(() => {
+    const unique = Array.from(new Set(deptCourses.map(c => c.brand)));
+    return ['Tất cả', ...unique] as (Brand | 'Tất cả')[];
+  }, [deptCourses]);
+
+  const brands = initialGroup === 'product' ? PRODUCT_BRANDS : initialGroup === 'general' ? GENERAL_BRANDS : initialGroup === 'department' ? deptBrands : ALL_BRANDS;
+
   const groupCourses = React.useMemo(() => {
     if (initialGroup === 'product') return courses.filter(c => PRODUCT_BRAND_SET.has(c.brand));
     if (initialGroup === 'general') return courses.filter(c => GENERAL_BRAND_SET.has(c.brand));
+    if (initialGroup === 'department') return deptCourses;
     return courses;
-  }, [courses, initialGroup]);
+  }, [courses, initialGroup, deptCourses]);
 
   // Reset về Tất cả khi đổi nhóm khóa học
   React.useEffect(() => {
@@ -121,8 +129,8 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
     setActiveSub('Tất cả');
   }, [activeBrand]);
 
-  // Cấp 2 dùng `department` cho Nội bộ, `category` cho các brand còn lại
-  const isInternal = activeBrand === 'Nội bộ';
+  // Cấp 2 dùng `department` cho Nội bộ và group department, `category` cho các brand còn lại
+  const isInternal = activeBrand === 'Nội bộ' || initialGroup === 'department';
   const subLabel = isInternal ? 'Phòng ban' : 'Dòng khóa học';
 
   const coursesByBrand = activeBrand === 'Tất cả'
@@ -175,7 +183,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
       <div className="flex flex-col gap-6">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
           <div className="space-y-3">
-            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">KHÓA HỌC PHÁT TRIỂN</h1>
+            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">{initialGroup === 'department' ? 'KHÓA HỌC THEO PHÒNG BAN' : 'KHÓA HỌC PHÁT TRIỂN'}</h1>
           </div>
 
           <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0 flex-wrap">
@@ -975,7 +983,7 @@ interface CourseModuleProps {
   onSelectCourse?: (course: Course) => void;
   onBack?: () => void;
   onStartQuiz?: (quizId?: string) => void;
-  initialGroup?: 'product' | 'general' | null;
+  initialGroup?: 'product' | 'general' | 'department' | null;
 }
 
 export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz, initialGroup }: CourseModuleProps) {

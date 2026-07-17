@@ -22,8 +22,8 @@ type AdminTab = 'employees' | 'courses' | 'products' | 'settings' | 'daily-test'
 const ADMIN_TABS: { id: AdminTab; label: string; icon: React.ElementType; description: string; roles: string[] }[] = [
   { id: 'employees', label: 'Quản lý nhân viên', icon: Users, description: 'Thêm, sửa, xóa nhân viên và phân quyền', roles: ['admin', 'manager'] },
   { id: 'courses', label: 'Quản lý khóa học', icon: GraduationCap, description: 'Quản lý nội dung khóa học đào tạo', roles: ['admin', 'manager'] },
-  { id: 'daily-test', label: 'Quiz hằng ngày', icon: Brain, description: 'Báo cáo và quản lý quiz kiến thức hằng ngày', roles: ['admin', 'manager'] },
-  { id: 'onboarding-test', label: 'Test Onboarding', icon: GraduationCap, description: 'Báo cáo và reset bài kiểm tra onboarding nhân viên mới', roles: ['admin', 'manager'] },
+  { id: 'daily-test', label: 'Quiz hằng ngày', icon: Brain, description: 'Báo cáo và quản lý quiz kiến thức hằng ngày', roles: ['admin'] },
+  { id: 'onboarding-test', label: 'Test Onboarding', icon: GraduationCap, description: 'Báo cáo và reset bài kiểm tra onboarding nhân viên mới', roles: ['admin'] },
   { id: 'products', label: 'Quản lý sản phẩm', icon: Box, description: 'Quản lý danh mục sản phẩm giới thiệu', roles: ['admin'] },
   { id: 'settings', label: 'Cài đặt hệ thống', icon: Wrench, description: 'Thiết lập cấu hình hệ thống', roles: ['admin'] },
 ];

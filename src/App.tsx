@@ -182,7 +182,7 @@ function App() {
   const quizStartRef = React.useRef<number | null>(null);
 
   // Course group filter (product / general / null = all)
-  const [courseGroup, setCourseGroup] = React.useState<'product' | 'general' | null>(null);
+  const [courseGroup, setCourseGroup] = React.useState<'product' | 'general' | 'department' | null>(null);
 
   // Exam wheel state
   const [examBrand, setExamBrand] = React.useState<'Doscom' | 'Noma' | null>(null);

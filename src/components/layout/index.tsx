@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   CalendarDays,
   UserCircle,
+  Briefcase,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -71,8 +72,8 @@ interface SidebarProps {
   employee: Employee;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  courseGroup?: 'product' | 'general' | null;
-  onSetCourseGroup?: (g: 'product' | 'general') => void;
+  courseGroup?: 'product' | 'general' | 'department' | null;
+  onSetCourseGroup?: (g: 'product' | 'general' | 'department') => void;
   mobileOpen?: boolean;
   onCloseMobile?: () => void;
 }
@@ -86,17 +87,18 @@ function isWithin6Months(startDate: string | null | undefined): boolean {
 
 export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCollapse, courseGroup, onSetCourseGroup, mobileOpen, onCloseMobile }: SidebarProps) => {
   const isAdmin = employee.role === 'admin' || employee.role === 'manager';
-  const hasOnboarding = isAdmin || Boolean(employee.onboarding_available_date) || isWithin6Months(employee.start_date);
+  const hasOnboarding = employee.role === 'admin' || isWithin6Months(employee.start_date);
 
   const allMenuItems = [
-    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan tổ chức', roles: ['admin', 'manager'], show: true },
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan tổ chức', roles: ['admin'], show: true },
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan phòng ban', roles: ['manager'], show: true },
     { id: ViewType.MY_DASHBOARD, icon: UserCircle, label: 'Tổng quan cá nhân', roles: ['admin', 'manager'], show: true },
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['employee'], show: true },
     { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.ONBOARDING_TEST, icon: ClipboardCheck, label: 'Test Onboarding', roles: ['admin', 'manager', 'employee'], show: hasOnboarding },
-    { id: ViewType.ATTENDANCE, icon: CalendarDays, label: 'Điểm danh', roles: ['admin', 'manager'], show: true },
+    { id: ViewType.ATTENDANCE, icon: CalendarDays, label: 'Điểm danh', roles: ['admin'], show: true },
     { id: ViewType.ADMIN, icon: Settings, label: 'Quản trị hệ thống', roles: ['admin', 'manager'], show: true },
   ];
 
@@ -187,6 +189,7 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
           if (item.id === ViewType.COURSE_CATALOG) {
             const isProductActive = isCourseView && courseGroup === 'product';
             const isGeneralActive = isCourseView && courseGroup === 'general';
+            const isDeptActive = isCourseView && courseGroup === 'department';
             return (
               <div key={item.id} className="relative group">
                 {/* Parent toggle button */}
@@ -231,6 +234,16 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
                     >
                       <BookOpen className="w-4 h-4 flex-shrink-0" />
                       <span>Khóa học chung</span>
+                    </button>
+                    <button
+                      onClick={() => { setView(ViewType.COURSE_CATALOG); onSetCourseGroup?.('department'); onCloseMobile?.(); }}
+                      className={cn(
+                        'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all',
+                        isDeptActive ? 'bg-emerald-500/10 text-emerald-400' : 'text-zinc-600 hover:bg-zinc-800/50 hover:text-zinc-300'
+                      )}
+                    >
+                      <Briefcase className="w-4 h-4 flex-shrink-0" />
+                      <span>Khóa học theo phòng ban</span>
                     </button>
                   </div>
                 )}
@@ -740,8 +753,8 @@ interface LayoutProps {
   onCourseClick: (courseId: string) => void;
   onProductClick: (productId: string) => void;
   children: React.ReactNode;
-  courseGroup?: 'product' | 'general' | null;
-  onSetCourseGroup?: (g: 'product' | 'general') => void;
+  courseGroup?: 'product' | 'general' | 'department' | null;
+  onSetCourseGroup?: (g: 'product' | 'general' | 'department') => void;
 }
 
 export default function Layout({ currentView, onNavigate, employee, courses, products, onCourseClick, onProductClick, children, courseGroup, onSetCourseGroup }: LayoutProps) {
