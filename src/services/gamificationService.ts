@@ -93,6 +93,11 @@ function computeBadges(stats: BadgeStats): EarnedBadge[] {
   });
 }
 
+// Dùng local date (không dùng toISOString vì sẽ bị UTC lệch múi giờ +7)
+function localDateStr(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // Đếm streak: số ngày liên tiếp có nộp bài, bỏ qua Chủ nhật
 function calcStreak(dates: Set<string>, todayVN: string): number {
   const cur = new Date(todayVN + 'T00:00:00');
@@ -102,7 +107,7 @@ function calcStreak(dates: Set<string>, todayVN: string): number {
   let streak = 0;
   for (let i = 0; i < 400; i++) {
     const dow = cur.getDay();
-    const dateStr = cur.toISOString().slice(0, 10);
+    const dateStr = localDateStr(cur); // local date, không dùng toISOString
     if (dow === 0) {
       cur.setDate(cur.getDate() - 1);
       continue;
