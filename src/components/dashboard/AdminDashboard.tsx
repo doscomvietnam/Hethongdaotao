@@ -983,12 +983,12 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
           )}
         </Card>
 
-        {/* Chưa làm bài trong tháng */}
+        {/* Top 10 không làm bài trong tháng */}
         <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
           <SectionHeader
             icon={Flame}
-            title="Nhân Viên Chưa Làm Bài"
-            subtitle={missedEmpLoading ? 'Đang tải...' : `${missedEmployees.length} nhân viên · T${(leaderboardMonth || currentMonthStr).slice(5, 7)}/${(leaderboardMonth || currentMonthStr).slice(0, 4)}`}
+            title="Top 10 Không Làm Bài"
+            subtitle={missedEmpLoading ? 'Đang tải...' : `T${(leaderboardMonth || currentMonthStr).slice(5, 7)}/${(leaderboardMonth || currentMonthStr).slice(0, 4)} · ${missedEmployees.length} nhân viên bỏ bài`}
             color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30"
           />
           {missedEmpLoading ? (
@@ -999,11 +999,11 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
               <p className="text-zinc-700 text-[10px] font-bold uppercase tracking-widest">Tất cả đều tham gia đầy đủ!</p>
             </div>
           ) : (
-            <div className="overflow-y-auto max-h-[590px] space-y-2">
-              {missedEmployees.map((emp) => (
+            <div className="space-y-2">
+              {missedEmployees.slice(0, 10).map((emp, i) => (
                 <div key={emp.employeeId} className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950 border border-zinc-900 hover:border-zinc-800 transition-all">
                   <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center text-[10px] font-black text-red-400 flex-shrink-0">
-                    {emp.missed}
+                    #{i + 1}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-black text-zinc-200 truncate">{emp.employeeName}</p>
