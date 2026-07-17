@@ -332,7 +332,7 @@ export async function getEmployeesMonthlyQuizStats(
   return result;
 }
 
-export type DayStatus = 'done' | 'missed' | 'absent' | 'holiday' | 'sunday' | 'future';
+export type DayStatus = 'done' | 'missed' | 'absent' | 'holiday' | 'sunday' | 'future' | 'today';
 
 export interface DayEntry {
   date: string;
@@ -395,6 +395,7 @@ export async function getEmployeeMonthlyQuizCalendar(
     } else {
       required++;
       if (subSet.has(date)) { status = 'done'; done++; }
+      else if (date === todayVN) { status = 'today'; } // hôm nay chưa làm ≠ bỏ qua
       else { status = 'missed'; missed++; }
     }
 

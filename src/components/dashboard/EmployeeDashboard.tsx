@@ -83,6 +83,9 @@ function MonthlyCalendarCard({ calendar, yearMonth }: {
           {stat.missed > 0 && <span className="text-red-400">{stat.missed} chưa làm</span>}
           {stat.absent > 0 && <span className="text-zinc-500">{stat.absent} nghỉ</span>}
           <span className="text-zinc-600">/ {stat.required} ngày</span>
+          {calendar.days.some(d => d.status === 'today') && (
+            <span className="text-blue-400">hôm nay chưa làm</span>
+          )}
         </div>
       </div>
 
@@ -127,6 +130,12 @@ function MonthlyCalendarCard({ calendar, yearMonth }: {
               <span className="text-[9px] font-black text-emerald-400 leading-none">{day}</span>
             </div>
           );
+          if (status === 'today') return (
+            <div key={date} className="h-9 flex flex-col items-center justify-center rounded-lg bg-blue-500/10 ring-1 ring-blue-500/30 animate-pulse">
+              <Clock className="w-3 h-3 text-blue-400 mb-0.5" />
+              <span className="text-[9px] font-black text-blue-400 leading-none">{day}</span>
+            </div>
+          );
           return (
             <div key={date} className="h-9 flex flex-col items-center justify-center rounded-lg bg-red-500/10 ring-1 ring-red-500/20">
               <XCircle className="w-3 h-3 text-red-400 mb-0.5" />
@@ -141,6 +150,7 @@ function MonthlyCalendarCard({ calendar, yearMonth }: {
         {[
           { cls: 'bg-emerald-500/20 ring-1 ring-emerald-500/30', label: 'Đã làm' },
           { cls: 'bg-red-500/15 ring-1 ring-red-500/20', label: 'Chưa làm' },
+          { cls: 'bg-blue-500/10 ring-1 ring-blue-500/30', label: 'Hôm nay' },
           { cls: 'bg-zinc-800/50 ring-1 ring-zinc-700/20', label: 'Nghỉ làm' },
           { cls: 'bg-amber-500/10 ring-1 ring-amber-500/20', label: 'Ngày lễ' },
         ].map(({ cls, label }) => (
