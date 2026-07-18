@@ -107,7 +107,24 @@ export async function getOrCreateOnboardingTest(
     .eq('employee_id', employeeId)
     .maybeSingle();
 
-  if (existing) return loadSession(existing);
+  if (existing) {
+    // Nếu test pending nhưng không có câu hỏi (record lỗi) → xóa và tạo lại
+    if (existing.status === 'pending') {
+      const { data: qCheck } = await supabase
+        .from('onboarding_test_questions')
+        .select('id')
+        .eq('test_id', existing.test_id)
+        .limit(1);
+      if (!qCheck || qCheck.length === 0) {
+        await supabase.from('onboarding_tests').delete().eq('test_id', existing.test_id);
+        // Fall through to recreate below
+      } else {
+        return loadSession(existing);
+      }
+    } else {
+      return loadSession(existing);
+    }
+  }
 
   // Lấy câu hỏi ngẫu nhiên từ bank onboarding
   const { data: bank, error: bankErr } = await supabase
