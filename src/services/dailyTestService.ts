@@ -116,16 +116,27 @@ async function selectGeneralQuestions(count: number, excludeIds: string[]): Prom
   return pool;
 }
 
+// Khóa học Noma chưa được MỞ vào bài kiểm tra hàng ngày — admin sẽ bảo khi nào mở.
+// Xoá course_id khỏi danh sách này (hoặc để rỗng) khi admin yêu cầu mở câu hỏi vào bài kiểm tra hàng ngày.
+const NOT_YET_OPENED_DAILY_TEST_COURSE_IDS: string[] = [
+  'C_NOMA110', 'C_NOMA120', 'C_NOMA130', 'C_NOMA230', 'C_NOMA350',
+  'C_NOMA680', 'C_NOMA686', 'C_NOMA880', 'C_NOMA998',
+];
+
 // 10 câu sản phẩm Noma random từ quiz_questions
 async function selectNomaProductQuestions(count: number, excludeIds: string[]): Promise<any[]> {
   const { data: nomaCourses } = await supabase
     .from('courses')
-    .select('quiz_id')
+    .select('quiz_id, course_id')
     .eq('brand', 'Noma')
     .not('quiz_id', 'is', null);
 
-  if (!nomaCourses?.length) throw new Error('Không tìm thấy khóa học Noma.');
-  const quizIds = nomaCourses.map((c: any) => c.quiz_id);
+  const eligibleCourses = (nomaCourses || []).filter(
+    (c: any) => !NOT_YET_OPENED_DAILY_TEST_COURSE_IDS.includes(c.course_id),
+  );
+
+  if (!eligibleCourses.length) throw new Error('Không tìm thấy khóa học Noma.');
+  const quizIds = eligibleCourses.map((c: any) => c.quiz_id);
 
   const { data, error } = await supabase
     .from('quiz_questions')
