@@ -117,6 +117,12 @@ async function fetchAllData() {
   };
 }
 
+// Lọc khóa học thực sự hiển thị với một phòng ban cụ thể.
+// course.department rỗng/null = áp dụng cho mọi phòng ban (giống logic hiển thị ở App.tsx).
+function coursesVisibleToDept(courses: any[], department: string): any[] {
+  return courses.filter((c: any) => !c.department || c.department === department);
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // ADMIN DASHBOARD DATA
 // ══════════════════════════════════════════════════════════════════════════
@@ -149,8 +155,20 @@ export async function getAdminDashboardData() {
     courseCompletionMap[c.course_id] = { total: 0, completed: 0, failed: 0, name: c.course_name, brand: c.brand };
   }
 
+  // Cache khóa học hiển thị theo từng phòng ban — tránh lọc lại nhiều lần
+  const visibleCoursesByDept = new Map<string, any[]>();
+  const getVisibleCourses = (dept: string) => {
+    if (!visibleCoursesByDept.has(dept)) {
+      visibleCoursesByDept.set(dept, coursesVisibleToDept(courses, dept));
+    }
+    return visibleCoursesByDept.get(dept)!;
+  };
+
+  let totalPairs = 0;
   for (const emp of employees) {
-    for (const course of courses) {
+    const empVisibleCourses = getVisibleCourses(emp.department || '');
+    totalPairs += empVisibleCourses.length;
+    for (const course of empVisibleCourses) {
       const key = `${emp.id}__${course.course_id}`;
       const p = progressMap.get(key);
       const endDate = course.end_date;
@@ -202,7 +220,6 @@ export async function getAdminDashboardData() {
     }
   }
 
-  const totalPairs = totalEmployees * totalCourses;
   const completionRate = totalPairs > 0 ? Math.round((completedCount / totalPairs) * 1000) / 10 : 0;
   const avgQuizScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length * 10) / 10 : 0;
 
@@ -229,12 +246,12 @@ export async function getAdminDashboardData() {
     untouchedCoursesCount, inactiveEmployeesCount,
   };
 
-  // Department stats — dùng employee×course pairs (giống KPI) để luôn hiện đủ phòng ban
+  // Department stats — chỉ ghép nhân viên với khóa học họ thực sự thấy được (theo "Phòng ban được giao")
   const deptMap: Record<string, { total: number; completed: number; scores: number[] }> = {};
   for (const emp of employees) {
     const dept = emp.department || 'Khác';
     if (!deptMap[dept]) deptMap[dept] = { total: 0, completed: 0, scores: [] };
-    for (const course of courses) {
+    for (const course of getVisibleCourses(emp.department || '')) {
       const key = `${emp.id}__${course.course_id}`;
       const p = progressMap.get(key);
       deptMap[dept].total++;
@@ -319,8 +336,11 @@ export async function getRecentActivityOnly(): Promise<ActivityItem[]> {
 // MANAGER DASHBOARD DATA
 // ══════════════════════════════════════════════════════════════════════════
 export async function getManagerDashboardData(department: string) {
-  const { progress, employees, courses } = await fetchAllData();
+  const { progress, employees, courses: allCourses } = await fetchAllData();
   const now = new Date();
+
+  // Chỉ tính các khóa học thực sự hiển thị với phòng ban này (chung hoặc gán riêng)
+  const courses = coursesVisibleToDept(allCourses, department);
 
   // Filter employees to this department
   const deptEmployees = employees.filter((e: any) => e.department === department);
