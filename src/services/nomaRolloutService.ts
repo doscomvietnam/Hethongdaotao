@@ -39,13 +39,15 @@ export interface NomaDailyEmployee {
 
 export interface NomaDailyReport {
   employees: NomaDailyEmployee[];
-  /** Map "employeeId__YYYY-MM-DD" -> số khóa NOMA hoàn thành trong ngày đó */
+  /** Map "employeeId__YYYY-MM-DD" -> số khóa NOMA hoàn thành trong ngày đó (toàn thời gian, không chỉ trong tháng đang xem) */
   countsByDay: Map<string, number>;
+  /** Map employeeId -> tổng số khóa đã hoàn thành (toàn thời gian, tối đa 9) */
+  totalCompleted: Map<string, number>;
   today: string;
 }
 
-/** Lấy số khóa NOMA hoàn thành theo từng ngày, trong 1 tháng (yearMonth: "YYYY-MM") */
-export async function getNomaDailyProgress(yearMonth: string): Promise<NomaDailyReport> {
+/** Lấy số khóa NOMA hoàn thành theo từng ngày (toàn thời gian) cho nhân viên Kinh doanh + Marketing */
+export async function getNomaDailyProgress(): Promise<NomaDailyReport> {
   const today = getTodayVNDateStr();
 
   const { data: employees, error: empErr } = await supabase
@@ -68,18 +70,21 @@ export async function getNomaDailyProgress(yearMonth: string): Promise<NomaDaily
   if (progErr) throw progErr;
 
   const countsByDay = new Map<string, number>();
+  const totalCompleted = new Map<string, number>();
   for (const p of progress || []) {
     const done = (p.video_progress || 0) >= 100 && p.quiz_completed_at;
     if (!done) continue;
     const date = isoToVNDateStr(p.quiz_completed_at);
-    if (!date || !date.startsWith(yearMonth)) continue;
+    if (!date) continue;
     const key = `${p.employee_id}__${date}`;
     countsByDay.set(key, (countsByDay.get(key) || 0) + 1);
+    totalCompleted.set(p.employee_id, (totalCompleted.get(p.employee_id) || 0) + 1);
   }
 
   return {
     employees: (employees || []).map((e: any) => ({ id: e.id, fullName: e.full_name || '—', department: e.department || '—' })),
     countsByDay,
+    totalCompleted,
     today,
   };
 }

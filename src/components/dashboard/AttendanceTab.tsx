@@ -16,6 +16,7 @@ import {
   NOMA_ROLLOUT_START_DATE,
   NOMA_ROLLOUT_DAILY_RATE,
   NOMA_ROLLOUT_COURSE_IDS,
+  NOMA_ROLLOUT_DEPARTMENTS,
   type NomaDailyReport,
 } from '../../services/nomaRolloutService';
 
@@ -831,12 +832,17 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
 
 // ── NOMA daily progress (Kinh doanh + Marketing) ──────────────────────────────
 
-type NomaCellType = 'before_start' | 'pending' | 'done' | 'partial' | 'miss';
+const NOMA_DEPT_OPTIONS = ['Tất cả', ...NOMA_ROLLOUT_DEPARTMENTS];
 
-function getNomaCellType(date: string, today: string, count: number): NomaCellType {
+type NomaCellType = 'before_start' | 'pending' | 'finished' | 'done' | 'partial' | 'miss';
+
+/** remainingBeforeDay = số khóa còn thiếu TÍNH ĐẾN TRƯỚC ngày này (chưa cộng count của chính ngày này) */
+function getNomaCellType(date: string, today: string, count: number, remainingBeforeDay: number): NomaCellType {
   if (date < NOMA_ROLLOUT_START_DATE) return 'before_start';
   if (date > today) return 'pending';
-  if (count >= NOMA_ROLLOUT_DAILY_RATE) return 'done';
+  if (remainingBeforeDay <= 0) return 'finished'; // đã hoàn thành hết 9 khóa trước ngày này — không còn gì phải làm
+  const requiredToday = Math.min(NOMA_ROLLOUT_DAILY_RATE, remainingBeforeDay);
+  if (count >= requiredToday) return 'done';
   if (count > 0) return 'partial';
   return 'miss';
 }
@@ -844,19 +850,21 @@ function getNomaCellType(date: string, today: string, count: number): NomaCellTy
 function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNumbers: number[]; deptFilter: string }) {
   const [report, setReport] = React.useState<NomaDailyReport | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [nomaDept, setNomaDept] = React.useState('Tất cả');
 
   React.useEffect(() => {
     setLoading(true);
-    getNomaDailyProgress(month).then(setReport).finally(() => setLoading(false));
-  }, [month]);
+    getNomaDailyProgress().then(setReport).finally(() => setLoading(false));
+  }, []);
 
   const employees = report?.employees || [];
-  const filtered = deptFilter === 'Tất cả' ? employees : employees.filter(e => e.department === deptFilter);
+  const filtered = nomaDept === 'Tất cả' ? employees : employees.filter(e => e.department === nomaDept);
   const today = report?.today || getVNToday();
 
   const NOMA_CELL_CLS: Record<NomaCellType, string> = {
     before_start: '',
     pending: '',
+    finished: 'bg-zinc-900/40',
     done: 'bg-emerald-500/10',
     partial: 'bg-amber-500/15',
     miss: 'bg-red-500/20',
@@ -866,6 +874,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
     switch (t) {
       case 'before_start': return <span className="text-zinc-800 text-[9px]">·</span>;
       case 'pending':      return <span className="text-zinc-700 text-[9px]">·</span>;
+      case 'finished':     return <span className="text-zinc-600 font-black text-[10px]">✓</span>;
       case 'done':         return <span className="text-emerald-400 font-black text-[10px]">{count}</span>;
       case 'partial':      return <span className="text-amber-400 font-black text-[10px]">{count}</span>;
       case 'miss':         return <span className="text-red-400 font-black text-[10px]">0</span>;
@@ -893,12 +902,27 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
             <span className="text-red-400">0</span> Không làm khóa nào
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-3 h-3 rounded bg-zinc-900 inline-block" />Ngoài phạm vi ({NOMA_ROLLOUT_START_DATE.split('-').reverse().join('/')} → nay)
+            <span className="w-3 h-3 rounded bg-zinc-900/40 inline-block border border-zinc-800" />
+            <span className="text-zinc-500">✓</span> Đã hoàn thành hết 9 khóa
           </span>
         </div>
         <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
           Chỉ tiêu: {NOMA_ROLLOUT_DAILY_RATE} khóa/ngày · {NOMA_ROLLOUT_COURSE_IDS.length} khóa NOMA · Kinh doanh + Marketing
         </span>
+      </div>
+
+      {/* Department filter — chỉ Kinh doanh + Marketing, không phải toàn bộ phòng ban công ty */}
+      <div className="flex gap-2 flex-wrap">
+        {NOMA_DEPT_OPTIONS.map(d => (
+          <button key={d} onClick={() => setNomaDept(d)}
+            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all border ${
+              nomaDept === d
+                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'
+            }`}>
+            {d}
+          </button>
+        ))}
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
@@ -926,7 +950,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
                 );
               })}
               <th className="px-3 py-2 text-center text-emerald-400/80 text-[10px] font-black uppercase tracking-widest min-w-[100px] border-l border-zinc-800">
-                Tổng tháng này
+                Tổng đã hoàn thành
               </th>
             </tr>
           </thead>
@@ -935,7 +959,16 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
               <tr><td colSpan={dayNumbers.length + 2} className="px-4 py-12 text-center text-zinc-600 text-sm">Không có nhân viên</td></tr>
             ) : filtered.map((emp, idx) => {
               const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
-              let monthTotal = 0;
+              const total = report?.totalCompleted.get(emp.id) || 0;
+              // Số khóa còn lại tính đến TRƯỚC mỗi ngày, dựa trên tổng lũy kế của những ngày trước đó trong toàn bộ lịch sử
+              let cumulativeSoFar = 0;
+              // Lũy kế các ngày trước tháng đang xem (để "remaining" đúng ngay từ ngày 1 của tháng)
+              const firstDayOfMonth = `${month}-01`;
+              for (const [key, c] of report?.countsByDay || []) {
+                if (!key.startsWith(`${emp.id}__`)) continue;
+                const d = key.split('__')[1];
+                if (d < firstDayOfMonth) cumulativeSoFar += c;
+              }
               return (
                 <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
                   <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${bg}`}>
@@ -945,8 +978,9 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
                   {dayNumbers.map(d => {
                     const date = dateStr(month, d);
                     const count = report?.countsByDay.get(`${emp.id}__${date}`) || 0;
-                    if (date >= NOMA_ROLLOUT_START_DATE && date <= today) monthTotal += count;
-                    const t = getNomaCellType(date, today, count);
+                    const remainingBeforeDay = NOMA_ROLLOUT_COURSE_IDS.length - cumulativeSoFar;
+                    const t = getNomaCellType(date, today, count, remainingBeforeDay);
+                    cumulativeSoFar += count;
                     const isToday = date === today;
                     return (
                       <td key={d}
@@ -956,7 +990,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
                     );
                   })}
                   <td className="px-3 py-2 text-center border-l border-zinc-800">
-                    <span className="text-emerald-400 font-black text-[11px]">{monthTotal}</span>
+                    <span className={`font-black text-[11px] ${total >= NOMA_ROLLOUT_COURSE_IDS.length ? 'text-zinc-400' : 'text-emerald-400'}`}>{total}</span>
                     <span className="text-[9px] text-zinc-600 font-bold">/{NOMA_ROLLOUT_COURSE_IDS.length}</span>
                   </td>
                 </tr>
