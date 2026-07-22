@@ -15,47 +15,46 @@ export const NOMA_ROLLOUT_DEPARTMENTS = ['Kinh doanh', 'Marketing'];
 export const NOMA_ROLLOUT_START_DATE = '2026-07-22';
 export const NOMA_ROLLOUT_DAILY_RATE = 2;
 
-export interface NomaRolloutRow {
-  employeeId: string;
-  fullName: string;
-  department: string;
-  completedCount: number;
-  totalCount: number;
-  expectedByToday: number;
-  onTrack: boolean;
-  missingCourseCodes: string[];
-}
-
-export interface NomaRolloutReport {
-  rows: NomaRolloutRow[];
-  daysElapsed: number;
-  expectedByToday: number;
-  startDate: string;
-}
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 function getTodayVNDateStr(): string {
-  const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
   const vnNow = new Date(Date.now() + VN_OFFSET_MS);
   return vnNow.toISOString().slice(0, 10);
 }
 
-function courseCode(courseId: string): string {
-  return courseId.replace('C_NOMA', '');
+function isoToVNDateStr(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms + VN_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export async function getNomaRolloutReport(): Promise<NomaRolloutReport> {
+// ── Theo dõi theo ngày: mỗi ngày phải hoàn thành >= NOMA_ROLLOUT_DAILY_RATE khóa ──
+
+export interface NomaDailyEmployee {
+  id: string;
+  fullName: string;
+  department: string;
+}
+
+export interface NomaDailyReport {
+  employees: NomaDailyEmployee[];
+  /** Map "employeeId__YYYY-MM-DD" -> số khóa NOMA hoàn thành trong ngày đó */
+  countsByDay: Map<string, number>;
+  today: string;
+}
+
+/** Lấy số khóa NOMA hoàn thành theo từng ngày, trong 1 tháng (yearMonth: "YYYY-MM") */
+export async function getNomaDailyProgress(yearMonth: string): Promise<NomaDailyReport> {
   const today = getTodayVNDateStr();
-  const daysElapsed = Math.max(
-    1,
-    Math.floor((new Date(today).getTime() - new Date(NOMA_ROLLOUT_START_DATE).getTime()) / 86400000) + 1,
-  );
-  const expectedByToday = Math.min(NOMA_ROLLOUT_COURSE_IDS.length, daysElapsed * NOMA_ROLLOUT_DAILY_RATE);
 
   const { data: employees, error: empErr } = await supabase
     .from('employees')
     .select('id, full_name, department')
     .eq('employment_status', 'active')
-    .in('department', NOMA_ROLLOUT_DEPARTMENTS);
+    .in('department', NOMA_ROLLOUT_DEPARTMENTS)
+    .order('department')
+    .order('full_name');
   if (empErr) throw empErr;
 
   const empIds = (employees || []).map((e: any) => e.id);
@@ -64,32 +63,23 @@ export async function getNomaRolloutReport(): Promise<NomaRolloutReport> {
     .from('training_progress')
     .select('employee_id, course_id, video_progress, quiz_completed_at')
     .in('employee_id', empIds.length ? empIds : ['__none__'])
-    .in('course_id', NOMA_ROLLOUT_COURSE_IDS);
+    .in('course_id', NOMA_ROLLOUT_COURSE_IDS)
+    .not('quiz_completed_at', 'is', null);
   if (progErr) throw progErr;
 
-  const progMap = new Map<string, any>();
-  for (const p of progress || []) progMap.set(`${p.employee_id}__${p.course_id}`, p);
+  const countsByDay = new Map<string, number>();
+  for (const p of progress || []) {
+    const done = (p.video_progress || 0) >= 100 && p.quiz_completed_at;
+    if (!done) continue;
+    const date = isoToVNDateStr(p.quiz_completed_at);
+    if (!date || !date.startsWith(yearMonth)) continue;
+    const key = `${p.employee_id}__${date}`;
+    countsByDay.set(key, (countsByDay.get(key) || 0) + 1);
+  }
 
-  const rows: NomaRolloutRow[] = (employees || []).map((e: any) => {
-    const missingCourseCodes: string[] = [];
-    let completedCount = 0;
-    for (const cid of NOMA_ROLLOUT_COURSE_IDS) {
-      const p = progMap.get(`${e.id}__${cid}`);
-      const done = Boolean(p && (p.video_progress || 0) >= 100 && p.quiz_completed_at);
-      if (done) completedCount++;
-      else missingCourseCodes.push(courseCode(cid));
-    }
-    return {
-      employeeId: e.id,
-      fullName: e.full_name || '—',
-      department: e.department || '—',
-      completedCount,
-      totalCount: NOMA_ROLLOUT_COURSE_IDS.length,
-      expectedByToday,
-      onTrack: completedCount >= expectedByToday,
-      missingCourseCodes,
-    };
-  }).sort((a, b) => a.completedCount - b.completedCount || a.fullName.localeCompare(b.fullName, 'vi'));
-
-  return { rows, daysElapsed, expectedByToday, startDate: NOMA_ROLLOUT_START_DATE };
+  return {
+    employees: (employees || []).map((e: any) => ({ id: e.id, fullName: e.full_name || '—', department: e.department || '—' })),
+    countsByDay,
+    today,
+  };
 }

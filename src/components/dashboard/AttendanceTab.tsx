@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ChevronLeft, ChevronRight, Sun, Building2, ClipboardList, Calendar, Download, BarChart2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Sun, Building2, ClipboardList, Calendar, Download, BarChart2, Rocket } from 'lucide-react';
 import {
   getAttendanceEmployees,
   getHolidays,
@@ -11,6 +11,13 @@ import {
   type AttendanceEmployee,
   type EmployeeYearlySummary,
 } from '../../services/attendanceService';
+import {
+  getNomaDailyProgress,
+  NOMA_ROLLOUT_START_DATE,
+  NOMA_ROLLOUT_DAILY_RATE,
+  NOMA_ROLLOUT_COURSE_IDS,
+  type NomaDailyReport,
+} from '../../services/nomaRolloutService';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -822,11 +829,151 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
   );
 }
 
+// ── NOMA daily progress (Kinh doanh + Marketing) ──────────────────────────────
+
+type NomaCellType = 'before_start' | 'pending' | 'done' | 'partial' | 'miss';
+
+function getNomaCellType(date: string, today: string, count: number): NomaCellType {
+  if (date < NOMA_ROLLOUT_START_DATE) return 'before_start';
+  if (date > today) return 'pending';
+  if (count >= NOMA_ROLLOUT_DAILY_RATE) return 'done';
+  if (count > 0) return 'partial';
+  return 'miss';
+}
+
+function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNumbers: number[]; deptFilter: string }) {
+  const [report, setReport] = React.useState<NomaDailyReport | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    setLoading(true);
+    getNomaDailyProgress(month).then(setReport).finally(() => setLoading(false));
+  }, [month]);
+
+  const employees = report?.employees || [];
+  const filtered = deptFilter === 'Tất cả' ? employees : employees.filter(e => e.department === deptFilter);
+  const today = report?.today || getVNToday();
+
+  const NOMA_CELL_CLS: Record<NomaCellType, string> = {
+    before_start: '',
+    pending: '',
+    done: 'bg-emerald-500/10',
+    partial: 'bg-amber-500/15',
+    miss: 'bg-red-500/20',
+  };
+
+  const renderNomaCell = (t: NomaCellType, count: number) => {
+    switch (t) {
+      case 'before_start': return <span className="text-zinc-800 text-[9px]">·</span>;
+      case 'pending':      return <span className="text-zinc-700 text-[9px]">·</span>;
+      case 'done':         return <span className="text-emerald-400 font-black text-[10px]">{count}</span>;
+      case 'partial':      return <span className="text-amber-400 font-black text-[10px]">{count}</span>;
+      case 'miss':         return <span className="text-red-400 font-black text-[10px]">0</span>;
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-16 text-zinc-600 font-bold text-sm">Đang tải...</div>;
+  }
+
+  return (
+    <>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex gap-3 flex-wrap text-[10px] font-bold text-zinc-500">
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-emerald-500/15 inline-block border border-emerald-500/20" />
+            <span className="text-emerald-400">≥{NOMA_ROLLOUT_DAILY_RATE}</span> Đủ chỉ tiêu ngày
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-amber-500/15 inline-block border border-amber-500/20" />
+            <span className="text-amber-400">1</span> Chưa đủ
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-red-500/20 inline-block border border-red-500/20" />
+            <span className="text-red-400">0</span> Không làm khóa nào
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-zinc-900 inline-block" />Ngoài phạm vi ({NOMA_ROLLOUT_START_DATE.split('-').reverse().join('/')} → nay)
+          </span>
+        </div>
+        <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
+          Chỉ tiêu: {NOMA_ROLLOUT_DAILY_RATE} khóa/ngày · {NOMA_ROLLOUT_COURSE_IDS.length} khóa NOMA · Kinh doanh + Marketing
+        </span>
+      </div>
+
+      <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
+        <table className="min-w-max text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-zinc-800">
+              <th className="sticky left-0 z-10 bg-zinc-950 px-4 py-2 text-left min-w-[200px] border-r border-zinc-800">
+                <div className="flex items-center gap-1.5 text-zinc-600">
+                  <Building2 className="w-3 h-3" />
+                  <span className="text-[10px] font-black uppercase tracking-widest">Nhân viên</span>
+                </div>
+              </th>
+              {dayNumbers.map(d => {
+                const dow = getDayOfWeek(month, d);
+                const date = dateStr(month, d);
+                const isToday = date === today;
+                return (
+                  <th key={d}
+                    className={`w-8 min-w-[30px] py-1 text-center border-r border-zinc-900 last:border-r-0 ${
+                      isToday ? 'bg-blue-500/15 ring-1 ring-inset ring-blue-500/30' : 'bg-zinc-950'
+                    }`}>
+                    <div className={`font-black text-[10px] ${isToday ? 'text-blue-300' : 'text-zinc-500'}`}>{d}</div>
+                    <div className={`text-[8px] font-bold ${isToday ? 'text-blue-400' : 'text-zinc-700'}`}>{DOW_LABEL[dow]}</div>
+                  </th>
+                );
+              })}
+              <th className="px-3 py-2 text-center text-emerald-400/80 text-[10px] font-black uppercase tracking-widest min-w-[100px] border-l border-zinc-800">
+                Tổng tháng này
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={dayNumbers.length + 2} className="px-4 py-12 text-center text-zinc-600 text-sm">Không có nhân viên</td></tr>
+            ) : filtered.map((emp, idx) => {
+              const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
+              let monthTotal = 0;
+              return (
+                <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
+                  <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${bg}`}>
+                    <div className="font-bold text-zinc-200 truncate max-w-[180px]">{emp.fullName}</div>
+                    <div className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</div>
+                  </td>
+                  {dayNumbers.map(d => {
+                    const date = dateStr(month, d);
+                    const count = report?.countsByDay.get(`${emp.id}__${date}`) || 0;
+                    if (date >= NOMA_ROLLOUT_START_DATE && date <= today) monthTotal += count;
+                    const t = getNomaCellType(date, today, count);
+                    const isToday = date === today;
+                    return (
+                      <td key={d}
+                        className={`border-r border-zinc-900 last:border-r-0 text-center ${NOMA_CELL_CLS[t]} ${isToday ? 'ring-1 ring-inset ring-blue-500/20' : ''}`}>
+                        {renderNomaCell(t, count)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-center border-l border-zinc-800">
+                    <span className="text-emerald-400 font-black text-[11px]">{monthTotal}</span>
+                    <span className="text-[9px] text-zinc-600 font-bold">/{NOMA_ROLLOUT_COURSE_IDS.length}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 // ── Main AttendanceTab ────────────────────────────────────────────────────────
 
 export function AttendanceTab() {
   const [month, setMonth] = React.useState(getVNMonth);
-  const [view, setView] = React.useState<'results' | 'summary' | 'config'>('results');
+  const [view, setView] = React.useState<'results' | 'summary' | 'config' | 'noma'>('results');
   const [employees, setEmployees] = React.useState<AttendanceEmployee[]>([]);
   const [holidays, setHolidays] = React.useState<Set<string>>(new Set());
   const [absences, setAbsences] = React.useState<Map<string, Set<string>>>(new Map());
@@ -916,7 +1063,9 @@ export function AttendanceTab() {
               ? 'Kết quả làm bài quiz theo ngày'
               : view === 'summary'
                 ? 'Tổng hợp ngày vắng theo từng nhân viên và theo tháng'
-                : 'Click ô ngày để đánh dấu nghỉ · Click hàng lễ để đánh dấu toàn công ty nghỉ'}
+                : view === 'noma'
+                  ? 'Kinh doanh + Marketing: theo dõi 2 khóa NOMA/ngày'
+                  : 'Click ô ngày để đánh dấu nghỉ · Click hàng lễ để đánh dấu toàn công ty nghỉ'}
           </p>
         </div>
 
@@ -965,6 +1114,14 @@ export function AttendanceTab() {
             <Calendar className="w-3.5 h-3.5" />
             Quản lý ngày nghỉ
           </button>
+          <button
+            onClick={() => setView('noma')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-[11px] font-black uppercase tracking-wide transition-all ${
+              view === 'noma' ? 'bg-amber-500 text-white shadow' : 'text-zinc-300 hover:text-white hover:bg-zinc-700'
+            }`}>
+            <Rocket className="w-3.5 h-3.5" />
+            Tiến độ NOMA
+          </button>
         </div>
 
         {/* Department filter */}
@@ -985,8 +1142,11 @@ export function AttendanceTab() {
       {/* Tab: Tổng hợp theo tháng — load state riêng, không phụ thuộc month data */}
       {view === 'summary' && <SummaryView deptFilter={deptFilter} />}
 
+      {/* Tab: Tiến độ NOMA — load state riêng, không phụ thuộc attendance data */}
+      {view === 'noma' && <NomaDailyView month={month} dayNumbers={dayNumbers} deptFilter={deptFilter} />}
+
       {/* Tab: Kết quả theo ngày + Quản lý ngày nghỉ — cần month data */}
-      {view !== 'summary' && (
+      {view !== 'summary' && view !== 'noma' && (
         loading ? (
           <div className="text-center py-16 text-zinc-600 font-bold text-sm">Đang tải...</div>
         ) : (
