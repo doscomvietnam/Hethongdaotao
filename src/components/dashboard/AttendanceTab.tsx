@@ -18,6 +18,7 @@ import {
   NOMA_ROLLOUT_COURSE_IDS,
   NOMA_ROLLOUT_DEPARTMENTS,
   type NomaDailyReport,
+  type NomaDailyEmployee,
 } from '../../services/nomaRolloutService';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -847,9 +848,99 @@ function getNomaCellType(date: string, today: string, count: number, remainingBe
   return 'miss';
 }
 
+/** Tính trạng thái từng ngày trong tháng cho 1 nhân viên — dùng chung cho bảng hiển thị và xuất Excel */
+function computeNomaDayCells(
+  month: string,
+  dayNumbers: number[],
+  employeeId: string,
+  today: string,
+  countsByDay: Map<string, number>,
+): { date: string; count: number; type: NomaCellType }[] {
+  const firstDayOfMonth = `${month}-01`;
+  let cumulativeSoFar = 0;
+  for (const [key, c] of countsByDay) {
+    if (!key.startsWith(`${employeeId}__`)) continue;
+    if (key.split('__')[1] < firstDayOfMonth) cumulativeSoFar += c;
+  }
+  return dayNumbers.map(d => {
+    const date = dateStr(month, d);
+    const count = countsByDay.get(`${employeeId}__${date}`) || 0;
+    const remainingBeforeDay = NOMA_ROLLOUT_COURSE_IDS.length - cumulativeSoFar;
+    const type = getNomaCellType(date, today, count, remainingBeforeDay);
+    cumulativeSoFar += count;
+    return { date, count, type };
+  });
+}
+
+const NOMA_CELL_LABEL: Record<NomaCellType, (count: number) => string> = {
+  before_start: () => '',
+  pending: () => '',
+  finished: () => '✓',
+  done: () => '✓',
+  partial: (count) => String(count),
+  miss: () => '0',
+};
+
+async function exportNomaDailyExcel(
+  month: string,
+  dayNumbers: number[],
+  employees: NomaDailyEmployee[],
+  report: NomaDailyReport,
+): Promise<void> {
+  const XLSX = await import('xlsx');
+  const [y, m] = month.split('-');
+  const generatedAt = new Date().toLocaleString('vi-VN');
+
+  const HEADERS = [
+    'Họ và tên', 'Phòng ban',
+    ...dayNumbers.map(d => `${d} (${DOW_LABEL[getDayOfWeek(month, d)]})`),
+    'Tổng đã hoàn thành',
+  ];
+
+  const rows = employees.map(emp => {
+    const cells = computeNomaDayCells(month, dayNumbers, emp.id, report.today, report.countsByDay);
+    const total = report.totalCompleted.get(emp.id) || 0;
+    return [
+      emp.fullName, emp.department,
+      ...cells.map(c => NOMA_CELL_LABEL[c.type](c.count)),
+      `${total}/${NOMA_ROLLOUT_COURSE_IDS.length}`,
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([
+    [`TIẾN ĐỘ 9 KHÓA NOMA MỚI — Kinh doanh + Marketing — Tháng ${m}/${y}`],
+    [`Xuất lúc: ${generatedAt} · Chỉ tiêu ${NOMA_ROLLOUT_DAILY_RATE} khóa/ngày kể từ ${NOMA_ROLLOUT_START_DATE.split('-').reverse().join('/')}`],
+    [],
+    HEADERS,
+    ...rows,
+  ]);
+  ws['!cols'] = [{ wch: 28 }, { wch: 14 }, ...dayNumbers.map(() => ({ wch: 6 })), { wch: 16 }];
+  ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } }];
+  for (let c = 0; c < HEADERS.length; c++) {
+    const addr = XLSX.utils.encode_cell({ r: 3, c });
+    if (ws[addr]) ws[addr].s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: 'D97706' } },
+      alignment: { horizontal: 'center' },
+    };
+  }
+  for (let r = 4; r < 4 + rows.length; r++) {
+    const addr = XLSX.utils.encode_cell({ r, c: HEADERS.length - 1 });
+    const total = employees[r - 4] ? (report.totalCompleted.get(employees[r - 4].id) || 0) : 0;
+    if (ws[addr] && total >= NOMA_ROLLOUT_COURSE_IDS.length) {
+      ws[addr].s = { font: { bold: true, color: { rgb: '059669' } } };
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, `NOMA ${m}-${y}`.slice(0, 31));
+  XLSX.writeFile(wb, `tien-do-noma_${month}.xlsx`);
+}
+
 function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNumbers: number[]; deptFilter: string }) {
   const [report, setReport] = React.useState<NomaDailyReport | null>(null);
   const [loading, setLoading] = React.useState(true);
+  const [exporting, setExporting] = React.useState(false);
   const [nomaDept, setNomaDept] = React.useState('Tất cả');
 
   React.useEffect(() => {
@@ -860,6 +951,19 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
   const employees = report?.employees || [];
   const filtered = nomaDept === 'Tất cả' ? employees : employees.filter(e => e.department === nomaDept);
   const today = report?.today || getVNToday();
+
+  const handleExport = async () => {
+    if (!report) return;
+    setExporting(true);
+    try {
+      await exportNomaDailyExcel(month, dayNumbers, filtered, report);
+    } catch (e) {
+      console.error('Export NOMA error:', e);
+      alert('Lỗi xuất Excel');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const NOMA_CELL_CLS: Record<NomaCellType, string> = {
     before_start: '',
@@ -875,7 +979,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
       case 'before_start': return <span className="text-zinc-800 text-[9px]">·</span>;
       case 'pending':      return <span className="text-zinc-700 text-[9px]">·</span>;
       case 'finished':     return <span className="text-zinc-600 font-black text-[10px]">✓</span>;
-      case 'done':         return <span className="text-emerald-400 font-black text-[10px]">{count}</span>;
+      case 'done':         return <span className="text-emerald-400 font-black text-[11px]">✓</span>;
       case 'partial':      return <span className="text-amber-400 font-black text-[10px]">{count}</span>;
       case 'miss':         return <span className="text-red-400 font-black text-[10px]">0</span>;
     }
@@ -911,18 +1015,28 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
         </span>
       </div>
 
-      {/* Department filter — chỉ Kinh doanh + Marketing, không phải toàn bộ phòng ban công ty */}
-      <div className="flex gap-2 flex-wrap">
-        {NOMA_DEPT_OPTIONS.map(d => (
-          <button key={d} onClick={() => setNomaDept(d)}
-            className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all border ${
-              nomaDept === d
-                ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'
-            }`}>
-            {d}
-          </button>
-        ))}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        {/* Department filter — chỉ Kinh doanh + Marketing, không phải toàn bộ phòng ban công ty */}
+        <div className="flex gap-2 flex-wrap">
+          {NOMA_DEPT_OPTIONS.map(d => (
+            <button key={d} onClick={() => setNomaDept(d)}
+              className={`px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide transition-all border ${
+                nomaDept === d
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'
+              }`}>
+              {d}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleExport}
+          disabled={exporting || filtered.length === 0}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] font-black uppercase tracking-wide hover:bg-amber-500/25 transition-all disabled:opacity-50"
+        >
+          <Download className="w-3.5 h-3.5" />
+          {exporting ? 'Đang xuất...' : 'Xuất Excel'}
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-zinc-800 attendance-scroll">
@@ -960,32 +1074,20 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
             ) : filtered.map((emp, idx) => {
               const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
               const total = report?.totalCompleted.get(emp.id) || 0;
-              // Số khóa còn lại tính đến TRƯỚC mỗi ngày, dựa trên tổng lũy kế của những ngày trước đó trong toàn bộ lịch sử
-              let cumulativeSoFar = 0;
-              // Lũy kế các ngày trước tháng đang xem (để "remaining" đúng ngay từ ngày 1 của tháng)
-              const firstDayOfMonth = `${month}-01`;
-              for (const [key, c] of report?.countsByDay || []) {
-                if (!key.startsWith(`${emp.id}__`)) continue;
-                const d = key.split('__')[1];
-                if (d < firstDayOfMonth) cumulativeSoFar += c;
-              }
+              const cells = computeNomaDayCells(month, dayNumbers, emp.id, today, report?.countsByDay || new Map());
               return (
                 <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
                   <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${bg}`}>
                     <div className="font-bold text-zinc-200 truncate max-w-[180px]">{emp.fullName}</div>
                     <div className="text-[9px] text-zinc-600 font-bold truncate">{emp.department}</div>
                   </td>
-                  {dayNumbers.map(d => {
-                    const date = dateStr(month, d);
-                    const count = report?.countsByDay.get(`${emp.id}__${date}`) || 0;
-                    const remainingBeforeDay = NOMA_ROLLOUT_COURSE_IDS.length - cumulativeSoFar;
-                    const t = getNomaCellType(date, today, count, remainingBeforeDay);
-                    cumulativeSoFar += count;
-                    const isToday = date === today;
+                  {cells.map((cell, i) => {
+                    const d = dayNumbers[i];
+                    const isToday = cell.date === today;
                     return (
                       <td key={d}
-                        className={`border-r border-zinc-900 last:border-r-0 text-center ${NOMA_CELL_CLS[t]} ${isToday ? 'ring-1 ring-inset ring-blue-500/20' : ''}`}>
-                        {renderNomaCell(t, count)}
+                        className={`border-r border-zinc-900 last:border-r-0 text-center ${NOMA_CELL_CLS[cell.type]} ${isToday ? 'ring-1 ring-inset ring-blue-500/20' : ''}`}>
+                        {renderNomaCell(cell.type, cell.count)}
                       </td>
                     );
                   })}
