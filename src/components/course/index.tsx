@@ -19,6 +19,14 @@ import {
 import { Course, Brand } from '../../types';
 import { Card, Badge, Button, Progress, cn } from '../ui';
 import { upsertVideoProgress, markSlideViewed } from '../../services/trainingProgressService';
+import { NOMA_ROLLOUT_COURSE_IDS } from '../../services/nomaRolloutService';
+
+// 9 khóa NOMA mới: cho phép làm lại quiz tối đa 3 lần (1 lần đầu + 2 lần làm lại).
+// Các khóa học khác giữ nguyên hành vi cũ: chỉ 1 lần duy nhất.
+const NOMA_QUIZ_MAX_ATTEMPTS = 3;
+export function getQuizMaxAttempts(courseId: string): number {
+  return NOMA_ROLLOUT_COURSE_IDS.includes(courseId) ? NOMA_QUIZ_MAX_ATTEMPTS : 1;
+}
 
 // ── YouTube IFrame API loader ──────────────────────────────────────────
 // Load script (once globally) và resolve khi window.YT.Player sẵn sàng.
@@ -636,7 +644,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   // ── Quiz Attempts from localStorage ──────────────────────────────────
   const localAttempts = getQuizAttempts(course.id, userId);
   const totalAttempts = Math.max(course.attempts, localAttempts);
-  const hasUsedAttempt = totalAttempts >= 1;
+  const quizMaxAttempts = getQuizMaxAttempts(course.id);
+  const hasUsedAttempt = totalAttempts >= quizMaxAttempts;
 
   const showQuizSection = hasQuiz;
 
@@ -888,7 +897,9 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                   <Zap className="w-5 h-5 text-emerald-500" />
                   <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
                 </div>
-                <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">Mỗi người chỉ được làm bài 1 lần duy nhất.</span></p>
+                <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">
+                  {quizMaxAttempts > 1 ? `Mỗi người được làm bài tối đa ${quizMaxAttempts} lần.` : 'Mỗi người chỉ được làm bài 1 lần duy nhất.'}
+                </span></p>
               </div>
 
               <div className="grid grid-cols-2 gap-6 relative z-10">
@@ -898,7 +909,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 </div>
                 <div className="p-6 bg-zinc-900/50 border border-zinc-700/20 rounded-2xl space-y-2 group/stat hover:border-emerald-500/30 transition-all">
                   <p className="text-[10px] font-black text-zinc-600 uppercase tracking-widest  group-hover/stat:text-emerald-500 transition-colors">Số lần thực hiện</p>
-                  <p className="text-2xl font-black text-white  font-mono tracking-tighter">{totalAttempts} / 1</p>
+                  <p className="text-2xl font-black text-white  font-mono tracking-tighter">{totalAttempts} / {quizMaxAttempts}</p>
                 </div>
               </div>
 

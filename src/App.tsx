@@ -3,7 +3,7 @@ import Layout from "./components/layout";
 import Dashboard, { AdminDashboard } from "./components/dashboard";
 import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
 import ProductModule from "./components/product";
-import CourseModule from "./components/course";
+import CourseModule, { getQuizMaxAttempts } from "./components/course";
 import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
 import ProfilePage from "./components/profile/ProfilePage";
@@ -618,8 +618,9 @@ function App() {
       // → dùng courseIdOverride truyền trực tiếp.
       const targetCourseId = courseIdOverride || selectedCourseId;
       const userId = employee?.auth_user_id || '';
-      if (targetCourseId && getQuizAttempts(targetCourseId, userId) >= 1) {
-        alert('Bạn đã sử dụng hết lượt làm bài kiểm tra (1/1). Không thể làm lại.');
+      const maxAttempts = targetCourseId ? getQuizMaxAttempts(targetCourseId) : 1;
+      if (targetCourseId && getQuizAttempts(targetCourseId, userId) >= maxAttempts) {
+        alert(`Bạn đã sử dụng hết lượt làm bài kiểm tra (${maxAttempts}/${maxAttempts}). Không thể làm lại.`);
         return;
       }
 
