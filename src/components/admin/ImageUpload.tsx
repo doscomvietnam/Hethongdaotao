@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { Upload, Loader2, X, ImageIcon, Link2 } from 'lucide-react';
 import { uploadImage, type UploadFolder } from '../../services/storageService';
+import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
 import { TextInput } from './AdminModal';
 
 interface ImageUploadProps {
@@ -52,7 +53,7 @@ export function ImageUpload({ value, onChange, folder, hint, shape = 'wide' }: I
           <div className={`relative ${aspect} rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800`}>
             {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
             <img
-              src={value}
+              src={convertGoogleDriveToDirectUrl(value)}
               alt="Preview"
               className="w-full h-full object-cover"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
@@ -126,7 +127,7 @@ export function ImageUpload({ value, onChange, folder, hint, shape = 'wide' }: I
             type="url"
             value={value}
             onChange={e => onChange(e.target.value)}
-            placeholder="Hoặc dán URL ảnh: https://..."
+            placeholder="Hoặc dán link Google Drive / URL ảnh: https://..."
           />
         </div>
       )}

@@ -15,11 +15,13 @@ import {
   ExternalLink,
   CalendarClock,
   AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { Course, Brand } from '../../types';
 import { Card, Badge, Button, Progress, cn } from '../ui';
 import { upsertVideoProgress, markSlideViewed } from '../../services/trainingProgressService';
 import { NOMA_ROLLOUT_COURSE_IDS } from '../../services/nomaRolloutService';
+import { SEQUENTIAL_PATH_BRANDS, sortByLessonNumber, findCurrentLessonId, computeLockedLessonIds } from '../../services/sequentialCourseHelpers';
 
 // 9 khóa NOMA mới: cho phép làm lại quiz tối đa 3 lần (1 lần đầu + 2 lần làm lại).
 // Các khóa học khác giữ nguyên hành vi cũ: chỉ 1 lần duy nhất.
@@ -91,6 +93,149 @@ function getQuizAttempts(courseId: string, userId: string): number {
   } catch { return 0; }
 }
 
+// ─── Sequential Learning Path (Duolingo-style winding path, không khóa) ────
+
+interface SequentialLearningPathProps {
+  courses: Course[];
+  onCourseClick: (course: Course) => void;
+}
+
+// Biên độ lệch trái/phải (px) theo chỉ số bài — tạo hiệu ứng uốn lượn rõ rệt
+const PATH_OFFSETS = [0, -110, -150, -110, 0, 110, 150, 110];
+
+const SequentialLearningPath = ({ courses, onCourseClick }: SequentialLearningPathProps) => {
+  const ordered = React.useMemo(() => sortByLessonNumber(courses), [courses]);
+  const currentId = React.useMemo(() => findCurrentLessonId(courses), [courses]);
+  const lockedIds = React.useMemo(() => computeLockedLessonIds(courses), [courses]);
+
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  // Ref trên cả khối (nốt tròn + nhãn chữ) — dùng đáy khối này làm điểm bắt đầu
+  // đường nối và đỉnh nốt tròn tiếp theo làm điểm kết thúc, để đường không đè lên chữ.
+  const nodeRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+  const [pathD, setPathD] = React.useState('');
+
+  React.useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const computePath = () => {
+      const containerRect = container.getBoundingClientRect();
+      const blocks = ordered
+        .map((c) => nodeRefs.current.get(c.id))
+        .filter((el): el is HTMLDivElement => Boolean(el))
+        .map((el) => {
+          const r = el.getBoundingClientRect();
+          const x = r.left + r.width / 2 - containerRect.left;
+          return { top: { x, y: r.top - containerRect.top }, bottom: { x, y: r.bottom - containerRect.top } };
+        });
+
+      if (blocks.length < 2) { setPathD(''); return; }
+
+      // "M" chỉ nhấc bút di chuyển (không vẽ) tới đáy khối trước, rồi "C" mới vẽ
+      // đường cong trong khoảng trống tới đỉnh khối sau — không bao giờ vẽ xuyên
+      // qua nội dung (nốt tròn + nhãn chữ) của chính khối đó.
+      let d = `M ${blocks[0].bottom.x} ${blocks[0].bottom.y}`;
+      for (let i = 1; i < blocks.length; i++) {
+        const from = blocks[i - 1].bottom;
+        const to = blocks[i].top;
+        const midY = (from.y + to.y) / 2;
+        d += ` C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`;
+        if (i < blocks.length - 1) {
+          d += ` M ${blocks[i].bottom.x} ${blocks[i].bottom.y}`;
+        }
+      }
+      setPathD(d);
+    };
+
+    computePath();
+    const observer = new ResizeObserver(computePath);
+    observer.observe(container);
+    window.addEventListener('resize', computePath);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', computePath);
+    };
+  }, [ordered]);
+
+  return (
+    <div ref={containerRef} className="relative py-10 max-w-lg mx-auto">
+      <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none">
+        <path
+          d={pathD}
+          fill="none"
+          stroke="var(--theme-text-5, #52525B)"
+          strokeWidth={4}
+          strokeLinecap="round"
+          strokeDasharray="2 16"
+        />
+      </svg>
+
+      <div className="relative flex flex-col items-center gap-16">
+        {ordered.map((course, i) => {
+          const isCompleted = course.isCompleted;
+          const isCurrent = course.id === currentId;
+          const isLocked = lockedIds.has(course.id);
+          const offset = PATH_OFFSETS[i % PATH_OFFSETS.length];
+
+          return (
+            <div
+              key={course.id}
+              ref={(el) => {
+                if (el) nodeRefs.current.set(course.id, el);
+                else nodeRefs.current.delete(course.id);
+              }}
+              className="relative flex flex-col items-center"
+              style={{ transform: `translateX(${offset}px)` }}
+            >
+              {isCurrent && (
+                <button
+                  type="button"
+                  onClick={() => onCourseClick(course)}
+                  className="absolute -top-12 flex flex-col items-center z-10 animate-in fade-in slide-in-from-bottom-2"
+                >
+                  <span className="px-4 py-1.5 rounded-2xl bg-emerald-500 text-white text-[10px] font-black uppercase tracking-widest shadow-[0_4px_20px_var(--theme-accent-glow,rgba(16,185,129,0.5))] whitespace-nowrap">
+                    Bắt đầu
+                  </span>
+                  <div className="w-3 h-3 bg-emerald-500 rotate-45 -mt-1.5" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                disabled={isLocked}
+                onClick={() => { if (!isLocked) onCourseClick(course); }}
+                className={cn(
+                  "relative w-20 h-20 rounded-full flex items-center justify-center border-4 transition-all duration-300",
+                  isLocked && "bg-zinc-900 border-zinc-800 cursor-not-allowed",
+                  !isLocked && (isCompleted || isCurrent) && "bg-emerald-500 border-emerald-500 shadow-[0_0_30px_var(--theme-accent-glow,rgba(16,185,129,0.5))]",
+                  !isLocked && !isCompleted && !isCurrent && "bg-zinc-800 border-zinc-700 hover:border-emerald-500/50 hover:scale-105"
+                )}
+              >
+                {isLocked ? (
+                  <span className="text-2xl font-black text-zinc-600">{i + 1}</span>
+                ) : isCompleted ? (
+                  <CheckCircle2 className="w-9 h-9 text-white" />
+                ) : (
+                  <span className="text-2xl font-black text-white">{i + 1}</span>
+                )}
+              </button>
+
+              <div className="mt-3 text-center max-w-[200px]">
+                <p className={cn("text-[9px] font-black uppercase tracking-widest", isLocked ? "text-zinc-700" : "text-emerald-500/80")}>
+                  Bài {i + 1}
+                </p>
+                <p className={cn("text-xs font-bold leading-tight mt-0.5", isLocked ? "text-zinc-700" : "text-zinc-300")}>
+                  {course.title.replace(/^Bài\s+\d+:\s*/i, '')}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 // ─── Course Catalog ─────────────────────────────────────────────────────────
 
 interface CourseCatalogProps {
@@ -109,6 +254,7 @@ const GENERAL_BRAND_SET = new Set(['Tổng Quan Về Công Ty', 'Đào Tạo Onb
 export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
   const [activeSub, setActiveSub] = React.useState<string>('Tất cả');
+  const [activeProgram, setActiveProgram] = React.useState<string>('Tất cả');
 
   // Pre-filter courses theo nhóm trước khi áp dụng brand filter
   const deptCourses = React.useMemo(() => courses.filter(c => !PRODUCT_BRAND_SET.has(c.brand) && !GENERAL_BRAND_SET.has(c.brand)), [courses]);
@@ -136,6 +282,11 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
   React.useEffect(() => {
     setActiveSub('Tất cả');
   }, [activeBrand]);
+
+  // Reset chip chương trình khi đổi phòng ban/danh mục
+  React.useEffect(() => {
+    setActiveProgram('Tất cả');
+  }, [activeSub]);
 
   // Cấp 2 dùng `department` cho Nội bộ và group department, `category` cho các brand còn lại
   const isInternal = activeBrand === 'Nội bộ' || initialGroup === 'department';
@@ -186,6 +337,20 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
           : v.trim() === activeSub;
       });
 
+  // Chip "chương trình" — chỉ ở nhóm phòng ban, liệt kê các chuỗi bài học (brand)
+  // đang có trong phòng ban/danh mục hiện chọn. Bấm vào mới hiện lộ trình.
+  const programOptions = React.useMemo(() => {
+    if (initialGroup !== 'department') return [];
+    return Array.from(new Set(filteredCourses.map(c => c.brand).filter(Boolean)));
+  }, [filteredCourses, initialGroup]);
+
+  const finalCourses = activeProgram === 'Tất cả'
+    ? filteredCourses
+    : filteredCourses.filter(c => c.brand === activeProgram);
+
+  // Có chip "Khóa học" để chọn nhưng chưa bấm cụ thể cái nào → chưa hiện gì cả
+  const awaitingProgramPick = programOptions.length > 0 && activeProgram === 'Tất cả';
+
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col gap-6">
@@ -194,20 +359,22 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
             <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">{initialGroup === 'department' ? 'KHÓA HỌC THEO PHÒNG BAN' : 'KHÓA HỌC PHÁT TRIỂN'}</h1>
           </div>
 
-          <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0 flex-wrap">
-            {brands.map((brand) => (
-              <button
-                key={brand}
-                onClick={() => setActiveBrand(brand as any)}
-                className={`px-5 py-3 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest whitespace-nowrap ${activeBrand === brand
-                  ? 'bg-emerald-500 text-white'
-                  : 'text-zinc-600 hover:text-zinc-300'
-                  }`}
-              >
-                {brand}
-              </button>
-            ))}
-          </div>
+          {initialGroup !== 'department' && (
+            <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0 flex-wrap">
+              {brands.map((brand) => (
+                <button
+                  key={brand}
+                  onClick={() => setActiveBrand(brand as any)}
+                  className={`px-5 py-3 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest whitespace-nowrap ${activeBrand === brand
+                    ? 'bg-emerald-500 text-white'
+                    : 'text-zinc-600 hover:text-zinc-300'
+                    }`}
+                >
+                  {brand}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Cấp 2: chip danh mục / phòng ban */}
@@ -216,7 +383,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
             <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mr-2">
               {subLabel}
             </span>
-            {subOptions.map((opt) => (
+            {subOptions.filter(opt => opt !== 'Tất cả').map((opt) => (
               <button
                 key={opt}
                 onClick={() => setActiveSub(opt)}
@@ -232,9 +399,32 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
             ))}
           </div>
         )}
+
+        {/* Chip chương trình — vd "Khóa học thực chiến". Bấm vào mới hiện lộ trình. */}
+        {programOptions.length > 0 && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mr-2">
+              Khóa học
+            </span>
+            {programOptions.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setActiveProgram(opt)}
+                className={cn(
+                  "px-5 py-2 rounded-full text-sm font-black transition-all uppercase tracking-widest border",
+                  activeProgram === opt
+                    ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
+                    : 'bg-zinc-900/40 text-zinc-500 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
+                )}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {filteredCourses.length === 0 && (
+      {!awaitingProgramPick && finalCourses.length === 0 && (
         <div className="rounded-[2rem] border border-dashed border-zinc-800 bg-zinc-950/40 py-20 px-6 text-center">
           <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">
             Chưa có khóa học nào cho {isInternal ? 'phòng ban' : 'danh mục'} này
@@ -242,8 +432,11 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
         </div>
       )}
 
+      {!awaitingProgramPick && finalCourses.length > 0 && activeProgram !== 'Tất cả' && SEQUENTIAL_PATH_BRANDS.includes(activeProgram) ? (
+        <SequentialLearningPath courses={finalCourses} onCourseClick={onCourseClick} />
+      ) : !awaitingProgramPick && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {filteredCourses
+        {finalCourses
           .map((course) => {
             const videoProgress = Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0);
             // Video = 50%, submit quiz (pass/fail) = +50%
@@ -347,6 +540,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
             );
           })}
       </div>
+      )}
     </div>
   );
 };

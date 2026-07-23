@@ -7,6 +7,7 @@ import {
 import type { Employee } from '../../types';
 import { uploadImage } from '../../services/storageService';
 import { updateEmployee } from '../../services/employeeService';
+import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
 
 interface ProfilePageProps {
     employee: Employee;
@@ -205,7 +206,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
                             >
                                 {employee.avatar_url ? (
                                     <img
-                                        src={employee.avatar_url}
+                                        src={convertGoogleDriveToDirectUrl(employee.avatar_url)}
                                         alt={employee.full_name}
                                         className="w-full h-full object-cover"
                                         onError={(e) => {

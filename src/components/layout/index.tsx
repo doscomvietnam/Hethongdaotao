@@ -35,6 +35,7 @@ import {
   checkCourseDeadlines,
   type NotificationItem,
 } from '../../services/notificationService';
+import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
 
 // ============================================================
 // NOTIFICATION HELPERS
@@ -315,7 +316,7 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
             <div className="w-10 h-10 rounded-xl bg-zinc-800 border border-zinc-700 flex-shrink-0 overflow-hidden ring-1 ring-zinc-700/50 shadow-inner relative">
                  {employee.avatar_url ? (
                    <img
-                     src={employee.avatar_url}
+                     src={convertGoogleDriveToDirectUrl(employee.avatar_url)}
                      alt={employee.full_name}
                      className="w-full h-full object-cover"
                      onError={(e) => {

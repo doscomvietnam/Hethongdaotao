@@ -26,6 +26,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { getProducts } from "./services/productService";
 import { getCourses } from "./services/courseService";
+import { computeLockedLessonIds } from "./services/sequentialCourseHelpers";
 import { supabase } from "./services/supabaseClient";
 import { getQuizById, getQuizByCourseId } from "./services/quizService";
 import { getDashboardSummary } from "./services/dashboardService";
@@ -401,6 +402,8 @@ function App() {
     [courses, selectedCourseId]
   );
 
+  const lockedLessonIds = React.useMemo(() => computeLockedLessonIds(courses), [courses]);
+
   const refreshDashboard = React.useCallback(async (courseData?: Course[]) => {
     try {
       const summary = await getDashboardSummary(courseData || []);
@@ -601,6 +604,10 @@ function App() {
   };
 
   const handleOpenCourse = (courseId: string) => {
+    if (lockedLessonIds.has(courseId)) {
+      alert('Bạn cần hoàn thành bài học trước đó trước khi mở bài này.');
+      return;
+    }
     setSelectedCourseId(courseId);
     setCurrentView(ViewType.COURSE_DETAIL);
   };
@@ -878,6 +885,14 @@ function App() {
           return (
             <div className="p-8 text-zinc-400">
               Không tìm thấy khóa học. Vui lòng quay lại danh sách.
+            </div>
+          );
+        }
+
+        if (lockedLessonIds.has(selectedCourse.id)) {
+          return (
+            <div className="p-8 text-zinc-400">
+              Bài học này đang bị khóa. Hoàn thành bài học trước đó để mở khóa.
             </div>
           );
         }
