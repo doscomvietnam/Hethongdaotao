@@ -43,6 +43,8 @@ export interface NomaDailyReport {
   countsByDay: Map<string, number>;
   /** Map employeeId -> tổng số khóa đã hoàn thành (toàn thời gian, tối đa 9) */
   totalCompleted: Map<string, number>;
+  /** Set "employeeId__YYYY-MM-DD" -> nhân viên nghỉ phép ngày đó (bảng employee_absences) */
+  absenceDays: Set<string>;
   today: string;
 }
 
@@ -69,6 +71,17 @@ export async function getNomaDailyProgress(): Promise<NomaDailyReport> {
     .not('quiz_completed_at', 'is', null);
   if (progErr) throw progErr;
 
+  const { data: absences, error: absErr } = await supabase
+    .from('employee_absences')
+    .select('employee_id, date')
+    .in('employee_id', empIds.length ? empIds : ['__none__']);
+  if (absErr) throw absErr;
+
+  const absenceDays = new Set<string>();
+  for (const a of absences || []) {
+    absenceDays.add(`${a.employee_id}__${a.date}`);
+  }
+
   const countsByDay = new Map<string, number>();
   const totalCompleted = new Map<string, number>();
   for (const p of progress || []) {
@@ -85,6 +98,7 @@ export async function getNomaDailyProgress(): Promise<NomaDailyReport> {
     employees: (employees || []).map((e: any) => ({ id: e.id, fullName: e.full_name || '—', department: e.department || '—' })),
     countsByDay,
     totalCompleted,
+    absenceDays,
     today,
   };
 }

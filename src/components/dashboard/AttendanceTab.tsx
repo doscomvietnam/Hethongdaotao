@@ -835,13 +835,14 @@ function SummaryView({ deptFilter }: { deptFilter: string }) {
 
 const NOMA_DEPT_OPTIONS = ['Tất cả', ...NOMA_ROLLOUT_DEPARTMENTS];
 
-type NomaCellType = 'before_start' | 'pending' | 'finished' | 'done' | 'partial' | 'miss';
+type NomaCellType = 'before_start' | 'pending' | 'finished' | 'done' | 'partial' | 'miss' | 'leave';
 
 /** remainingBeforeDay = số khóa còn thiếu TÍNH ĐẾN TRƯỚC ngày này (chưa cộng count của chính ngày này) */
-function getNomaCellType(date: string, today: string, count: number, remainingBeforeDay: number): NomaCellType {
+function getNomaCellType(date: string, today: string, count: number, remainingBeforeDay: number, isOnLeave: boolean): NomaCellType {
   if (date < NOMA_ROLLOUT_START_DATE) return 'before_start';
   if (date > today) return 'pending';
   if (remainingBeforeDay <= 0) return 'finished'; // đã hoàn thành hết 9 khóa trước ngày này — không còn gì phải làm
+  if (isOnLeave) return 'leave'; // nghỉ phép ngày này — không tính là bỏ lỡ chỉ tiêu
   const requiredToday = Math.min(NOMA_ROLLOUT_DAILY_RATE, remainingBeforeDay);
   if (count >= requiredToday) return 'done';
   if (count > 0) return 'partial';
@@ -855,6 +856,7 @@ function computeNomaDayCells(
   employeeId: string,
   today: string,
   countsByDay: Map<string, number>,
+  absenceDays: Set<string> = new Set(),
 ): { date: string; count: number; type: NomaCellType }[] {
   const firstDayOfMonth = `${month}-01`;
   let cumulativeSoFar = 0;
@@ -866,7 +868,8 @@ function computeNomaDayCells(
     const date = dateStr(month, d);
     const count = countsByDay.get(`${employeeId}__${date}`) || 0;
     const remainingBeforeDay = NOMA_ROLLOUT_COURSE_IDS.length - cumulativeSoFar;
-    const type = getNomaCellType(date, today, count, remainingBeforeDay);
+    const isOnLeave = absenceDays.has(`${employeeId}__${date}`);
+    const type = getNomaCellType(date, today, count, remainingBeforeDay, isOnLeave);
     cumulativeSoFar += count;
     return { date, count, type };
   });
@@ -879,6 +882,7 @@ const NOMA_CELL_LABEL: Record<NomaCellType, (count: number) => string> = {
   done: () => '✓',
   partial: (count) => String(count),
   miss: () => '0',
+  leave: () => 'Nghỉ',
 };
 
 async function exportNomaDailyExcel(
@@ -898,7 +902,7 @@ async function exportNomaDailyExcel(
   ];
 
   const rows = employees.map(emp => {
-    const cells = computeNomaDayCells(month, dayNumbers, emp.id, report.today, report.countsByDay);
+    const cells = computeNomaDayCells(month, dayNumbers, emp.id, report.today, report.countsByDay, report.absenceDays);
     const total = report.totalCompleted.get(emp.id) || 0;
     return [
       emp.fullName, emp.department,
@@ -972,6 +976,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
     done: 'bg-emerald-500/10',
     partial: 'bg-amber-500/15',
     miss: 'bg-red-500/20',
+    leave: 'bg-blue-500/10',
   };
 
   const renderNomaCell = (t: NomaCellType, count: number) => {
@@ -982,6 +987,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
       case 'done':         return <span className="text-emerald-400 font-black text-[11px]">✓</span>;
       case 'partial':      return <span className="text-amber-400 font-black text-[10px]">{count}</span>;
       case 'miss':         return <span className="text-red-400 font-black text-[10px]">0</span>;
+      case 'leave':        return <span className="text-blue-400 font-black text-[9px]">P</span>;
     }
   };
 
@@ -1008,6 +1014,10 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
           <span className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-zinc-900/40 inline-block border border-zinc-800" />
             <span className="text-zinc-500">✓</span> Đã hoàn thành hết 9 khóa
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-blue-500/10 inline-block border border-blue-500/20" />
+            <span className="text-blue-400">P</span> Nghỉ phép — không tính chỉ tiêu
           </span>
         </div>
         <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">
@@ -1074,7 +1084,7 @@ function NomaDailyView({ month, dayNumbers, deptFilter }: { month: string; dayNu
             ) : filtered.map((emp, idx) => {
               const bg = idx % 2 === 0 ? 'bg-zinc-950' : 'bg-[#0C0C0E]';
               const total = report?.totalCompleted.get(emp.id) || 0;
-              const cells = computeNomaDayCells(month, dayNumbers, emp.id, today, report?.countsByDay || new Map());
+              const cells = computeNomaDayCells(month, dayNumbers, emp.id, today, report?.countsByDay || new Map(), report?.absenceDays);
               return (
                 <tr key={emp.id} className={`border-b border-zinc-900 last:border-b-0 ${bg} hover:bg-zinc-900/30 transition-colors`}>
                   <td className={`sticky left-0 z-10 px-4 py-2 border-r border-zinc-800 ${bg}`}>
