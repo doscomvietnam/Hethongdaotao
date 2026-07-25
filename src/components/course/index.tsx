@@ -23,11 +23,19 @@ import { upsertVideoProgress, markSlideViewed } from '../../services/trainingPro
 import { NOMA_ROLLOUT_COURSE_IDS } from '../../services/nomaRolloutService';
 import { SEQUENTIAL_PATH_BRANDS, sortByLessonNumber, findCurrentLessonId, computeLockedLessonIds } from '../../services/sequentialCourseHelpers';
 
-// 9 khóa NOMA mới: cho phép làm lại quiz tối đa 3 lần (1 lần đầu + 2 lần làm lại).
+// 9 khóa NOMA mới: cho phép làm lại quiz tối đa 3 lần (1 lần đầu + 2 lần làm lại),
+// nhưng chỉ dành cho người CHƯA đạt 80 điểm — ai đã đạt 80 trở lên thì dừng, không cần/không được làm lại nữa.
 // Các khóa học khác giữ nguyên hành vi cũ: chỉ 1 lần duy nhất.
 const NOMA_QUIZ_MAX_ATTEMPTS = 3;
+const NOMA_RETRY_PASS_THRESHOLD = 80;
+
 export function getQuizMaxAttempts(courseId: string): number {
   return NOMA_ROLLOUT_COURSE_IDS.includes(courseId) ? NOMA_QUIZ_MAX_ATTEMPTS : 1;
+}
+
+/** Đã đạt đủ điểm (≥80) ở khóa NOMA rồi thì không được làm lại nữa, dù chưa hết lượt */
+export function hasReachedNomaPassThreshold(courseId: string, lastQuizScore?: number): boolean {
+  return NOMA_ROLLOUT_COURSE_IDS.includes(courseId) && lastQuizScore != null && lastQuizScore >= NOMA_RETRY_PASS_THRESHOLD;
 }
 
 // ── YouTube IFrame API loader ──────────────────────────────────────────
@@ -839,7 +847,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   const localAttempts = getQuizAttempts(course.id, userId);
   const totalAttempts = Math.max(course.attempts, localAttempts);
   const quizMaxAttempts = getQuizMaxAttempts(course.id);
-  const hasUsedAttempt = totalAttempts >= quizMaxAttempts;
+  const alreadyPassedThreshold = hasReachedNomaPassThreshold(course.id, course.lastQuizScore);
+  const hasUsedAttempt = alreadyPassedThreshold || totalAttempts >= quizMaxAttempts;
 
   const showQuizSection = hasQuiz;
 
@@ -852,9 +861,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   }, [videoWatchProgress, course.lastQuizScore, showQuizSection]);
 
   // ── Quiz access: phải xem video ≥ 50% mới mở bài test ─────────────
-  const VIDEO_GATE_THRESHOLD = 50;
-  const videoGatePassed = !hasVideo || videoWatchProgress >= VIDEO_GATE_THRESHOLD;
-  const quizDisabled = hasUsedAttempt || !videoGatePassed;
+  const quizDisabled = hasUsedAttempt;
 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-700 pb-20">
@@ -1092,7 +1099,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                   <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
                 </div>
                 <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">
-                  {quizMaxAttempts > 1 ? `Mỗi người được làm bài tối đa ${quizMaxAttempts} lần.` : 'Mỗi người chỉ được làm bài 1 lần duy nhất.'}
+                  {quizMaxAttempts > 1 ? `Nếu chưa đạt 80 điểm, được làm lại tối đa ${quizMaxAttempts} lần; đã đạt 80 điểm trở lên thì dừng.` : 'Mỗi người chỉ được làm bài 1 lần duy nhất.'}
                 </span></p>
               </div>
 
@@ -1111,42 +1118,25 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 <div className="bg-zinc-950/50 p-4 rounded-2xl border border-zinc-700/20 mb-8 flex items-center justify-between">
                   <span className="text-[10px] font-black text-zinc-600 uppercase  tracking-widest">Trạng thái:</span>
                   <Badge
-                    variant={course.isCompleted ? 'success' : hasUsedAttempt ? 'warning' : !videoGatePassed ? 'warning' : 'default'}
+                    variant={course.isCompleted ? 'success' : hasUsedAttempt ? 'warning' : 'default'}
                     className={cn(
                       "px-4 py-1.5 font-black uppercase text-[9px]  border-none leading-none shadow-xl",
                       course.isCompleted
                         ? 'bg-emerald-500 text-white'
                         : hasUsedAttempt
                           ? 'bg-red-500/10 text-red-500'
-                          : !videoGatePassed
-                            ? 'bg-amber-500/10 text-amber-400'
-                            : 'bg-zinc-800 text-zinc-500'
+                          : 'bg-zinc-800 text-zinc-500'
                     )}
                   >
                     {course.isCompleted
                       ? 'ĐÃ HOÀN THÀNH'
-                      : hasUsedAttempt
-                        ? 'ĐÃ SỬ DỤNG HẾT LƯỢT'
-                        : !videoGatePassed
-                          ? `CHỜ XEM VIDEO (${videoWatchProgress}/${VIDEO_GATE_THRESHOLD}%)`
+                      : alreadyPassedThreshold
+                        ? 'ĐÃ ĐẠT YÊU CẦU'
+                        : hasUsedAttempt
+                          ? 'ĐÃ SỬ DỤNG HẾT LƯỢT'
                           : 'CHƯA LÀM BÀI'}
                   </Badge>
                 </div>
-
-                {/* Gate hint khi chưa đủ 50% video */}
-                {!videoGatePassed && !hasUsedAttempt && (
-                  <div className="mb-4 flex items-start gap-3 p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
-                    <Lock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                    <div className="space-y-1">
-                      <p className="text-[11px] font-black text-amber-400 uppercase tracking-widest">
-                        Bài test sẽ mở khi xem video ≥ {VIDEO_GATE_THRESHOLD}%
-                      </p>
-                      <p className="text-[10px] font-bold text-zinc-500">
-                        Tiến độ hiện tại: <span className="text-amber-400 font-mono">{videoWatchProgress}%</span> — cần thêm <span className="text-amber-400 font-mono">{Math.max(0, VIDEO_GATE_THRESHOLD - videoWatchProgress)}%</span>
-                      </p>
-                    </div>
-                  </div>
-                )}
 
                 <Button
                   disabled={quizDisabled}
@@ -1160,9 +1150,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 >
                   {hasUsedAttempt
                     ? 'ĐÃ HẾT LƯỢT LÀM BÀI (1/1)'
-                    : !videoGatePassed
-                      ? `XEM VIDEO ≥ ${VIDEO_GATE_THRESHOLD}% ĐỂ MỞ KHÓA`
-                      : 'Bắt đầu làm bài test'}
+                    : 'Bắt đầu làm bài test'}
                   {!quizDisabled ? <ArrowRight className="w-6 h-6" /> : <Lock className="w-5 h-5" />}
                 </Button>
 

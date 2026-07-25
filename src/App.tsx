@@ -3,7 +3,7 @@ import Layout from "./components/layout";
 import Dashboard, { AdminDashboard } from "./components/dashboard";
 import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
 import ProductModule from "./components/product";
-import CourseModule, { getQuizMaxAttempts } from "./components/course";
+import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
 import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
 import ProfilePage from "./components/profile/ProfilePage";
@@ -625,6 +625,11 @@ function App() {
       // → dùng courseIdOverride truyền trực tiếp.
       const targetCourseId = courseIdOverride || selectedCourseId;
       const userId = employee?.auth_user_id || '';
+      const targetCourse = targetCourseId ? courses.find(c => c.id === targetCourseId) : undefined;
+      if (targetCourseId && hasReachedNomaPassThreshold(targetCourseId, targetCourse?.lastQuizScore)) {
+        alert('Bạn đã đạt đủ điểm yêu cầu (≥80) ở bài này, không thể làm lại.');
+        return;
+      }
       const maxAttempts = targetCourseId ? getQuizMaxAttempts(targetCourseId) : 1;
       if (targetCourseId && getQuizAttempts(targetCourseId, userId) >= maxAttempts) {
         alert(`Bạn đã sử dụng hết lượt làm bài kiểm tra (${maxAttempts}/${maxAttempts}). Không thể làm lại.`);
