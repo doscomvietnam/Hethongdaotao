@@ -18,6 +18,7 @@ export enum ViewType {
   ONBOARDING_TEST = 'onboarding-test',
   ATTENDANCE = 'attendance',
   MY_DASHBOARD = 'my-dashboard',
+  BADGES = 'badges',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';

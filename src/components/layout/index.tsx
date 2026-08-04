@@ -25,6 +25,7 @@ import {
   CalendarDays,
   UserCircle,
   Briefcase,
+  Award,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -98,6 +99,7 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
     { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
+    { id: ViewType.BADGES, icon: Award, label: 'Huy hiệu', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.ONBOARDING_TEST, icon: ClipboardCheck, label: 'Test Onboarding', roles: ['admin', 'manager', 'employee'], show: hasOnboarding },
     { id: ViewType.ATTENDANCE, icon: CalendarDays, label: 'Điểm danh', roles: ['admin'], show: true },
     { id: ViewType.ADMIN, icon: Settings, label: 'Quản trị hệ thống', roles: ['admin', 'manager'], show: true },
@@ -801,6 +803,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.ONBOARDING_TEST]: 'onboarding-test',
       [ViewType.ATTENDANCE]: 'attendance',
       [ViewType.MY_DASHBOARD]: 'my-dashboard',
+      [ViewType.BADGES]: 'badges',
     };
     onNavigate(viewMap[view] || 'dashboard');
   };

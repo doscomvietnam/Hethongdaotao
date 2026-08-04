@@ -4,6 +4,7 @@ import Dashboard, { AdminDashboard } from "./components/dashboard";
 import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
 import ProductModule from "./components/product";
 import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
+import BadgesPage from "./components/gamification/BadgesPage";
 import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
 import ProfilePage from "./components/profile/ProfilePage";
@@ -90,6 +91,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.ONBOARDING_TEST]: '/onboarding-test',
   [ViewType.ATTENDANCE]: '/attendance',
   [ViewType.MY_DASHBOARD]: '/my-dashboard',
+  [ViewType.BADGES]: '/badges',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -130,6 +132,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.ATTENDANCE };
     case 'my-dashboard':
       return { view: ViewType.MY_DASHBOARD };
+    case 'badges':
+      return { view: ViewType.BADGES };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -587,6 +591,9 @@ function App() {
         setCurrentView(ViewType.MY_DASHBOARD);
         initData(true);
         break;
+      case "badges":
+        setCurrentView(ViewType.BADGES);
+        break;
       default:
         setCurrentView(ViewType.DASHBOARD);
         initData(true);
@@ -846,6 +853,9 @@ function App() {
             department={employee.department || ''}
           />
         );
+
+      case ViewType.BADGES:
+        return <BadgesPage employee={employee} />;
 
       case ViewType.PRODUCT_LIBRARY:
         return (
