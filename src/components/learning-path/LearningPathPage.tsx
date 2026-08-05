@@ -122,26 +122,45 @@ function WindingPath({ courses, lockedIds, allDone, onOpenCourse, onOpenChest }:
 }
 
 export default function LearningPathPage({ courses, onCourseClick, employee }: LearningPathPageProps) {
-  const isPrivileged = employee.role === 'admin' || employee.role === 'manager';
+  // Chỉ admin xem được tất cả phòng (có tab chọn phòng); manager & nhân viên chỉ thấy phòng của mình.
+  const isAdmin = employee.role === 'admin';
 
   // Phòng ban (admin/manager xem trước từng phòng)
   const [depts, setDepts] = React.useState<string[]>([]);
   const [selectedDept, setSelectedDept] = React.useState<string>(employee.department || '');
   React.useEffect(() => {
-    if (!isPrivileged) return;
+    if (!isAdmin) return;
     supabase.from('employees').select('department').then(({ data }) => {
       const set = new Set<string>();
       (data || []).forEach((r: any) => { if (r.department && !NON_DEPARTMENTS.includes(r.department)) set.add(r.department); });
-      const arr = Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
-      setDepts(arr);
-      setSelectedDept(prev => (prev && arr.includes(prev) ? prev : (arr[0] || '')));
+      setDepts(Array.from(set).sort((a, b) => a.localeCompare(b, 'vi')));
     });
-  }, [isPrivileged]);
+  }, [isAdmin]);
 
-  // Khóa của phòng đang xem (admin lọc theo selectedDept; nhân viên đã lọc sẵn theo phòng mình)
+  // Phòng đang có lộ trình tuần tự (Sale = Kinh doanh)
+  const deptWithPath = React.useMemo(
+    () => courses.find(c => SEQUENTIAL_PATH_BRANDS.includes(c.brand))?.department || '',
+    [courses],
+  );
+  // Admin/manager: tự chọn sẵn phòng CÓ lộ trình để thấy ngay (đặt 1 lần, không đè lựa chọn thủ công sau đó)
+  const dpInited = React.useRef(false);
+  React.useEffect(() => {
+    if (dpInited.current || !isAdmin || !depts.length) return;
+    if (deptWithPath && depts.includes(deptWithPath)) {
+      dpInited.current = true;
+      setSelectedDept(deptWithPath);
+    } else if (!depts.includes(selectedDept)) {
+      dpInited.current = true;
+      setSelectedDept(depts[0]);
+    }
+  }, [isAdmin, depts, deptWithPath, selectedDept]);
+
+  // Admin: lọc theo phòng đang chọn ở tab. Manager/nhân viên: chỉ phòng của chính mình.
   const visibleCourses = React.useMemo(
-    () => (isPrivileged ? courses.filter(c => !c.department || c.department === selectedDept) : courses),
-    [courses, isPrivileged, selectedDept],
+    () => (isAdmin
+      ? courses.filter(c => !c.department || c.department === selectedDept)
+      : courses.filter(c => !c.department || c.department === (employee.department || ''))),
+    [courses, isAdmin, selectedDept, employee.department],
   );
 
   // Chuỗi khóa học tuần tự có trong phòng này (hiện chỉ có Sale thực chiến)
@@ -175,7 +194,7 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
       <style>{LP_CSS}</style>
 
       {/* Bộ lọc: Phòng ban (admin) + Khóa học */}
-      {isPrivileged && depts.length > 0 && (
+      {isAdmin && depts.length > 0 && (
         <div className="lp-filter">
           <span className="lp-flabel">Phòng ban</span>
           <div className="lp-chips">
@@ -220,7 +239,7 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
         />
       ) : (
         <div className="lp-empty">
-          {isPrivileged
+          {isAdmin
             ? 'Phòng ban này chưa có lộ trình học tuần tự.'
             : 'Chưa có lộ trình học nào cho bạn.'}
         </div>

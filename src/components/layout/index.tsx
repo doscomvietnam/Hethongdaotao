@@ -90,8 +90,9 @@ function isWithin6Months(startDate: string | null | undefined): boolean {
 export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCollapse, courseGroup, onSetCourseGroup, mobileOpen, onCloseMobile }: SidebarProps) => {
   const isAdmin = employee.role === 'admin' || employee.role === 'manager';
   const hasOnboarding = employee.role === 'admin' || isWithin6Months(employee.start_date);
-  // Lộ trình học hiện chỉ có chuỗi Sale thực chiến (phòng Kinh doanh); admin/manager xem được
-  const hasSalesPath = isAdmin || (employee.department || '').toLowerCase().includes('kinh doanh');
+  // Lộ trình học hiện chỉ có chuỗi Sale thực chiến (phòng Kinh doanh).
+  // Admin xem tất cả phòng; ngoài ra chỉ phòng CÓ lộ trình (Kinh doanh) mới thấy menu.
+  const hasSalesPath = employee.role === 'admin' || (employee.department || '').toLowerCase().includes('kinh doanh');
 
   const allMenuItems = [
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan', roles: ['admin'], show: true },
