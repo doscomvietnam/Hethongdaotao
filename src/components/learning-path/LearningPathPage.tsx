@@ -30,10 +30,11 @@ interface WindingPathProps {
   courses: Course[];
   lockedIds: Set<string>;
   allDone: boolean;
+  viewOnly: boolean;
   onOpenCourse: (id: string) => void;
   onOpenChest: () => void;
 }
-function WindingPath({ courses, lockedIds, allDone, onOpenCourse, onOpenChest }: WindingPathProps) {
+function WindingPath({ courses, lockedIds, allDone, viewOnly, onOpenCourse, onOpenChest }: WindingPathProps) {
   const pathRef = React.useRef<HTMLDivElement>(null);
   const capRefs = React.useRef<Map<string, HTMLElement>>(new Map());
   const [pathD, setPathD] = React.useState('');
@@ -82,8 +83,8 @@ function WindingPath({ courses, lockedIds, allDone, onOpenCourse, onOpenChest }:
           <div key={c.id} className="lp-row" style={{ transform: `translateX(${off}px)` }}>
             <button
               className={`lp-node lp-${state}`}
-              disabled={locked}
-              onClick={() => { if (!locked) onOpenCourse(c.id); }}
+              disabled={locked || viewOnly}
+              onClick={() => { if (!locked && !viewOnly) onOpenCourse(c.id); }}
               title={c.title}
             >
               {state === 'cur' && <span className="lp-badge">Bắt đầu</span>}
@@ -106,8 +107,8 @@ function WindingPath({ courses, lockedIds, allDone, onOpenCourse, onOpenChest }:
       <div className="lp-row" style={{ transform: `translateX(${chestOff}px)` }}>
         <button
           className={`lp-node lp-chest ${allDone ? 'lp-chest-on' : 'lp-chest-off'}`}
-          disabled={!allDone}
-          onClick={() => { if (allDone) onOpenChest(); }}
+          disabled={!allDone || viewOnly}
+          onClick={() => { if (allDone && !viewOnly) onOpenChest(); }}
           title={allDone ? 'Mở rương phần thưởng' : 'Hoàn thành hết các bài để mở'}
         >
           <span className="lp-cap" ref={el => { if (el) capRefs.current.set('__chest__', el); else capRefs.current.delete('__chest__'); }}>🎁</span>
@@ -137,31 +138,16 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
     });
   }, [isAdmin]);
 
-  // Phòng có lộ trình tuần tự GẮN phòng ban (Sale = Kinh doanh) — để admin mặc định mở phòng đó
-  // và thấy được cả các chuỗi gắn phòng (Sale) lẫn chuỗi chung (CEO, không gắn phòng, luôn hiện).
-  const deptWithPath = React.useMemo(
-    () => courses.find(c => SEQUENTIAL_PATH_BRANDS.includes(c.brand) && c.department)?.department || '',
-    [courses],
-  );
-  // Admin/manager: tự chọn sẵn phòng CÓ lộ trình để thấy ngay (đặt 1 lần, không đè lựa chọn thủ công sau đó)
-  const dpInited = React.useRef(false);
-  React.useEffect(() => {
-    if (dpInited.current || !isAdmin || !depts.length) return;
-    if (deptWithPath && depts.includes(deptWithPath)) {
-      dpInited.current = true;
-      setSelectedDept(deptWithPath);
-    } else if (!depts.includes(selectedDept)) {
-      dpInited.current = true;
-      setSelectedDept(depts[0]);
-    }
-  }, [isAdmin, depts, deptWithPath, selectedDept]);
+  // Admin mặc định làm lộ trình của CHÍNH phòng mình; xem phòng khác qua tab thì chỉ để xem (không làm).
+  const ownDept = employee.department || '';
+  const isViewOnly = isAdmin && selectedDept !== ownDept;
 
   // Admin: lọc theo phòng đang chọn ở tab. Manager/nhân viên: chỉ phòng của chính mình.
   const visibleCourses = React.useMemo(
     () => (isAdmin
       ? courses.filter(c => !c.department || c.department === selectedDept)
-      : courses.filter(c => !c.department || c.department === (employee.department || ''))),
-    [courses, isAdmin, selectedDept, employee.department],
+      : courses.filter(c => !c.department || c.department === ownDept)),
+    [courses, isAdmin, selectedDept, ownDept],
   );
 
   // Chuỗi khóa học tuần tự có trong phòng này (hiện chỉ có Sale thực chiến)
@@ -235,6 +221,7 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
           courses={pathCourses}
           lockedIds={lockedIds}
           allDone={allDone}
+          viewOnly={isViewOnly}
           onOpenCourse={handleOpen}
           onOpenChest={() => setShowCelebrate(true)}
         />
