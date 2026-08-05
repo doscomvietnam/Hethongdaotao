@@ -1,10 +1,13 @@
 import React from "react";
 import Layout from "./components/layout";
-import Dashboard, { AdminDashboard } from "./components/dashboard";
+import Dashboard from "./components/dashboard";
 import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
+import OverviewTabs from "./components/dashboard/OverviewTabs";
 import ProductModule from "./components/product";
 import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
 import BadgesPage from "./components/gamification/BadgesPage";
+import PracticePage from "./components/practice/PracticePage";
+import LearningPathPage from "./components/learning-path/LearningPathPage";
 import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
 import ProfilePage from "./components/profile/ProfilePage";
@@ -92,6 +95,8 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.ATTENDANCE]: '/attendance',
   [ViewType.MY_DASHBOARD]: '/my-dashboard',
   [ViewType.BADGES]: '/badges',
+  [ViewType.PRACTICE]: '/practice',
+  [ViewType.LEARNING_PATH]: '/learning-path',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -134,6 +139,10 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.MY_DASHBOARD };
     case 'badges':
       return { view: ViewType.BADGES };
+    case 'practice':
+      return { view: ViewType.PRACTICE };
+    case 'learning-path':
+      return { view: ViewType.LEARNING_PATH };
     case 'dashboard':
     default:
       return { view: ViewType.DASHBOARD };
@@ -594,6 +603,13 @@ function App() {
       case "badges":
         setCurrentView(ViewType.BADGES);
         break;
+      case "practice":
+        setCurrentView(ViewType.PRACTICE);
+        break;
+      case "learning-path":
+        setCurrentView(ViewType.LEARNING_PATH);
+        initData(true);
+        break;
       default:
         setCurrentView(ViewType.DASHBOARD);
         initData(true);
@@ -838,11 +854,18 @@ function App() {
               summary={dashboardSummary}
               onCourseClick={(course: Course) => handleOpenCourse(course.id)}
               employeeId={employee.id}
+              employeeName={employee.full_name}
               department={employee.department || ''}
             />
           );
         }
-        return <AdminDashboard employee={employee} />;
+        return (
+          <OverviewTabs
+            employee={employee}
+            courses={courses}
+            onCourseClick={(course: Course) => handleOpenCourse(course.id)}
+          />
+        );
 
       case ViewType.MY_DASHBOARD:
         return (
@@ -850,12 +873,25 @@ function App() {
             courses={courses}
             onCourseClick={(course: Course) => handleOpenCourse(course.id)}
             employeeId={employee.id}
+            employeeName={employee.full_name}
             department={employee.department || ''}
           />
         );
 
       case ViewType.BADGES:
         return <BadgesPage employee={employee} />;
+
+      case ViewType.PRACTICE:
+        return <PracticePage employee={employee} />;
+
+      case ViewType.LEARNING_PATH:
+        return (
+          <LearningPathPage
+            courses={courses}
+            onCourseClick={(course: Course) => handleOpenCourse(course.id)}
+            employee={employee}
+          />
+        );
 
       case ViewType.PRODUCT_LIBRARY:
         return (

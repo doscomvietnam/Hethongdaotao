@@ -2,7 +2,7 @@ import * as React from 'react';
 import {
   BookOpen, CheckCircle2, Zap, AlertCircle, Clock,
   Trophy, Star, Award, Flame, ArrowRight, Play, TrendingUp,
-  CalendarCheck, CalendarX, XCircle,
+  CalendarCheck, XCircle,
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
@@ -18,18 +18,89 @@ function getLevelInfo(rate: number) {
   return { label: 'Tân binh đào tạo', icon: Award, color: 'text-zinc-400', gradient: 'from-zinc-600 to-zinc-500' };
 }
 
-function KpiCard({ label, value, icon: Icon, color, bg, ring }: {
-  label: string; value: string | number; icon: React.ElementType; color: string; bg: string; ring: string;
+// ── Vòng tròn tiến độ (SVG) ─────────────────────────────────────────────
+function CompletionRing({ value, size = 132, stroke = 11, colorClass = 'text-emerald-400' }: {
+  value: number; size?: number; stroke?: number; colorClass?: string;
+}) {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.max(0, Math.min(100, value)) / 100) * circ;
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" className="stroke-zinc-800" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} strokeLinecap="round" fill="none"
+          stroke="currentColor" className={`${colorClass} transition-all duration-1000`}
+          strokeDasharray={circ} strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-3xl font-black text-white tabular-nums leading-none">{value}%</span>
+        <span className="text-[8px] text-zinc-500 font-black uppercase tracking-[0.2em] mt-1.5">Hoàn thành</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Chỉ số nhanh trong hero ─────────────────────────────────────────────
+function HeroStat({ icon: Icon, color, value, label }: {
+  icon: React.ElementType; color: string; value: string | number; label: string;
 }) {
   return (
-    <Card className="p-5 bg-[#0C0C0E] border-zinc-900 rounded-2xl flex items-center gap-4 hover:border-zinc-800 transition-all group">
-      <div className={`w-12 h-12 rounded-xl ${bg} ring-1 ${ring} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform`}>
-        <Icon className={`w-5 h-5 ${color}`} />
+    <div className="flex items-center gap-2.5">
+      <div className={`w-9 h-9 rounded-xl bg-white/[0.03] ring-1 ring-white/10 flex items-center justify-center flex-shrink-0`}>
+        <Icon className={`w-4 h-4 ${color}`} />
       </div>
-      <div className="min-w-0">
-        <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest mb-1 leading-none">{label}</p>
-        <p className={`text-2xl font-black ${color} tracking-tighter tabular-nums leading-none`}>{value}</p>
+      <div className="leading-none">
+        <p className={`text-lg font-black tabular-nums ${color} leading-none`}>{value}</p>
+        <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest mt-1">{label}</p>
       </div>
+    </div>
+  );
+}
+
+// ── Biểu đồ cột hoạt động quiz trong tháng (hero Mẫu C) ──────────────────
+function QuizBars({ calendar }: { calendar: MonthlyQuizCalendar }) {
+  const bars = calendar.days.filter(d => d.status !== 'sunday');
+  return (
+    <div>
+      <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest mb-2">Hoạt động quiz T{calendar.days[0]?.date.slice(5, 7)}</p>
+      <div className="flex items-end gap-[3px] h-16">
+        {bars.map(d => {
+          let cls = 'h-1.5 bg-zinc-800';
+          if (d.status === 'done') cls = 'h-full bg-gradient-to-t from-emerald-600 to-emerald-400';
+          else if (d.status === 'today') cls = 'h-2/3 bg-gradient-to-t from-blue-600 to-blue-400';
+          else if (d.status === 'future' || d.status === 'holiday' || d.status === 'absent') cls = 'h-1.5 bg-zinc-800';
+          else cls = 'h-1/3 bg-gradient-to-t from-red-600 to-red-500';
+          return <div key={d.date} className={`flex-1 min-w-[3px] rounded-t ${cls}`} title={d.date} />;
+        })}
+      </div>
+      <div className="flex justify-between mt-2">
+        <span className="text-[9px] text-emerald-400 font-black uppercase tracking-widest">{calendar.stat.done} đã làm</span>
+        {calendar.stat.missed > 0 && <span className="text-[9px] text-red-400 font-black uppercase tracking-widest">{calendar.stat.missed} chưa</span>}
+      </div>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, icon: Icon, color, bg, ring, pct, barColor }: {
+  label: string; value: string | number; icon: React.ElementType; color: string; bg: string; ring: string; pct?: number; barColor?: string;
+}) {
+  return (
+    <Card className="p-4 lg:p-5 bg-[#0C0C0E] border-zinc-900 rounded-2xl hover:border-zinc-800 transition-all">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest leading-none">{label}</p>
+        <div className={`w-8 h-8 rounded-lg ${bg} ring-1 ${ring} flex items-center justify-center flex-shrink-0`}>
+          <Icon className={`w-4 h-4 ${color}`} />
+        </div>
+      </div>
+      <p className={`text-2xl lg:text-3xl font-black ${color} tracking-tighter tabular-nums leading-none`}>{value}</p>
+      {pct != null && (
+        <div className="mt-3 h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full ${barColor || 'bg-emerald-500'} transition-all duration-1000`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+        </div>
+      )}
     </Card>
   );
 }
@@ -171,10 +242,11 @@ interface EmployeeDashboardProps {
   courses: Course[];
   onCourseClick: (course: Course) => void;
   employeeId?: string;
+  employeeName?: string;
   department?: string;
 }
 
-export function EmployeeDashboardView({ courses, onCourseClick, employeeId, department }: EmployeeDashboardProps) {
+export function EmployeeDashboardView({ courses, onCourseClick, employeeId, employeeName, department }: EmployeeDashboardProps) {
   const now = new Date();
 
   // Cảnh báo vắng làm bài hôm qua (8h30-18h, trừ Chủ nhật, miễn trừ nếu hoàn thành tất cả khóa)
@@ -200,7 +272,6 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
 
   const completedCourses = courses.filter(c => c.progress === 100 || c.isCompleted);
   const ongoingCourses = courses.filter(c => c.progress > 0 && c.progress < 100 && !c.isCompleted);
-  const overdueCourses = courses.filter(c => c.endDate && new Date(c.endDate) < now && !c.isCompleted);
   const completionRate = courses.length > 0 ? Math.round((completedCourses.length / courses.length) * 100) : 0;
 
   // Continue learning — most recent ongoing course
@@ -208,24 +279,56 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
 
   const levelInfo = getLevelInfo(completionRate);
 
-  const [curM, curY] = currentYM.split('-');
+  const [curM] = currentYM.split('-');
+  const totalC = courses.length || 1;
   const kpiCards = [
-    { label: 'KHÓA ĐƯỢC GIAO', value: courses.length, icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20' },
-    { label: 'ĐÃ HOÀN THÀNH', value: completedCourses.length, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
-    { label: 'ĐANG HỌC', value: ongoingCourses.length, icon: Zap, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20' },
-    { label: 'QUÁ HẠN', value: overdueCourses.length, icon: AlertCircle, color: 'text-red-400', bg: 'bg-red-500/10', ring: 'ring-red-500/20' },
-    { label: 'TỶ LỆ HOÀN THÀNH', value: `${completionRate}%`, icon: TrendingUp, color: 'text-purple-400', bg: 'bg-purple-500/10', ring: 'ring-purple-500/20' },
-    { label: `ĐÃ LÀM T${curM}/${curY}`, value: quizCalendar ? `${quizCalendar.stat.done}/${quizCalendar.stat.required}` : '—', icon: CalendarCheck, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20' },
-    { label: `CHƯA LÀM T${curM}/${curY}`, value: quizCalendar ? quizCalendar.stat.missed : '—', icon: CalendarX, color: quizCalendar && quizCalendar.stat.missed > 0 ? 'text-red-400' : 'text-zinc-500', bg: quizCalendar && quizCalendar.stat.missed > 0 ? 'bg-red-500/10' : 'bg-zinc-500/10', ring: quizCalendar && quizCalendar.stat.missed > 0 ? 'ring-red-500/20' : 'ring-zinc-500/20' },
+    { label: 'KHÓA ĐƯỢC GIAO', value: courses.length, icon: BookOpen, color: 'text-blue-400', bg: 'bg-blue-500/10', ring: 'ring-blue-500/20', pct: 100, barColor: 'bg-blue-500' },
+    { label: 'ĐÃ HOÀN THÀNH', value: completedCourses.length, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/20', pct: Math.round(completedCourses.length / totalC * 100), barColor: 'bg-emerald-500' },
+    { label: 'ĐANG HỌC', value: ongoingCourses.length, icon: Zap, color: 'text-amber-400', bg: 'bg-amber-500/10', ring: 'ring-amber-500/20', pct: Math.round(ongoingCourses.length / totalC * 100), barColor: 'bg-amber-500' },
+    { label: 'TỶ LỆ HOÀN THÀNH', value: `${completionRate}%`, icon: TrendingUp, color: 'text-violet-400', bg: 'bg-violet-500/10', ring: 'ring-violet-500/20', pct: completionRate, barColor: 'bg-violet-500' },
   ];
 
   return (
-    <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-      {/* Header */}
-      <header className="space-y-2">
-        <h1 className="text-2xl lg:text-3xl xl:text-4xl font-black tracking-tighter text-white uppercase leading-none">TỔNG QUAN HỌC TẬP</h1>
-        <p className="text-zinc-600 font-bold uppercase tracking-[0.3em] text-[10px]">Phát triển năng lực cốt lõi cùng Doscom Academy</p>
-      </header>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+      {/* Hero (Mẫu C — vòng tròn · danh tính · biểu đồ quiz) */}
+      <section className="relative overflow-hidden rounded-3xl border border-zinc-900 bg-[#0C0C0E] p-6 lg:p-8">
+        <div className={`absolute -top-24 -right-16 w-80 h-80 rounded-full bg-gradient-to-br ${levelInfo.gradient} opacity-[0.1] blur-3xl pointer-events-none`} />
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-[auto_1fr] lg:grid-cols-[auto_1fr_auto] items-center gap-8">
+          {/* Vòng tròn hoàn thành */}
+          <div className="flex justify-center">
+            <CompletionRing value={completionRate} colorClass={levelInfo.color} />
+          </div>
+
+          {/* Danh tính + chỉ số nhanh */}
+          <div className="min-w-0 space-y-4 text-center md:text-left">
+            <div>
+              <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.35em]">Tổng quan cá nhân</p>
+              <h1 className="text-2xl lg:text-4xl font-black tracking-tighter text-white uppercase leading-none mt-2 truncate">
+                {employeeName || 'Xin chào'}
+              </h1>
+            </div>
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-x-5 gap-y-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest">
+                <levelInfo.icon className={`w-3.5 h-3.5 ${levelInfo.color}`} />
+                <span className={levelInfo.color}>{levelInfo.label}</span>
+              </span>
+              {department && <span className="text-[11px] text-zinc-500 font-bold uppercase tracking-widest">{department}</span>}
+            </div>
+            <div className="flex flex-wrap justify-center md:justify-start gap-x-7 gap-y-3 pt-1">
+              <HeroStat icon={CheckCircle2} color="text-emerald-400" value={`${completedCourses.length}/${courses.length}`} label="Hoàn thành" />
+              <HeroStat icon={Zap} color="text-amber-400" value={ongoingCourses.length} label="Đang học" />
+              <HeroStat icon={CalendarCheck} color="text-blue-400" value={quizCalendar ? `${quizCalendar.stat.done}/${quizCalendar.stat.required}` : '—'} label={`Quiz T${curM}`} />
+            </div>
+          </div>
+
+          {/* Biểu đồ cột hoạt động quiz */}
+          {quizCalendar && (
+            <div className="w-full lg:w-52 md:col-span-2 lg:col-span-1">
+              <QuizBars calendar={quizCalendar} />
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Banner: vắng làm bài hôm qua */}
       {overdueInfo.overdue && (
@@ -243,7 +346,7 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 2xl:grid-cols-8 gap-3 lg:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {kpiCards.map((kpi, i) => <KpiCard key={i} {...kpi} />)}
       </div>
 
@@ -333,60 +436,31 @@ export function EmployeeDashboardView({ courses, onCourseClick, employeeId, depa
             </div>
           </Card>
 
-          {/* Overdue courses */}
-          {overdueCourses.length > 0 && (
-            <Card className="p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
-              <SectionHeader icon={AlertCircle} title="Khóa học quá hạn" subtitle={`${overdueCourses.length} khóa cần hoàn thành gấp`} color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30" />
-              <div className="space-y-2">
-                {overdueCourses.map(course => {
-                  const daysOver = Math.floor((now.getTime() - new Date(course.endDate!).getTime()) / 86400000);
-                  return (
-                    <div key={course.id} className="flex items-center gap-3 p-3 rounded-xl bg-red-500/[0.03] border border-red-500/10 cursor-pointer hover:border-red-500/20 transition-all" onClick={() => onCourseClick(course)}>
-                      <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
-                        <Clock className="w-4 h-4 text-red-400" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-black text-zinc-200 truncate">{course.title}</p>
-                        <p className="text-[9px] text-zinc-500 font-bold">Tiến độ: {course.progress}%</p>
-                      </div>
-                      <Badge variant="warning" className="text-[8px] px-2 py-0.5 flex-shrink-0">{daysOver}d quá hạn</Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-          )}
         </div>
 
         {/* Right sidebar: Achievements */}
         <div className="space-y-6">
-          {/* Achievement card */}
-          <Card className="p-0 bg-white border-zinc-200 shadow-[0_20px_60px_rgba(0,0,0,0.08)] rounded-2xl overflow-hidden">
-            <div className={`bg-gradient-to-r ${levelInfo.gradient} px-6 pt-6 pb-8 relative`}>
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl" />
-              <div className="flex items-center gap-4 relative z-10">
-                <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <levelInfo.icon className="w-6 h-6 text-white" />
-                </div>
+          {/* Chỉ số hoàn thành (Mẫu C) */}
+          <Card className="p-6 bg-[#0C0C0E] border-zinc-900 rounded-2xl">
+            <SectionHeader icon={levelInfo.icon} title="Chỉ số hoàn thành" subtitle={levelInfo.label} color={levelInfo.color} bg="bg-white/[0.05]" ring="ring-white/10" />
+            <div className="flex items-center gap-5">
+              <CompletionRing value={completionRate} size={96} stroke={9} colorClass={levelInfo.color} />
+              <div className="min-w-0 space-y-2.5">
                 <div>
-                  <p className="text-sm font-black text-white uppercase tracking-tight leading-none">{levelInfo.label}</p>
-                  <p className="text-[9px] text-white/70 font-bold uppercase tracking-widest mt-1">Thành tích cá nhân</p>
+                  <p className="text-3xl font-black text-white tabular-nums leading-none">
+                    {completedCourses.length}<span className="text-zinc-600 text-xl">/{courses.length}</span>
+                  </p>
+                  <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest mt-1.5">khóa hoàn thành</p>
                 </div>
-              </div>
-            </div>
-            <div className="px-6 pb-6 -mt-3 space-y-4 relative z-10">
-              {/* Completion rate */}
-              <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-100">
-                <div className="flex justify-between items-center mb-3">
-                  <p className="text-[9px] text-zinc-400 font-black uppercase tracking-[0.2em]">Hoàn thành</p>
-                  <span className="text-sm font-black text-emerald-500 font-mono">{completionRate}%</span>
-                </div>
-                <div className="w-full bg-zinc-200 rounded-full h-2 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-1000" style={{ width: `${completionRate}%` }} />
-                </div>
-                <div className="flex justify-between text-[8px] text-zinc-400 font-bold uppercase tracking-widest mt-2">
-                  <span>{completedCourses.length} hoàn thành</span>
-                  <span>{courses.length} tổng cộng</span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                    <Zap className="w-3 h-3" /> {ongoingCourses.length} đang học
+                  </span>
+                  {quizCalendar && (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                      <CalendarCheck className="w-3 h-3" /> {quizCalendar.stat.done}/{quizCalendar.stat.required} quiz T{curM}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

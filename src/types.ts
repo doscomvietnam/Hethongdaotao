@@ -19,6 +19,8 @@ export enum ViewType {
   ATTENDANCE = 'attendance',
   MY_DASHBOARD = 'my-dashboard',
   BADGES = 'badges',
+  PRACTICE = 'practice',
+  LEARNING_PATH = 'learning-path',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';

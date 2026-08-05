@@ -1,4 +1,7 @@
 import { supabase } from './supabaseClient';
+import { SEQUENTIAL_PATH_BRANDS } from './sequentialCourseHelpers';
+
+const SALE_PATH_BRAND = SEQUENTIAL_PATH_BRANDS[0]; // 'Khóa học sale thực chiến'
 
 // ─── XP Constants ─────────────────────────────────────────────────────────────
 const XP_CORRECT = 10;          // XP per correct answer in daily quiz
@@ -62,6 +65,7 @@ export const BADGE_DEFS: BadgeDef[] = [
   { id: 'perfect_quiz', icon: '💯', label: 'Điểm tuyệt đối',       desc: 'Đạt 100% trong ít nhất một bài quiz hàng ngày' },
   { id: 'first_course', icon: '📚', label: 'Học viên',             desc: 'Hoàn thành quiz khóa học đầu tiên' },
   { id: 'five_courses', icon: '🎯', label: 'Siêng năng',           desc: 'Hoàn thành quiz 5 khóa học' },
+  { id: 'path_sale',    icon: '🏅', label: 'Chinh phục Sale thực chiến', desc: 'Hoàn thành cả lộ trình Sale thực chiến' },
   { id: 'onboarding',   icon: '🎓', label: 'Nhân viên chính thức', desc: 'Vượt qua bài kiểm tra onboarding' },
   { id: 'xp_1000',      icon: '⭐', label: '1,000 XP',             desc: 'Tích lũy 1,000 XP' },
   { id: 'xp_5000',      icon: '🏆', label: '5,000 XP',             desc: 'Tích lũy 5,000 XP' },
@@ -73,6 +77,7 @@ interface BadgeStats {
   coursesCompleted: number;
   passedOnboarding: boolean;
   totalXP: number;
+  salePathComplete?: boolean;
 }
 
 function computeBadges(stats: BadgeStats): EarnedBadge[] {
@@ -85,6 +90,7 @@ function computeBadges(stats: BadgeStats): EarnedBadge[] {
       case 'perfect_quiz': earned = stats.hasPerfectQuiz; break;
       case 'first_course': earned = stats.coursesCompleted >= 1; break;
       case 'five_courses': earned = stats.coursesCompleted >= 5; break;
+      case 'path_sale':    earned = stats.salePathComplete === true; break;
       case 'onboarding':   earned = stats.passedOnboarding; break;
       case 'xp_1000':      earned = stats.totalXP >= 1000; break;
       case 'xp_5000':      earned = stats.totalXP >= 5000; break;
@@ -140,15 +146,28 @@ export async function getEmployeeGamificationData(employeeId: string): Promise<E
   const currentYM = todayVN.slice(0, 7);
   const monthStart = currentYM + '-01';
 
-  const [dailyRes, courseRes, onboardingRes] = await Promise.all([
+  const [dailyRes, courseRes, onboardingRes, saleRes] = await Promise.all([
     supabase.from('daily_tests').select('test_date, correct_count, score_percent').eq('employee_id', employeeId).eq('status', 'submitted'),
-    supabase.from('training_progress').select('quiz_score, quiz_completed_at').eq('employee_id', employeeId).not('quiz_score', 'is', null),
+    supabase.from('training_progress').select('quiz_score, quiz_completed_at, video_progress, course_id').eq('employee_id', employeeId).not('quiz_score', 'is', null),
     supabase.from('onboarding_tests').select('passed, correct_count, status').eq('employee_id', employeeId).maybeSingle(),
+    supabase.from('courses').select('course_id').eq('brand', SALE_PATH_BRAND).eq('status', 'active'),
   ]);
 
   const dailyRows = dailyRes.data || [];
   const courseRows = courseRes.data || [];
   const onboarding = onboardingRes.data;
+
+  // Huy hiệu lộ trình: hoàn thành đủ TẤT CẢ khóa Sale thực chiến.
+  // "Hoàn thành" = xem hết video (>=100%) VÀ đã nộp quiz — khớp đúng Course.isCompleted mà lộ trình/App dùng
+  // (không chỉ dựa vào việc đã nộp quiz), để huy hiệu và rương/màn chúc mừng mở cùng lúc.
+  const completedCourseIds = new Set(
+    courseRows
+      .filter((r: any) => (r.video_progress ?? 0) >= 100 && r.quiz_completed_at)
+      .map((r: any) => r.course_id)
+      .filter(Boolean),
+  );
+  const saleCourseIds = (saleRes.data || []).map((r: any) => r.course_id);
+  const salePathComplete = saleCourseIds.length > 0 && saleCourseIds.every((id: string) => completedCourseIds.has(id));
 
   const dateSet = new Set<string>();
   let dailyXP = 0;
@@ -191,7 +210,7 @@ export async function getEmployeeGamificationData(employeeId: string): Promise<E
   const monthXP = monthDailyXP + monthCourseXP;
   const streak = calcStreak(dateSet, todayVN);
   const level = getLevelInfo(totalXP);
-  const badges = computeBadges({ streak, hasPerfectQuiz, coursesCompleted, passedOnboarding, totalXP });
+  const badges = computeBadges({ streak, hasPerfectQuiz, coursesCompleted, passedOnboarding, totalXP, salePathComplete });
 
   return { totalXP, monthXP, streak, level, badges, passedOnboarding, coursesCompleted, hasPerfectQuiz };
 }

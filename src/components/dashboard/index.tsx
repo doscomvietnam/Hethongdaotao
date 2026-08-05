@@ -19,15 +19,17 @@ interface DashboardProps {
   summary?: any;
   onCourseClick: (course: Course) => void;
   employeeId?: string;
+  employeeName?: string;
   department?: string;
 }
 
-export const Dashboard = ({ courses, onCourseClick, employeeId, department }: DashboardProps) => {
+export const Dashboard = ({ courses, onCourseClick, employeeId, employeeName, department }: DashboardProps) => {
   return (
     <EmployeeDashboardView
       courses={courses}
       onCourseClick={onCourseClick}
       employeeId={employeeId}
+      employeeName={employeeName}
       department={department}
     />
   );
