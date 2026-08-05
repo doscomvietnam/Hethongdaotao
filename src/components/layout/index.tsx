@@ -94,8 +94,8 @@ export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCol
   const hasSalesPath = isAdmin || (employee.department || '').toLowerCase().includes('kinh doanh');
 
   const allMenuItems = [
-    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan tổ chức', roles: ['admin'], show: true },
-    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan phòng ban', roles: ['manager'], show: true },
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan', roles: ['admin'], show: true },
+    { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan', roles: ['manager'], show: true },
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['employee'], show: true },
     { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
