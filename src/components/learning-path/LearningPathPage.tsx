@@ -137,9 +137,10 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
     });
   }, [isAdmin]);
 
-  // Phòng đang có lộ trình tuần tự (Sale = Kinh doanh)
+  // Phòng có lộ trình tuần tự GẮN phòng ban (Sale = Kinh doanh) — để admin mặc định mở phòng đó
+  // và thấy được cả các chuỗi gắn phòng (Sale) lẫn chuỗi chung (CEO, không gắn phòng, luôn hiện).
   const deptWithPath = React.useMemo(
-    () => courses.find(c => SEQUENTIAL_PATH_BRANDS.includes(c.brand))?.department || '',
+    () => courses.find(c => SEQUENTIAL_PATH_BRANDS.includes(c.brand) && c.department)?.department || '',
     [courses],
   );
   // Admin/manager: tự chọn sẵn phòng CÓ lộ trình để thấy ngay (đặt 1 lần, không đè lựa chọn thủ công sau đó)

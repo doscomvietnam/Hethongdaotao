@@ -37,6 +37,7 @@ import {
   type NotificationItem,
 } from '../../services/notificationService';
 import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
+import { SEQUENTIAL_PATH_BRANDS } from '../../services/sequentialCourseHelpers';
 
 // ============================================================
 // NOTIFICATION HELPERS
@@ -72,6 +73,7 @@ interface SidebarProps {
   currentView: ViewType;
   setView: (view: ViewType) => void;
   employee: Employee;
+  courses: Course[];
   collapsed: boolean;
   onToggleCollapse: () => void;
   courseGroup?: 'product' | 'general' | 'department' | null;
@@ -87,12 +89,12 @@ function isWithin6Months(startDate: string | null | undefined): boolean {
   return new Date(startDate) >= sixMonthsAgo;
 }
 
-export const Sidebar = ({ currentView, setView, employee, collapsed, onToggleCollapse, courseGroup, onSetCourseGroup, mobileOpen, onCloseMobile }: SidebarProps) => {
+export const Sidebar = ({ currentView, setView, employee, courses, collapsed, onToggleCollapse, courseGroup, onSetCourseGroup, mobileOpen, onCloseMobile }: SidebarProps) => {
   const isAdmin = employee.role === 'admin' || employee.role === 'manager';
   const hasOnboarding = employee.role === 'admin' || isWithin6Months(employee.start_date);
-  // Lộ trình học hiện chỉ có chuỗi Sale thực chiến (phòng Kinh doanh).
-  // Admin xem tất cả phòng; ngoài ra chỉ phòng CÓ lộ trình (Kinh doanh) mới thấy menu.
-  const hasSalesPath = employee.role === 'admin' || (employee.department || '').toLowerCase().includes('kinh doanh');
+  // Menu Lộ trình học: admin luôn thấy (xem mọi phòng); còn lại chỉ hiện nếu người dùng
+  // có khóa thuộc chuỗi lộ trình tuần tự nào đó (Sale thực chiến = Kinh doanh; CEO = mọi phòng).
+  const hasSalesPath = employee.role === 'admin' || courses.some(c => SEQUENTIAL_PATH_BRANDS.includes(c.brand));
 
   const allMenuItems = [
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan', roles: ['admin'], show: true },
@@ -816,6 +818,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
         currentView={currentView}
         setView={handleSetView}
         employee={employee}
+        courses={courses}
         collapsed={sidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
         courseGroup={courseGroup}

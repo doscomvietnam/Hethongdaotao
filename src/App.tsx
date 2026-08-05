@@ -504,8 +504,10 @@ function App() {
                 const quizSubmitted = Boolean(supaProgress.quiz_completed_at);
                 course.progress = videoPart + (quizSubmitted ? 50 : 0);
               } else if (courseHasVideo) {
-                // Courses WITHOUT quiz, WITH video: video progress = overall progress
+                // Courses WITHOUT quiz, WITH video: video progress = overall progress.
+                // Hoàn thành khi xem hết video (100%) — cần cho lộ trình học mở dần với khóa chỉ-video.
                 course.progress = bestVideoProg;
+                course.isCompleted = bestVideoProg >= 100;
               } else {
                 // Slide-only courses: completed only when DB explicitly says so
                 const slideCompleted = supaProgress.status === 'completed';

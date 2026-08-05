@@ -4,7 +4,7 @@ import type { Course } from '../types';
  * Các brand hiển thị dạng lộ trình (path) tuần tự — bài sau bị khóa cho tới khi
  * hoàn thành (xem hết video + nộp quiz) bài liền trước.
  */
-export const SEQUENTIAL_PATH_BRANDS = ['Khóa học sale thực chiến'];
+export const SEQUENTIAL_PATH_BRANDS = ['Khóa học sale thực chiến', 'Khóa học CEO Ngô Minh Tuấn'];
 
 export function extractLessonNumber(title: string): number {
   const m = title.match(/Bài\s+(\d+)/i);
