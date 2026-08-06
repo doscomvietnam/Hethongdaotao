@@ -9,7 +9,6 @@ import { Card, Badge, Progress } from '../ui';
 import { getYesterdayOverdueForUser } from '../../services/dailyAttendanceService';
 import { getEmployeeMonthlyQuizCalendar, type MonthlyQuizCalendar } from '../../services/attendanceService';
 import { GamificationWidget } from '../gamification/GamificationWidget';
-import { SEQUENTIAL_PATH_BRANDS } from '../../services/sequentialCourseHelpers';
 
 // ── Helper: level info ──────────────────────────────────────────────────
 function getLevelInfo(rate: number) {
@@ -249,12 +248,12 @@ interface EmployeeDashboardProps {
 
 export function EmployeeDashboardView({ courses: allCourses, onCourseClick, employeeId, employeeName, department }: EmployeeDashboardProps) {
   // Lọc khóa tính vào Dashboard (tỷ lệ hoàn thành / khóa được giao):
-  //  - Bỏ Lộ trình học (CEO, Sale...) — có tiến độ riêng ở mục Lộ trình.
-  //  - Khóa sản phẩm (Doscom, Noma) chỉ tính cho phòng Kinh doanh + Marketing; phòng khác không cần → bỏ.
+  //  - Lộ trình học (CEO, Sale) VẪN tính vào % (theo yêu cầu), dù có mục "Lộ trình học" riêng.
+  //  - Khóa sản phẩm (Doscom, Noma) chỉ tính cho phòng Kinh doanh + Marketing;
+  //    phòng khác vẫn xem được nhưng không bị tính vào %.
   const courses = React.useMemo(() => {
     const isSalesDept = ['kinh doanh', 'marketing'].some(k => (department || '').toLowerCase().includes(k));
     return allCourses.filter(c => {
-      if (SEQUENTIAL_PATH_BRANDS.includes(c.brand)) return false;
       if (!isSalesDept && (c.brand === 'Doscom' || c.brand === 'Noma')) return false;
       return true;
     });

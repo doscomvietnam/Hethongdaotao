@@ -572,13 +572,14 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
   const hasVideo = Boolean(course.videoUrl);
   const hasSlide = Boolean(course.slideUrl);
   const hasQuiz = Boolean(course.quizId);
+  const isSlideOnly = hasSlide && !hasVideo && !hasQuiz;
 
-  // ── Slide-only courses: mark as completed when user opens the detail page
+  // ── Slide-only courses: tự đánh dấu hoàn thành ngay khi mở trang chi tiết (không cần bấm nút)
   React.useEffect(() => {
     if (!employeeId) return;
     if (hasVideo || hasQuiz) return; // only for pure slide-only courses
     if (!hasSlide) return;
-    if (course.isCompleted) return; // already completed in DB
+    if (course.isCompleted) return;
     markSlideViewed(employeeId, course.id);
   }, [employeeId, course.id, course.isCompleted, hasVideo, hasQuiz, hasSlide]);
 
@@ -1108,6 +1109,13 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 <ExternalLink className="w-3.5 h-3.5" />
                 Mở ở tab mới
               </a>
+            </div>
+          )}
+
+          {/* Slide-only: tự đánh dấu hoàn thành khi mở bài — chỉ hiện trạng thái, không có nút */}
+          {activeTab === 'slide' && isSlideOnly && (
+            <div className="mt-3 w-full h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" /> Đã hoàn thành — đã xem tài liệu này
             </div>
           )}
         </section>

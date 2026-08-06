@@ -117,10 +117,25 @@ async function fetchAllData() {
   };
 }
 
-// Lọc khóa học thực sự hiển thị với một phòng ban cụ thể.
-// course.department rỗng/null = áp dụng cho mọi phòng ban (giống logic hiển thị ở App.tsx).
+// Phòng trực tiếp bán sản phẩm — chỉ 2 phòng này mới tính khóa sản phẩm vào %.
+function isSalesDept(department: string): boolean {
+  const d = (department || '').toLowerCase();
+  return d.includes('kinh doanh') || d.includes('marketing');
+}
+const PRODUCT_BRANDS = ['Doscom', 'Noma'];
+
+// Khóa được TÍNH cho một phòng ban (mẫu số "khóa được giao"):
+//  - department rỗng/null = áp dụng mọi phòng; hoặc department khớp đúng phòng.
+//  - RIÊNG khóa sản phẩm (Doscom, Noma): chỉ tính cho Kinh doanh + Marketing;
+//    phòng khác vẫn xem được nhưng KHÔNG bị tính vào % (theo chính sách đã chốt).
+//  - CEO Ngô Minh Tuấn, Sale thực chiến... theo department như thường → vẫn được tính.
 function coursesVisibleToDept(courses: any[], department: string): any[] {
-  return courses.filter((c: any) => !c.department || c.department === department);
+  const salesDept = isSalesDept(department);
+  return courses.filter((c: any) => {
+    if (c.department && c.department !== department) return false;
+    if (!salesDept && PRODUCT_BRANDS.includes(c.brand)) return false;
+    return true;
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
