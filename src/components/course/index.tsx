@@ -1056,7 +1056,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                 {videoWatchProgress < 100 && (() => {
                   // Chống bấm bừa: phải phát video đủ thời gian tối thiểu mới cho đánh dấu.
                   // videoWatchProgress% ≈ (giây đã xem / 600) → giây đã xem ≈ progress × 6.
-                  const MIN_WATCH_SECONDS = 90;
+                  const MIN_WATCH_SECONDS = 180;
                   const watchedSec = Math.round(videoWatchProgress * 6);
                   const canMark = watchedSec >= MIN_WATCH_SECONDS;
                   return (
