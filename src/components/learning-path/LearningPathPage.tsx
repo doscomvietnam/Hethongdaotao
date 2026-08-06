@@ -6,7 +6,6 @@ import {
   SEQUENTIAL_PATH_BRANDS,
   sortByLessonNumber,
   computeLockedLessonIds,
-  extractLessonNumber,
 } from '../../services/sequentialCourseHelpers';
 
 interface LearningPathPageProps {
@@ -16,13 +15,18 @@ interface LearningPathPageProps {
 }
 
 // Độ lệch ngang zig-zag cho con đường uốn lượn (lặp lại)
-const OFFSETS = [0, 62, 38, -38, -62, -38, 38, 62];
+const OFFSETS = [0, 44, 26, -26, -44, -26, 26, 44];
 
 // Giá trị trong cột department nhưng KHÔNG phải phòng ban (chức danh) → không hiện ở tab Phòng ban
 const NON_DEPARTMENTS = ['Chủ tịch'];
 
 function lessonTitle(title: string): string {
   return title.replace(/^Bài\s+\d+\s*[:.]\s*/i, '').replace(/^Khóa học về\s+/i, '');
+}
+// Nhãn "Bài X" (Bài chia nhiều Phần thì các Phần cùng nhãn Bài X)
+function baiLabel(title: string): string {
+  const m = title.match(/^(Bài\s+\d+)/i);
+  return m ? m[1] : '';
 }
 
 // ── Con đường uốn lượn (đo tâm node → vẽ đường nối chấm) ─────────────────────
@@ -78,7 +82,7 @@ function WindingPath({ courses, lockedIds, allDone, viewOnly, onOpenCourse, onOp
         const locked = lockedIds.has(c.id);
         const state: 'done' | 'cur' | 'lock' = c.isCompleted ? 'done' : locked ? 'lock' : 'cur';
         const off = OFFSETS[i % OFFSETS.length];
-        const num = extractLessonNumber(c.title) || (i + 1);
+        const num = i + 1; // số thứ tự xem trong khóa nhỏ (1→N)
         return (
           <div key={c.id} className="lp-row" style={{ transform: `translateX(${off}px)` }}>
             <button
@@ -96,7 +100,7 @@ function WindingPath({ courses, lockedIds, allDone, viewOnly, onOpenCourse, onOp
               </span>
             </button>
             <div className={`lp-label ${locked ? 'lp-mut' : ''}`}>
-              <span className="lp-bai">Bài {num}</span>
+              <span className="lp-bai">{baiLabel(c.title) || `Bước ${num}`}</span>
               <span className="lp-ttl">{lessonTitle(c.title)}</span>
             </div>
           </div>
@@ -150,7 +154,7 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
     [courses, isAdmin, selectedDept, ownDept],
   );
 
-  // Chuỗi khóa học tuần tự có trong phòng này (hiện chỉ có Sale thực chiến)
+  // Bộ khóa tuần tự (brand) có trong phòng này (Sale, CEO...)
   const seriesBrands = React.useMemo(
     () => SEQUENTIAL_PATH_BRANDS.filter(b => visibleCourses.some(c => c.brand === b)),
     [visibleCourses],
@@ -158,9 +162,27 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
   const [selectedSeries, setSelectedSeries] = React.useState<string>('');
   const activeSeries = seriesBrands.includes(selectedSeries) ? selectedSeries : seriesBrands[0] || '';
 
+  // Khóa nhỏ (category) trong bộ đang chọn — sắp theo mã khóa nhỏ nhất của mỗi khóa nhỏ
+  const subCourses = React.useMemo(() => {
+    const minId = new Map<string, string>();
+    for (const c of visibleCourses) {
+      if (c.brand !== activeSeries) continue;
+      const cat = c.category || '';
+      const cur = minId.get(cat);
+      if (cur === undefined || c.id.localeCompare(cur, undefined, { numeric: true }) < 0) minId.set(cat, c.id);
+    }
+    return Array.from(minId.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }))
+      .map(([cat]) => cat);
+  }, [visibleCourses, activeSeries]);
+  const [selectedSub, setSelectedSub] = React.useState<string>('');
+  const activeSub = subCourses.includes(selectedSub) ? selectedSub : subCourses[0] || '';
+
   const pathCourses = React.useMemo(
-    () => sortByLessonNumber(visibleCourses.filter(c => c.brand === activeSeries)),
-    [visibleCourses, activeSeries],
+    () => sortByLessonNumber(
+      visibleCourses.filter(c => c.brand === activeSeries && (subCourses.length <= 1 || c.category === activeSub)),
+    ),
+    [visibleCourses, activeSeries, subCourses.length, activeSub],
   );
   const lockedIds = React.useMemo(() => computeLockedLessonIds(visibleCourses), [visibleCourses]);
 
@@ -168,6 +190,10 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
   const doneCount = pathCourses.filter(c => c.isCompleted).length;
   const pct = total ? Math.round(doneCount / total * 100) : 0;
   const allDone = total > 0 && doneCount === total;
+
+  // Chúc mừng theo đúng khóa nhỏ/bộ đang học; chỉ Sale thực chiến có huy hiệu riêng.
+  const celebrateLabel = subCourses.length > 1 ? activeSub : activeSeries;
+  const celebrateHasBadge = activeSeries === SEQUENTIAL_PATH_BRANDS[0];
 
   const [showCelebrate, setShowCelebrate] = React.useState(false);
 
@@ -199,8 +225,21 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
           <span className="lp-flabel">Khóa học</span>
           <div className="lp-chips">
             {seriesBrands.map(b => (
-              <button key={b} className={`lp-course ${b === activeSeries ? 'on' : ''}`} onClick={() => setSelectedSeries(b)}>
+              <button key={b} className={`lp-course ${b === activeSeries ? 'on' : ''}`} onClick={() => { setSelectedSeries(b); setSelectedSub(''); }}>
                 {b}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {subCourses.length > 1 && (
+        <div className="lp-filter">
+          <span className="lp-flabel">Khóa nhỏ</span>
+          <div className="lp-chips">
+            {subCourses.map(sc => (
+              <button key={sc} className={`lp-sub ${sc === activeSub ? 'on' : ''}`} onClick={() => setSelectedSub(sc)}>
+                {sc}
               </button>
             ))}
           </div>
@@ -243,9 +282,11 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
           </div>
           <div className="lp-cele-card" onClick={e => e.stopPropagation()}>
             <div className="lp-cele-badge">🏅</div>
-            <div className="lp-cele-title">Chinh phục Sale thực chiến!</div>
+            <div className="lp-cele-title">Chinh phục {celebrateLabel}!</div>
             <div className="lp-cele-sub">Bạn đã hoàn thành cả {total} bài của lộ trình 🎉</div>
-            <div className="lp-cele-reward">Huy hiệu <b>“Chinh phục Sale thực chiến” 🏅</b> đã mở — xem ở mục Huy hiệu.</div>
+            {celebrateHasBadge && (
+              <div className="lp-cele-reward">Huy hiệu <b>“Chinh phục {celebrateLabel}” 🏅</b> đã mở — xem ở mục Huy hiệu.</div>
+            )}
             <button className="lp-cele-btn" onClick={() => setShowCelebrate(false)}>Tuyệt vời!</button>
           </div>
         </div>
@@ -271,6 +312,9 @@ const LP_CSS = `
 .lp-course{font-size:12px;font-weight:900;letter-spacing:.02em;text-transform:uppercase;padding:9px 18px;border-radius:999px;background:#fff;border:2px solid var(--lp-lock-ring);color:var(--lp-muted);cursor:pointer;font-family:inherit;transition:all .15s;}
 .lp-course:hover{border-color:#CBD5E1;}
 .lp-course.on{background:#EAFBF6;border-color:#34D399;color:var(--lp-orange-deep);}
+.lp-sub{font-size:12px;font-weight:800;padding:8px 15px;border-radius:999px;background:#fff;border:1.5px solid var(--lp-lock-ring);color:var(--lp-ink);cursor:pointer;transition:all .15s;}
+.lp-sub:hover{border-color:#CBD5E1;}
+.lp-sub.on{background:#FF7A18;border-color:#FF7A18;color:#3B1B00;}
 
 .lp-progress{display:flex;align-items:center;gap:14px;max-width:520px;margin:6px auto 8px;}
 .lp-pbar{flex:1;height:12px;border-radius:20px;background:#E7ECF3;overflow:hidden;}
@@ -282,7 +326,7 @@ const LP_CSS = `
 .lp-svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:0;}
 .lp-conn{fill:none;stroke:#CBD5E1;stroke-width:6;stroke-linecap:round;stroke-dasharray:0.1 15;}
 
-.lp-row{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;margin:0 0 30px;transition:transform .3s;}
+.lp-row{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;margin:0 0 34px;transition:transform .3s;}
 .lp-node{position:relative;border:none;background:transparent;padding:0;cursor:pointer;}
 .lp-node[disabled]{cursor:default;}
 .lp-cap{width:74px;height:74px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;transition:transform .12s,box-shadow .12s;}
@@ -296,7 +340,7 @@ const LP_CSS = `
 .lp-badge::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:7px solid transparent;border-right:7px solid transparent;border-top:8px solid var(--lp-orange);}
 @keyframes lpbob{0%,100%{transform:translateX(-50%) translateY(0);}50%{transform:translateX(-50%) translateY(-5px);}}
 
-.lp-label{text-align:center;margin-top:12px;max-width:190px;line-height:1.3;}
+.lp-label{text-align:center;margin-top:10px;max-width:168px;line-height:1.3;position:relative;z-index:3;background:var(--lp-bg);padding:3px 9px;border-radius:11px;overflow-wrap:break-word;}
 .lp-bai{display:block;font-size:10px;font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--lp-orange-deep);}
 .lp-ttl{display:block;font-size:12px;font-weight:800;color:var(--lp-muted);margin-top:2px;}
 .lp-label.lp-mut .lp-bai{color:var(--lp-faint);}
