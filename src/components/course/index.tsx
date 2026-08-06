@@ -1050,9 +1050,39 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
                     ? '✓ Bạn đã xem hoàn tất video đào tạo'
                     : isWatching
                       ? 'Đang theo dõi — click vào video để dừng'
-                      : 'Click vào video để bắt đầu theo dõi'
+                      : 'Xem xong bấm nút bên dưới để đánh dấu hoàn thành'
                   }
                 </p>
+                {videoWatchProgress < 100 && (() => {
+                  // Chống bấm bừa: phải phát video đủ thời gian tối thiểu mới cho đánh dấu.
+                  // videoWatchProgress% ≈ (giây đã xem / 600) → giây đã xem ≈ progress × 6.
+                  const MIN_WATCH_SECONDS = 90;
+                  const watchedSec = Math.round(videoWatchProgress * 6);
+                  const canMark = watchedSec >= MIN_WATCH_SECONDS;
+                  return (
+                    <button
+                      type="button"
+                      disabled={!canMark}
+                      onClick={() => {
+                        if (!canMark) return;
+                        setVideoWatchProgress(100);
+                        setVideoProgress(course.id, 100, userId);
+                        if (employeeId) upsertVideoProgress(employeeId, course.id, 100);
+                      }}
+                      className={cn(
+                        'w-full h-11 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
+                        canMark
+                          ? 'bg-emerald-500 hover:bg-emerald-600 text-white active:scale-[0.98]'
+                          : 'bg-zinc-800 text-zinc-500 cursor-not-allowed',
+                      )}
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {canMark
+                        ? 'Đánh dấu đã xem xong'
+                        : `Xem thêm để mở nút (${watchedSec}/${MIN_WATCH_SECONDS}s)`}
+                    </button>
+                  );
+                })()}
               </div>
 
             </div>
