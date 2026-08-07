@@ -80,7 +80,7 @@ export interface OnboardingTestResult {
   passThreshold: number;
 }
 
-export type Brand = 'Tổng Quan Về Công Ty' | 'Đào Tạo Onboarding' | 'Nội Quy - Quy Chế' | 'Văn Hóa Công Ty' | 'Nội bộ' | 'Doscom' | 'Noma' | 'Claude' | 'Khóa học sale thực chiến';
+export type Brand = 'Tổng Quan Về Công Ty' | 'Đào Tạo Onboarding' | 'Nội Quy - Quy Chế' | 'Văn Hóa Công Ty' | 'Nội bộ' | 'Doscom' | 'Noma' | 'Claude' | 'Khóa học sale thực chiến' | 'Khóa học CEO Ngô Minh Tuấn';
 
 export interface Product {
   id: string;

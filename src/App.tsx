@@ -748,6 +748,17 @@ function App() {
     }
   };
 
+  // Slide-only: tự đánh dấu hoàn thành khi nhân viên mở tài liệu (cập nhật state + Tổng quan ngay)
+  const handleSlideCompleted = React.useCallback((courseId: string) => {
+    setCourses(prev => {
+      const target = prev.find(c => c.id === courseId);
+      if (!target || target.isCompleted) return prev;
+      const updated = prev.map(c => c.id === courseId ? { ...c, isCompleted: true, progress: 100 } : c);
+      void refreshDashboard(updated);
+      return updated;
+    });
+  }, [refreshDashboard]);
+
   const handleQuizComplete = async (result: QuizResult) => {
     await persistQuizResult(result);
     setActiveQuiz(null);
@@ -958,6 +969,7 @@ function App() {
             employeeId={employee.id}
             onBack={handleBackToCourses}
             onStartQuiz={(quizId?: string) => handleStartQuiz(quizId)}
+            onSlideCompleted={handleSlideCompleted}
           />
         );
 

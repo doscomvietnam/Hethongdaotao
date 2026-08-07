@@ -254,10 +254,10 @@ interface CourseCatalogProps {
 }
 
 const PRODUCT_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Doscom', 'Noma'];
-const GENERAL_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Claude'];
-const ALL_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Doscom', 'Noma', 'Claude'];
+const GENERAL_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Claude', 'Khóa học CEO Ngô Minh Tuấn'];
+const ALL_BRANDS: (Brand | 'Tất cả')[] = ['Tất cả', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Doscom', 'Noma', 'Claude', 'Khóa học CEO Ngô Minh Tuấn'];
 const PRODUCT_BRAND_SET = new Set(['Doscom', 'Noma']);
-const GENERAL_BRAND_SET = new Set(['Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Claude']);
+const GENERAL_BRAND_SET = new Set(['Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Nội bộ', 'Claude', 'Khóa học CEO Ngô Minh Tuấn']);
 
 export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: CourseCatalogProps) => {
   const [activeBrand, setActiveBrand] = React.useState<Brand | 'Tất cả'>('Tất cả');
@@ -356,6 +356,11 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
     ? filteredCourses
     : filteredCourses.filter(c => c.brand === activeProgram);
 
+  // Khóa lộ trình tuần tự (CEO, Sale) khi hiện dạng lưới ở catalog: sắp theo số Bài cho dễ theo dõi
+  const displayCourses = SEQUENTIAL_PATH_BRANDS.includes(activeBrand as string)
+    ? sortByLessonNumber(finalCourses)
+    : finalCourses;
+
   // Có chip "Khóa học" để chọn nhưng chưa bấm cụ thể cái nào → chưa hiện gì cả
   const awaitingProgramPick = programOptions.length > 0 && activeProgram === 'Tất cả';
 
@@ -444,7 +449,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
         <SequentialLearningPath courses={finalCourses} onCourseClick={onCourseClick} />
       ) : !awaitingProgramPick && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {finalCourses
+        {displayCourses
           .map((course) => {
             const videoProgress = Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0);
             // Video = 50%, submit quiz (pass/fail) = +50%
@@ -561,9 +566,10 @@ interface CourseDetailProps {
   employeeId?: string;
   onBack: () => void;
   onStartQuiz: (quizId?: string) => void;
+  onSlideCompleted?: (courseId: string) => void;
 }
 
-export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }: CourseDetailProps) => {
+export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, onSlideCompleted }: CourseDetailProps) => {
   // Auto-select initial tab based on available content
   const [activeTab, setActiveTab] = React.useState<'video' | 'slide'>(
     course.videoUrl ? 'video' : 'slide'
@@ -581,7 +587,8 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
     if (!hasSlide) return;
     if (course.isCompleted) return;
     markSlideViewed(employeeId, course.id);
-  }, [employeeId, course.id, course.isCompleted, hasVideo, hasQuiz, hasSlide]);
+    onSlideCompleted?.(course.id); // cập nhật state + Tổng quan ngay
+  }, [employeeId, course.id, course.isCompleted, hasVideo, hasQuiz, hasSlide, onSlideCompleted]);
 
   // ── Video Progress Tracking ────────────────────────────────────────────
   // Nguyên tắc: Tích lũy thời gian phát thực tế (watchedSeconds).
@@ -1112,12 +1119,6 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz }
             </div>
           )}
 
-          {/* Slide-only: tự đánh dấu hoàn thành khi mở bài — chỉ hiện trạng thái, không có nút */}
-          {activeTab === 'slide' && isSlideOnly && (
-            <div className="mt-3 w-full h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Đã hoàn thành — đã xem tài liệu này
-            </div>
-          )}
         </section>
 
         {/* BÀI KIỂM TRA — ẩn với Doscom và Noma, dùng menu Kiểm tra thay thế */}
@@ -1214,10 +1215,11 @@ interface CourseModuleProps {
   onSelectCourse?: (course: Course) => void;
   onBack?: () => void;
   onStartQuiz?: (quizId?: string) => void;
+  onSlideCompleted?: (courseId: string) => void;
   initialGroup?: 'product' | 'general' | 'department' | null;
 }
 
-export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz, initialGroup }: CourseModuleProps) {
+export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz, onSlideCompleted, initialGroup }: CourseModuleProps) {
   if (mode === 'detail' && course) {
     return (
       <CourseDetail
@@ -1226,6 +1228,7 @@ export default function CourseModule({ mode, courses = [], course, userId = '', 
         employeeId={employeeId}
         onBack={onBack || (() => { })}
         onStartQuiz={onStartQuiz || (() => { })}
+        onSlideCompleted={onSlideCompleted}
       />
     );
   }
