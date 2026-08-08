@@ -7,11 +7,12 @@ const PP_CSS = `
   --muted:#66748C;--faint:#93A0B4;--border:#DCE3ED;--border2:#C9D3E0;--primary:#1B44C4;--primary-ink:#1B44C4;
   --cyan:#0891B2;--green:#0E9F55;--green-bg:#E4F5EC;--amber:#B7791F;--amber-bg:#FBF1DC;--red:#D42B2B;--red-bg:#FBE6E6;
   --indigo:#4F46E5;--mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;
-  color:var(--ink);font-size:14px;line-height:1.6}
+  color:var(--ink);font-size:14px;line-height:1.6;height:100%}
+@media(max-width:820px){.ppx{height:auto}}
 .ppx *{box-sizing:border-box}
 .ppx a{color:inherit;text-decoration:none}
-.pp-app{display:grid;grid-template-columns:260px minmax(0,1fr);gap:0;min-height:calc(100vh - 40px);border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--bg)}
-.pp-side{background:var(--surface2);border-right:1px solid var(--border);padding:16px 12px;max-height:calc(100vh - 40px);overflow-y:auto;position:sticky;top:0}
+.pp-app{display:grid;grid-template-columns:260px minmax(0,1fr);gap:0;height:100%;min-height:520px;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--bg)}
+.pp-side{background:var(--surface2);border-right:1px solid var(--border);padding:16px 12px;height:100%;overflow-y:auto}
 .pp-search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:8px 11px;margin-bottom:12px}
 .pp-search input{border:0;background:transparent;color:var(--ink);font-size:13px;width:100%;outline:none;font-family:inherit}
 .pp-sidelabel{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);padding:4px 8px 8px}
@@ -22,8 +23,8 @@ const PP_CSS = `
 .pp-item.on .pp-code{color:var(--primary-ink);background:color-mix(in srgb,var(--primary) 16%,transparent)}
 .pp-nm{font-size:12.5px;font-weight:600;color:var(--ink2);line-height:1.35}
 .pp-item.on .pp-nm{color:var(--ink);font-weight:700}
-.pp-main{min-width:0;display:flex;flex-direction:column}
-.pp-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);z-index:20;flex-wrap:wrap}
+.pp-main{min-width:0;display:flex;flex-direction:column;height:100%;overflow:hidden}
+.pp-top{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 18px;border-bottom:1px solid var(--border);background:var(--surface);z-index:20;flex-wrap:wrap;flex:none}
 .pp-tabs{display:flex;gap:4px;background:var(--surface3);padding:4px;border-radius:11px;border:1px solid var(--border)}
 .pp-tab{border:0;background:transparent;color:var(--muted);font-weight:800;font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;font-family:inherit}
 .pp-tab.on{background:var(--primary);color:#fff}
@@ -32,7 +33,7 @@ const PP_CSS = `
   padding:6px 12px;cursor:pointer;font-family:inherit}
 .pp-sync:hover{filter:brightness(.97)}
 .pp-sync .d{width:7px;height:7px;border-radius:50%;background:var(--green)}
-.pp-body{padding:20px;overflow-x:hidden}
+.pp-body{padding:20px;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden}
 
 .pp-hero{position:relative;overflow:hidden;border-radius:20px;border:1px solid var(--border);padding:26px;margin-bottom:18px;
   background:radial-gradient(120% 140% at 100% 0%,color-mix(in srgb,var(--primary) 18%,transparent),transparent 55%),var(--surface)}
@@ -49,7 +50,7 @@ const PP_CSS = `
 .pp-spec .v{font-size:13.5px;font-weight:700;color:var(--ink)}
 
 .pp-grid{display:flex;gap:22px;align-items:flex-start}
-.pp-toc{order:1;flex:none;width:186px;position:sticky;top:74px;display:flex;flex-direction:column;gap:2px;padding:12px 8px;border:1px solid var(--border);border-radius:13px;background:var(--surface);max-height:calc(100vh - 100px);overflow-y:auto}
+.pp-toc{order:1;flex:none;width:186px;position:sticky;top:0;display:flex;flex-direction:column;gap:2px;padding:12px 8px;border:1px solid var(--border);border-radius:13px;background:var(--surface);max-height:calc(100dvh - 180px);overflow-y:auto}
 .pp-toc .h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);padding:2px 10px 8px}
 .pp-toc a{font-size:12px;font-weight:600;color:var(--muted);padding:6px 10px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .pp-toc a:hover{color:var(--ink);background:var(--surface3)}
@@ -60,13 +61,27 @@ const PP_CSS = `
 .pp-cardh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border)}
 .pp-cardh .n{font-family:var(--mono);font-weight:800;font-size:12px;color:#fff;background:var(--primary);width:25px;height:25px;border-radius:8px;display:grid;place-items:center;flex:none}
 .pp-cardh h3{margin:0;font-size:15px;font-weight:800;letter-spacing:-.2px;color:var(--ink)}
-.pp-cardb{padding:20px;display:flex;flex-direction:column;gap:18px}
-.pp-field .l{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:7px}
+.pp-cardb{padding:4px 22px 12px;display:flex;flex-direction:column}
+.pp-cardb .l{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+.pp-row{display:grid;grid-template-columns:186px 1fr;gap:22px;padding:15px 0;border-bottom:1px solid var(--border);align-items:start}
+.pp-row:last-child{border-bottom:0}
+.pp-row>.l{padding-top:2px}
 .pp-val{font-size:14px;color:var(--ink2);white-space:pre-line}
+.pp-ul,.pp-ol{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.pp-ul li{position:relative;padding-left:18px;font-size:14px;color:var(--ink2)}
+.pp-ul li::before{content:"";position:absolute;left:1px;top:8px;width:6px;height:6px;border-radius:2px;background:var(--primary)}
+.pp-ol{counter-reset:ppc}
+.pp-ol li{counter-increment:ppc;position:relative;padding-left:32px;font-size:14px;color:var(--ink2);min-height:23px;display:flex;align-items:center}
+.pp-ol li::before{content:counter(ppc);position:absolute;left:0;top:0;width:23px;height:23px;border-radius:7px;background:var(--primary);color:#fff;font-weight:800;font-size:11px;display:grid;place-items:center;font-family:var(--mono)}
+.pp-def{display:flex;flex-direction:column;gap:9px}
+.pp-def .di{font-size:14px;color:var(--ink2);line-height:1.55}
+.pp-def .di b{color:var(--ink);font-weight:800}
+@media(max-width:640px){.pp-row{grid-template-columns:1fr;gap:6px}}
 .pp-tags{display:flex;flex-wrap:wrap;gap:7px}
 .pp-tag{font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--ink2)}
 .pp-tag.hash{font-family:var(--mono);color:var(--cyan);background:color-mix(in srgb,var(--cyan) 10%,transparent);border-color:color-mix(in srgb,var(--cyan) 26%,transparent)}
-.pp-panel{border-radius:12px;padding:14px 16px;border:1px solid}
+.pp-panel{border-radius:12px;padding:14px 16px;border:1px solid;margin:14px 0}
+.pp-panel>.l{margin-bottom:10px;display:block}
 .pp-panel.amber{background:var(--amber-bg);border-color:color-mix(in srgb,var(--amber) 40%,transparent)}
 .pp-panel.amber .l{color:var(--amber)}
 .pp-panel.green{background:var(--green-bg);border-color:color-mix(in srgb,var(--green) 32%,transparent)}
@@ -106,9 +121,11 @@ const PP_CSS = `
 
 @media(max-width:1180px){.pp-toc{display:none}}
 @media(max-width:820px){
-  .pp-app{grid-template-columns:1fr}
-  .pp-side{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--border)}
-  .pp-list{max-height:220px;overflow-y:auto}
+  .pp-app{grid-template-columns:1fr;height:auto;overflow:visible}
+  .pp-side{height:auto;border-right:0;border-bottom:1px solid var(--border)}
+  .pp-main{height:auto;overflow:visible}
+  .pp-body{overflow:visible;flex:none}
+  .pp-list{max-height:240px;overflow-y:auto}
 }
 @media print{.pp-side,.pp-top,.pp-mtool{display:none!important}.pp-app{border:0;display:block}.pp-mwrap{max-height:none;border:0}}
 `;
@@ -306,6 +323,20 @@ export default function ProductProfilePage() {
 }
 
 // ── Field renderer (special cases: claim / lưu ý / chips) ────────────────────
+const NUM_RE = /^(?:bước\s*\d+\s*[:.)]?\s*|\d+\s*[.)]\s*)/i;
+const BUL_RE = /^[-•+*◆·]\s+/;
+const DEF_RE = /^([^:]{2,52}):\s+(.+)$/;
+const isMajority = (lines: string[], re: RegExp) => lines.length >= 2 && lines.filter((l) => re.test(l)).length >= Math.ceil(lines.length * 0.6);
+
+function renderContent(lines: string[], raw: string) {
+  if (isMajority(lines, NUM_RE)) return <ol className="pp-ol">{lines.map((l, i) => <li key={i}>{l.replace(NUM_RE, '')}</li>)}</ol>;
+  if (isMajority(lines, BUL_RE)) return <ul className="pp-ul">{lines.map((l, i) => <li key={i}>{l.replace(BUL_RE, '')}</li>)}</ul>;
+  if (isMajority(lines, DEF_RE)) {
+    return <div className="pp-def">{lines.map((l, i) => { const m = l.match(DEF_RE); return m ? <div className="di" key={i}><b>{m[1]}:</b> {m[2]}</div> : <div className="di" key={i}>{l}</div>; })}</div>;
+  }
+  return <div className="pp-val">{raw}</div>;
+}
+
 function FieldBlock({ name, value }: { name: string; value: string }) {
   const v = (value || '').trim();
   if (isEmpty(v)) return null;
@@ -313,7 +344,7 @@ function FieldBlock({ name, value }: { name: string; value: string }) {
 
   if (/keyword|từ khóa|hashtag/i.test(name)) {
     return (
-      <div className="pp-field" id={slug(name)}>
+      <div className="pp-row" id={slug(name)}>
         <div className="l">{name}</div>
         <div className="pp-tags">{lines.map((c, i) => <span className={'pp-tag' + (/hashtag/i.test(name) ? ' hash' : '')} key={i}>{c}</span>)}</div>
       </div>
@@ -332,14 +363,14 @@ function FieldBlock({ name, value }: { name: string; value: string }) {
     return (
       <div className="pp-panel amber" id={slug(name)}>
         <div className="l">{name}</div>
-        <ul className="pp-clist">{lines.map((c, i) => <li key={i}>{c.replace(/^\d+[.)]\s*|-\s*/, '')}</li>)}</ul>
+        <ul className="pp-clist">{lines.map((c, i) => <li key={i}>{c.replace(/^\d+[.)]\s*|^-\s*/, '')}</li>)}</ul>
       </div>
     );
   }
   return (
-    <div className="pp-field" id={slug(name)}>
+    <div className="pp-row" id={slug(name)}>
       <div className="l">{name}</div>
-      <div className="pp-val">{v}</div>
+      <div className="v">{renderContent(lines, v)}</div>
     </div>
   );
 }
