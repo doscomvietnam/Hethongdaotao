@@ -3,6 +3,7 @@ import Layout from "./components/layout";
 import Dashboard from "./components/dashboard";
 import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
 import OverviewTabs from "./components/dashboard/OverviewTabs";
+import ProductProfilePage from "./components/product-profile/ProductProfilePage";
 import ProductModule from "./components/product";
 import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
 import BadgesPage from "./components/gamification/BadgesPage";
@@ -81,6 +82,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.DASHBOARD]: '/dashboard',
   [ViewType.PRODUCT_LIBRARY]: '/products',
   [ViewType.PRODUCT_DETAIL]: '/products',   // + /:id
+  [ViewType.PRODUCT_PROFILE]: '/product-profile',
   [ViewType.COURSE_CATALOG]: '/courses',
   [ViewType.COURSE_DETAIL]: '/courses',     // + /:id
   [ViewType.QUIZ]: '/quiz',
@@ -113,6 +115,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
     case 'products':
       if (segments[1]) return { view: ViewType.PRODUCT_DETAIL, productId: segments[1] };
       return { view: ViewType.PRODUCT_LIBRARY };
+    case 'product-profile':
+      return { view: ViewType.PRODUCT_PROFILE };
     case 'courses':
       if (segments[1]) return { view: ViewType.COURSE_DETAIL, courseId: segments[1] };
       return { view: ViewType.COURSE_CATALOG };
@@ -905,6 +909,9 @@ function App() {
             employee={employee}
           />
         );
+
+      case ViewType.PRODUCT_PROFILE:
+        return <ProductProfilePage />;
 
       case ViewType.PRODUCT_LIBRARY:
         return (

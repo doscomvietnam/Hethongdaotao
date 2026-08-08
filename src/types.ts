@@ -2,6 +2,7 @@ export enum ViewType {
   DASHBOARD = 'dashboard',
   PRODUCT_LIBRARY = 'product-library',
   PRODUCT_DETAIL = 'product-detail',
+  PRODUCT_PROFILE = 'product-profile',
   COURSE_CATALOG = 'course-catalog',
   COURSE_DETAIL = 'course-detail',
   QUIZ = 'quiz',

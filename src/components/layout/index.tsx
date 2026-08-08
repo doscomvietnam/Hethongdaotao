@@ -26,6 +26,7 @@ import {
   Award,
   Dumbbell,
   Route,
+  FileText,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -101,6 +102,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan', roles: ['manager'], show: true },
     { id: ViewType.DASHBOARD, icon: LayoutDashboard, label: 'Tổng quan học tập', roles: ['employee'], show: true },
     { id: ViewType.PRODUCT_LIBRARY, icon: Box, label: 'Giới thiệu sản phẩm', roles: ['admin', 'manager', 'employee'], show: true },
+    { id: ViewType.PRODUCT_PROFILE, icon: FileText, label: 'Hồ sơ sản phẩm', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.LEARNING_PATH, icon: Route, label: 'Lộ trình học', roles: ['admin', 'manager', 'employee'], show: hasSalesPath },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
@@ -781,6 +783,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
     const viewMap: Record<ViewType, string> = {
       [ViewType.DASHBOARD]: 'dashboard',
       [ViewType.PRODUCT_LIBRARY]: 'products',
+      [ViewType.PRODUCT_PROFILE]: 'product-profile',
       [ViewType.PRODUCT_DETAIL]: 'products',
       [ViewType.COURSE_CATALOG]: 'courses',
       [ViewType.COURSE_DETAIL]: 'courses',
