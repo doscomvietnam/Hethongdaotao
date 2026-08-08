@@ -136,6 +136,17 @@ const PP_CSS = `
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const slug = (s: string) => 'f-' + s.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '');
 const isEmpty = (v?: string) => !v || !v.trim() || v.trim() === '(trống)';
+// Chuẩn hóa tên mục về cùng kiểu: nếu toàn CHỮ HOA → viết thường, hoa chữ đầu; giữ nguyên từ viết tắt.
+const ACRO = new Set(['PPE', 'FAQ', 'USP', 'SKU', 'CCSC', 'CCSD', 'CCSP', 'CCTC', 'MCTV', 'MSDS', 'KPI', 'CEO', 'CCO', 'CHRO', 'CFO', 'CMO', 'COO', 'EV', 'BSC', 'GT', 'NPP', 'DIY', 'CSKH']);
+const prettyLabel = (s: string): string => {
+  if (!s) return s;
+  if (s !== s.toUpperCase() || s === s.toLowerCase()) return s; // không phải toàn HOA → giữ nguyên
+  return s.split(/\s+/).map((w, i) => {
+    if (ACRO.has(w.replace(/[()[\].,:;-]/g, ''))) return w;
+    const lo = w.toLowerCase();
+    return i === 0 ? lo.charAt(0).toUpperCase() + lo.slice(1) : lo;
+  }).join(' ');
+};
 const findIdx = (fields: string[], re: RegExp) => fields.findIndex((f) => re.test(f));
 
 // Trường hiển thị ở hero (không lặp lại ở thân bài)
@@ -266,7 +277,7 @@ export default function ProductProfilePage() {
               <nav className="pp-toc">
                 <div className="h">Nội dung</div>
                 {bodyGroups.flatMap((g) => g.items).filter((it) => !isEmpty(cur.values[it.idx])).map((it) => (
-                  <a key={it.idx} href={'#' + slug(it.name)}>{it.name}</a>
+                  <a key={it.idx} href={'#' + slug(it.name)}>{prettyLabel(it.name)}</a>
                 ))}
               </nav>
               <div className="pp-content">
