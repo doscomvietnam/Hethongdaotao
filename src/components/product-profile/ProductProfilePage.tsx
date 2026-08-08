@@ -3,10 +3,10 @@ import { getProductProfiles, type ProductProfileData } from '../../services/prod
 
 // ── CSS (dark, scoped dưới .ppx để không đụng style app) ────────────────────
 const PP_CSS = `
-.ppx{--bg:#0A0E16;--surface:#121A29;--surface2:#0E1626;--surface3:#18233A;--ink:#E9EEF6;--ink2:#C0CBDC;
-  --muted:#8695AC;--faint:#5F6E86;--border:#22314C;--border2:#2C3E5E;--primary:#5C82FF;--primary-ink:#8EA6FF;
-  --cyan:#38BDF8;--green:#34D399;--green-bg:#0E241A;--amber:#F0B34E;--amber-bg:#2A2212;--red:#F87171;--red-bg:#2C1414;
-  --indigo:#8B93FF;--mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;
+.ppx{--bg:#EAEEF4;--surface:#FFFFFF;--surface2:#F5F8FC;--surface3:#EDF2F8;--ink:#101827;--ink2:#33415A;
+  --muted:#66748C;--faint:#93A0B4;--border:#DCE3ED;--border2:#C9D3E0;--primary:#1B44C4;--primary-ink:#1B44C4;
+  --cyan:#0891B2;--green:#0E9F55;--green-bg:#E4F5EC;--amber:#B7791F;--amber-bg:#FBF1DC;--red:#D42B2B;--red-bg:#FBE6E6;
+  --indigo:#4F46E5;--mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;
   color:var(--ink);font-size:14px;line-height:1.6}
 .ppx *{box-sizing:border-box}
 .ppx a{color:inherit;text-decoration:none}
@@ -27,7 +27,10 @@ const PP_CSS = `
 .pp-tabs{display:flex;gap:4px;background:var(--surface3);padding:4px;border-radius:11px;border:1px solid var(--border)}
 .pp-tab{border:0;background:transparent;color:var(--muted);font-weight:800;font-size:12px;padding:8px 14px;border-radius:8px;cursor:pointer;text-transform:uppercase;letter-spacing:.04em;font-family:inherit}
 .pp-tab.on{background:var(--primary);color:#fff}
-.pp-sync{font-size:11px;font-weight:700;color:var(--green);display:inline-flex;align-items:center;gap:7px}
+.pp-sync{font-size:11px;font-weight:700;color:var(--green);display:inline-flex;align-items:center;gap:7px;
+  border:1px solid color-mix(in srgb,var(--green) 30%,transparent);background:var(--green-bg);border-radius:20px;
+  padding:6px 12px;cursor:pointer;font-family:inherit}
+.pp-sync:hover{filter:brightness(.97)}
 .pp-sync .d{width:7px;height:7px;border-radius:50%;background:var(--green)}
 .pp-body{padding:20px;overflow-x:hidden}
 
@@ -133,6 +136,17 @@ export default function ProductProfilePage() {
   }, []);
   React.useEffect(() => { load(); }, [load]);
 
+  // Tự đồng bộ: tải lại dữ liệu (im lặng) khi quay lại tab / cửa sổ → sửa sheet là thấy đổi
+  const refresh = React.useCallback(() => {
+    getProductProfiles().then(setData).catch(() => {});
+  }, []);
+  React.useEffect(() => {
+    const onVis = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('focus', refresh);
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', refresh); };
+  }, [refresh]);
+
   const fields = data?.fields || [];
   const iName = React.useMemo(() => findIdx(fields, /^Tên sản phẩm$/i), [fields]);
   const iCode = React.useMemo(() => findIdx(fields, /^Mã sản phẩm$/i), [fields]);
@@ -205,7 +219,7 @@ export default function ProductProfilePage() {
               <button className={'pp-tab' + (tab === 'detail' ? ' on' : '')} onClick={() => setTab('detail')}>Hồ sơ chi tiết</button>
               <button className={'pp-tab' + (tab === 'matrix' ? ' on' : '')} onClick={() => setTab('matrix')}>Ma trận dữ liệu</button>
             </div>
-            <span className="pp-sync"><span className="d" /> Đồng bộ từ Google Sheet</span>
+            <button className="pp-sync" onClick={refresh} title="Bấm để đồng bộ ngay từ Google Sheet"><span className="d" /> Đồng bộ từ Sheet</button>
           </div>
 
           {tab === 'detail' ? (

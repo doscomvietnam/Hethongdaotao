@@ -45,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .filter((rw) => rw && rw[0] != null && String(rw[0]).trim())
       .map((rw) => ({ values: idx.map((i) => { const v = rw[i]; return v == null ? '' : String(v).trim(); }) }));
 
-    res.setHeader('Cache-Control', 's-maxage=120, stale-while-revalidate=600');
+    res.setHeader('Cache-Control', 's-maxage=15, stale-while-revalidate=60');
     return res.status(200).json({ fields, groups, products, fetchedAt: new Date().toISOString() });
   } catch (e: any) {
     return res.status(500).json({ error: e?.message || 'Lỗi máy chủ khi đọc sheet' });
