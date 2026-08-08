@@ -7,11 +7,10 @@ const PP_CSS = `
   --muted:#66748C;--faint:#93A0B4;--border:#DCE3ED;--border2:#C9D3E0;--primary:#1B44C4;--primary-ink:#1B44C4;
   --cyan:#0891B2;--green:#0E9F55;--green-bg:#E4F5EC;--amber:#B7791F;--amber-bg:#FBF1DC;--red:#D42B2B;--red-bg:#FBE6E6;
   --indigo:#4F46E5;--mono:ui-monospace,"SF Mono","Cascadia Code",Menlo,monospace;
-  color:var(--ink);font-size:14px;line-height:1.6;height:100%}
-@media(max-width:820px){.ppx{height:auto}}
+  color:var(--ink);font-size:14px;line-height:1.6}
 .ppx *{box-sizing:border-box}
 .ppx a{color:inherit;text-decoration:none}
-.pp-app{display:grid;grid-template-columns:260px minmax(0,1fr);gap:0;height:100%;min-height:520px;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--bg)}
+.pp-app{display:grid;grid-template-columns:260px minmax(0,1fr);gap:0;min-height:520px;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:var(--bg)}
 .pp-side{background:var(--surface2);border-right:1px solid var(--border);padding:16px 12px;height:100%;overflow-y:auto}
 .pp-search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:8px 11px;margin-bottom:12px}
 .pp-search input{border:0;background:transparent;color:var(--ink);font-size:13px;width:100%;outline:none;font-family:inherit}
@@ -166,6 +165,21 @@ export default function ProductProfilePage() {
     return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', refresh); };
   }, [refresh]);
 
+  // Nhốt chiều cao khung: đo vị trí thật của khung → chiều cao = màn hình - top, để mỗi cột cuộn TRONG khung (không kéo cả trang)
+  const appRef = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => {
+    const el = appRef.current;
+    if (!el) return;
+    const setH = () => {
+      if (window.innerWidth <= 820) { el.style.height = 'auto'; return; }
+      const top = el.getBoundingClientRect().top;
+      el.style.height = `calc(100dvh - ${Math.max(0, Math.round(top)) + 18}px)`;
+    };
+    setH();
+    window.addEventListener('resize', setH);
+    return () => window.removeEventListener('resize', setH);
+  }, [loading, data]);
+
   const fields = data?.fields || [];
   const iName = React.useMemo(() => findIdx(fields, /^Tên sản phẩm$/i), [fields]);
   const iCode = React.useMemo(() => findIdx(fields, /^Mã sản phẩm$/i), [fields]);
@@ -212,7 +226,7 @@ export default function ProductProfilePage() {
   return (
     <div className="ppx">
       <style dangerouslySetInnerHTML={{ __html: PP_CSS }} />
-      <div className="pp-app">
+      <div className="pp-app" ref={appRef}>
         {/* Danh sách sản phẩm */}
         <aside className="pp-side">
           <div className="pp-search">
