@@ -49,13 +49,13 @@ const PP_CSS = `
 .pp-spec .k{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:5px}
 .pp-spec .v{font-size:13.5px;font-weight:700;color:var(--ink)}
 
-.pp-grid{display:flex;gap:22px;align-items:flex-start}
-.pp-toc{order:1;flex:none;width:186px;position:sticky;top:0;display:flex;flex-direction:column;gap:2px;padding:12px 8px;border:1px solid var(--border);border-radius:13px;background:var(--surface);max-height:calc(100dvh - 180px);overflow-y:auto}
+.pp-detail{flex:1;min-height:0;display:flex;gap:18px;padding:18px}
+.pp-toc{flex:none;width:190px;height:100%;display:flex;flex-direction:column;gap:2px;padding:12px 8px;border:1px solid var(--border);border-radius:13px;background:var(--surface);overflow-y:auto}
 .pp-toc .h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);padding:2px 10px 8px}
 .pp-toc a{font-size:12px;font-weight:600;color:var(--muted);padding:6px 10px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .pp-toc a:hover{color:var(--ink);background:var(--surface3)}
-.pp-cols{order:2;flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
-.ppx :target{scroll-margin-top:90px}
+.pp-content{flex:1;min-width:0;height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-right:2px}
+.ppx :target{scroll-margin-top:14px}
 
 .pp-card{background:var(--surface);border:1px solid var(--border);border-radius:15px;overflow:hidden}
 .pp-cardh{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--border)}
@@ -125,6 +125,8 @@ const PP_CSS = `
   .pp-side{height:auto;border-right:0;border-bottom:1px solid var(--border)}
   .pp-main{height:auto;overflow:visible}
   .pp-body{overflow:visible;flex:none}
+  .pp-detail{flex-direction:column;height:auto;overflow:visible;padding:14px}
+  .pp-content{height:auto;overflow:visible}
   .pp-list{max-height:240px;overflow-y:auto}
 }
 @media print{.pp-side,.pp-top,.pp-mtool{display:none!important}.pp-app{border:0;display:block}.pp-mwrap{max-height:none;border:0}}
@@ -240,7 +242,14 @@ export default function ProductProfilePage() {
           </div>
 
           {tab === 'detail' ? (
-            <div className="pp-body">
+            <div className="pp-detail">
+              <nav className="pp-toc">
+                <div className="h">Nội dung</div>
+                {bodyGroups.flatMap((g) => g.items).filter((it) => !isEmpty(cur.values[it.idx])).map((it) => (
+                  <a key={it.idx} href={'#' + slug(it.name)}>{it.name}</a>
+                ))}
+              </nav>
+              <div className="pp-content">
               {/* Hero */}
               <div className="pp-hero">
                 <div className="pp-eyebrow"><span className="b">Hồ sơ sản phẩm</span> {gv(iCode)}</div>
@@ -260,28 +269,19 @@ export default function ProductProfilePage() {
                 </div>
               </div>
 
-              {/* Mục lục + Nội dung */}
-              <div className="pp-grid">
-                <nav className="pp-toc">
-                  <div className="h">Nội dung</div>
-                  {bodyGroups.flatMap((g) => g.items).filter((it) => !isEmpty(cur.values[it.idx])).map((it) => (
-                    <a key={it.idx} href={'#' + slug(it.name)}>{it.name}</a>
-                  ))}
-                </nav>
-                <div className="pp-cols">
-                  {bodyGroups.map((g, gi) => {
-                    const visible = g.items.filter((it) => !isEmpty(cur.values[it.idx]));
-                    if (visible.length === 0) return null;
-                    return (
-                      <section className="pp-card" key={gi}>
-                        <div className="pp-cardh"><span className="n">{gi + 1}</span><h3>{g.group}</h3></div>
-                        <div className="pp-cardb">
-                          {visible.map((it) => <FieldBlock key={it.idx} name={it.name} value={cur.values[it.idx]} />)}
-                        </div>
-                      </section>
-                    );
-                  })}
-                </div>
+              {/* Nội dung theo nhóm */}
+              {bodyGroups.map((g, gi) => {
+                const visible = g.items.filter((it) => !isEmpty(cur.values[it.idx]));
+                if (visible.length === 0) return null;
+                return (
+                  <section className="pp-card" key={gi}>
+                    <div className="pp-cardh"><span className="n">{gi + 1}</span><h3>{g.group}</h3></div>
+                    <div className="pp-cardb">
+                      {visible.map((it) => <FieldBlock key={it.idx} name={it.name} value={cur.values[it.idx]} />)}
+                    </div>
+                  </section>
+                );
+              })}
               </div>
             </div>
           ) : (
