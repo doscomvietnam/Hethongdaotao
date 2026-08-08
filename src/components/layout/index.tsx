@@ -259,7 +259,12 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
           }
 
           // ── Các item thông thường ──
-          const isActive = currentView.startsWith(item.id.split('-')[0]);
+          const seg = item.id.split('-')[0];
+          // "Giới thiệu sản phẩm" (product-library) và "Hồ sơ sản phẩm" (product-profile) cùng bắt đầu "product"
+          // → với nhóm product phải so khớp chính xác để không sáng nhầm cả hai.
+          const isActive = seg === 'product'
+            ? (currentView === item.id || (item.id === ViewType.PRODUCT_LIBRARY && currentView === ViewType.PRODUCT_DETAIL))
+            : currentView.startsWith(seg);
           return (
             <div key={item.id} className="relative group">
               <button
