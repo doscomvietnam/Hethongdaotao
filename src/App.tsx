@@ -570,6 +570,9 @@ function App() {
         setSelectedProductId(null);
         setCurrentView(ViewType.PRODUCT_LIBRARY);
         break;
+      case "product-profile":
+        setCurrentView(ViewType.PRODUCT_PROFILE);
+        break;
       case "courses":
         setSelectedCourseId(null);
         setCurrentView(ViewType.COURSE_CATALOG);
