@@ -173,9 +173,13 @@ export default function ProductProfilePage() {
     const el = appRef.current;
     if (!el) return;
     const setH = () => {
-      if (window.innerWidth <= 820) { el.style.height = 'auto'; return; }
+      if (window.innerWidth <= 820) { el.style.height = 'auto'; el.style.marginBottom = '0px'; return; }
       const top = el.getBoundingClientRect().top;
-      el.style.height = `calc(100dvh - ${Math.max(0, Math.round(top)) + 18}px)`;
+      const main = el.closest('main');
+      const padB = main ? (parseFloat(getComputedStyle(main).paddingBottom) || 0) : 0;
+      // Kéo dài khung xuống sát đáy (cách 8px), bù luôn lề dưới của <main> để không cuộn cả trang
+      el.style.height = `calc(100dvh - ${Math.max(0, Math.round(top)) + 8}px)`;
+      el.style.marginBottom = `-${Math.round(padB)}px`;
     };
     setH();
     window.addEventListener('resize', setH);
