@@ -50,10 +50,12 @@ const PP_CSS = `
 
 .pp-detail{flex:1;min-height:0;display:flex;gap:18px;padding:18px}
 .pp-toc{flex:none;width:190px;height:100%;display:flex;flex-direction:column;gap:2px;padding:12px 8px;border:1px solid var(--border);border-radius:13px;background:var(--surface);overflow-y:auto}
+.pp-toc>*{flex-shrink:0}
 .pp-toc .h{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--faint);padding:2px 10px 8px}
 .pp-toc a{font-size:12px;font-weight:600;color:var(--muted);padding:6px 10px;border-radius:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .pp-toc a:hover{color:var(--ink);background:var(--surface3)}
 .pp-content{flex:1;min-width:0;height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding-right:2px}
+.pp-content>*{flex-shrink:0}
 .ppx :target{scroll-margin-top:14px}
 
 .pp-card{background:var(--surface);border:1px solid var(--border);border-radius:15px;overflow:hidden}
