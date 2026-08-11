@@ -1065,14 +1065,6 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
                     transition={{ duration: 0.5 }}
                   />
                 </div>
-                <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider ">
-                  {videoWatchProgress >= 100 || course.isCompleted
-                    ? '✓ Đã hoàn thành — hệ thống tự đánh dấu khi bạn xem đủ'
-                    : isWatching
-                      ? `Đang xem — xem đủ ~3 phút sẽ tự hoàn thành (${Math.min(Math.round(videoWatchProgress * 6), 180)}/180s)`
-                      : `Bấm vào video để xem — đủ ~3 phút sẽ tự đánh dấu hoàn thành (${Math.min(Math.round(videoWatchProgress * 6), 180)}/180s)`
-                  }
-                </p>
               </div>
 
             </div>
