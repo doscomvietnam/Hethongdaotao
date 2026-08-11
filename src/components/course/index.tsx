@@ -1076,6 +1076,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
                         setVideoWatchProgress(100);
                         setVideoProgress(course.id, 100, userId);
                         if (employeeId) upsertVideoProgress(employeeId, course.id, 100);
+                        onSlideCompleted?.(course.id); // báo app cập nhật hoàn thành → mở khóa bài tiếp theo ngay
                       }}
                       className={cn(
                         'w-full h-11 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
