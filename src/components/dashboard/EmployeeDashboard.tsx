@@ -15,7 +15,7 @@ function getLevelInfo(rate: number) {
   if (rate >= 90) return { label: 'Bậc thầy sản phẩm', icon: Flame, color: 'text-amber-400', gradient: 'from-amber-500 to-orange-500' };
   if (rate >= 60) return { label: 'Chuyên gia SP', icon: Trophy, color: 'text-emerald-500', gradient: 'from-emerald-500 to-teal-500' };
   if (rate >= 30) return { label: 'Học viên tích cực', icon: Star, color: 'text-blue-400', gradient: 'from-blue-500 to-cyan-500' };
-  return { label: 'Tân binh đào tạo', icon: Award, color: 'text-zinc-400', gradient: 'from-zinc-600 to-zinc-500' };
+  return { label: 'Tân binh đào tạo', icon: Award, color: 'text-amber-500', gradient: 'from-amber-500 to-orange-500' };
 }
 
 // ── Vòng tròn tiến độ (SVG) ─────────────────────────────────────────────
@@ -28,7 +28,7 @@ function CompletionRing({ value, size = 132, stroke = 11, colorClass = 'text-eme
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" className="stroke-zinc-800" />
+        <circle cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} fill="none" className="stroke-zinc-300" />
         <circle
           cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} strokeLinecap="round" fill="none"
           stroke="currentColor" className={`${colorClass} transition-all duration-1000`}
