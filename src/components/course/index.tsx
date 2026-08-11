@@ -598,6 +598,18 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
 
   const [videoWatchProgress, setVideoWatchProgress] = React.useState(() => Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0));
   const [isWatching, setIsWatching] = React.useState(false);
+
+  // Video-only: xem đủ ~3 phút (180s) → TỰ đánh dấu hoàn thành, không cần bấm nút
+  React.useEffect(() => {
+    if (!hasVideo || hasQuiz) return;
+    if (course.isCompleted || videoWatchProgress >= 100) return;
+    if (Math.round(videoWatchProgress * 6) >= 180) {
+      setVideoWatchProgress(100);
+      setVideoProgress(course.id, 100, userId);
+      if (employeeId) upsertVideoProgress(employeeId, course.id, 100);
+      onSlideCompleted?.(course.id);
+    }
+  }, [videoWatchProgress, hasVideo, hasQuiz, course.isCompleted, course.id, userId, employeeId, onSlideCompleted]);
   const videoTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeContainerRef = React.useRef<HTMLDivElement>(null);
   const supabaseSyncRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1054,44 +1066,13 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
                   />
                 </div>
                 <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-wider ">
-                  {videoWatchProgress >= 100
-                    ? '✓ Bạn đã xem hoàn tất video đào tạo'
+                  {videoWatchProgress >= 100 || course.isCompleted
+                    ? '✓ Đã hoàn thành — hệ thống tự đánh dấu khi bạn xem đủ'
                     : isWatching
-                      ? 'Đang theo dõi — click vào video để dừng'
-                      : 'Xem xong bấm nút bên dưới để đánh dấu hoàn thành'
+                      ? `Đang xem — xem đủ ~3 phút sẽ tự hoàn thành (${Math.min(Math.round(videoWatchProgress * 6), 180)}/180s)`
+                      : `Bấm vào video để xem — đủ ~3 phút sẽ tự đánh dấu hoàn thành (${Math.min(Math.round(videoWatchProgress * 6), 180)}/180s)`
                   }
                 </p>
-                {videoWatchProgress < 100 && (() => {
-                  // Chống bấm bừa: phải phát video đủ thời gian tối thiểu mới cho đánh dấu.
-                  // videoWatchProgress% ≈ (giây đã xem / 600) → giây đã xem ≈ progress × 6.
-                  const MIN_WATCH_SECONDS = 180;
-                  const watchedSec = Math.round(videoWatchProgress * 6);
-                  const canMark = watchedSec >= MIN_WATCH_SECONDS;
-                  return (
-                    <button
-                      type="button"
-                      disabled={!canMark}
-                      onClick={() => {
-                        if (!canMark) return;
-                        setVideoWatchProgress(100);
-                        setVideoProgress(course.id, 100, userId);
-                        if (employeeId) upsertVideoProgress(employeeId, course.id, 100);
-                        onSlideCompleted?.(course.id); // báo app cập nhật hoàn thành → mở khóa bài tiếp theo ngay
-                      }}
-                      className={cn(
-                        'w-full h-11 rounded-xl text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all',
-                        canMark
-                          ? 'bg-emerald-500 hover:bg-emerald-600 text-white active:scale-[0.98]'
-                          : 'bg-zinc-800 text-zinc-500 cursor-not-allowed',
-                      )}
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      {canMark
-                        ? 'Đánh dấu đã xem xong'
-                        : `Xem thêm để mở nút (${watchedSec}/${MIN_WATCH_SECONDS}s)`}
-                    </button>
-                  );
-                })()}
               </div>
 
             </div>
