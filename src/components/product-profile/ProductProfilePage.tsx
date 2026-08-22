@@ -1,5 +1,7 @@
 import * as React from 'react';
-import { getProductProfiles, type ProductProfileData } from '../../services/productProfileService';
+import { getProductProfiles, saveProductProfiles, type ProductProfileData } from '../../services/productProfileService';
+import { supabase } from '../../services/supabaseClient';
+import type { Employee } from '../../types';
 
 // ── CSS (dark, scoped dưới .ppx để không đụng style app) ────────────────────
 const PP_CSS = `
@@ -130,11 +132,29 @@ const PP_CSS = `
   .pp-content{height:auto;overflow:visible}
   .pp-list{max-height:240px;overflow-y:auto}
 }
+.pp-btn{border:1px solid var(--border2);background:var(--surface);color:var(--ink2);border-radius:9px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.pp-btn:hover{border-color:var(--primary);color:var(--primary-ink)}
+.pp-btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.pp-btn.primary:hover{filter:brightness(1.06);color:#fff}
+.pp-btn.danger{color:var(--red);border-color:color-mix(in srgb,var(--red) 40%,transparent)}
+.pp-btn:disabled{opacity:.55;cursor:not-allowed}
+.pp-modal-bg{position:fixed;inset:0;background:rgba(8,13,22,.55);backdrop-filter:blur(3px);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px}
+.pp-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:min(780px,100%);max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 70px -24px rgba(0,0,0,.45)}
+.pp-modal-h{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border)}
+.pp-modal-h h3{margin:0;font-size:16px;font-weight:900;color:var(--ink)}
+.pp-modal-b{padding:16px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+.pp-modal-f{padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pp-fgrp{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:var(--primary-ink);margin:10px 0 0;padding-bottom:6px;border-bottom:1px dashed var(--border)}
+.pp-fld-e{display:flex;flex-direction:column;gap:5px}
+.pp-fld-e label{font-size:11px;font-weight:700;color:var(--ink2)}
+.pp-fld-e textarea{border:1px solid var(--border2);border-radius:9px;padding:8px 10px;font-family:inherit;font-size:13px;color:var(--ink);background:var(--surface2);resize:vertical;min-height:36px;line-height:1.5}
+.pp-fld-e textarea:focus{outline:none;border-color:var(--primary)}
+.pp-x{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:22px;line-height:1}
+.pp-x:hover{color:var(--ink)}
 @media print{.pp-side,.pp-top,.pp-mtool{display:none!important}.pp-app{border:0;display:block}.pp-mwrap{max-height:none;border:0}}
 `;
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-const slug = (s: string) => 'f-' + s.toLowerCase().replace(/[^a-z0-9]+/gi, '-').replace(/(^-|-$)/g, '');
 const isEmpty = (v?: string) => !v || !v.trim() || v.trim() === '(trống)';
 // Chuẩn hóa tên mục về cùng kiểu: nếu toàn CHỮ HOA → viết thường, hoa chữ đầu; giữ nguyên từ viết tắt.
 const ACRO = new Set(['PPE', 'FAQ', 'USP', 'SKU', 'CCSC', 'CCSD', 'CCSP', 'CCTC', 'MCTV', 'MSDS', 'KPI', 'CEO', 'CCO', 'CHRO', 'CFO', 'CMO', 'COO', 'EV', 'BSC', 'GT', 'NPP', 'DIY', 'CSKH']);
@@ -152,13 +172,17 @@ const findIdx = (fields: string[], re: RegExp) => fields.findIndex((f) => re.tes
 // Trường hiển thị ở hero (không lặp lại ở thân bài)
 const HERO_RE = /^(Tên sản phẩm|Mã sản phẩm|Mã SKU|Danh mục sản phẩm|Mô tả ngắn|Dung tích|Thể sản phẩm|Mùi hương\/Màu sắc|Hạn sử dụng|Bảo hành)$/i;
 
-export default function ProductProfilePage() {
+export default function ProductProfilePage({ employee }: { employee?: Employee }) {
+  const isAdmin = employee?.role === 'admin' || employee?.role === 'manager';
   const [data, setData] = React.useState<ProductProfileData | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
   const [sel, setSel] = React.useState(0);
   const [tab, setTab] = React.useState<'detail' | 'matrix'>('detail');
   const [q, setQ] = React.useState('');
+  const [editing, setEditing] = React.useState<null | { mode: 'add' | 'edit'; values: string[] }>(null);
+  const [saving, setSaving] = React.useState(false);
+  const [saveErr, setSaveErr] = React.useState<string | null>(null);
 
   const load = React.useCallback(() => {
     setLoading(true); setErr(null);
@@ -233,16 +257,86 @@ export default function ProductProfilePage() {
     return out;
   }, [fields, data]);
 
-  if (loading) return <div className="ppx"><div className="pp-msg"><div className="pp-spin" />Đang tải hồ sơ sản phẩm từ Google Sheet…</div></div>;
-  if (err) return <div className="ppx"><div className="pp-msg">⚠️ {err}<br /><button className="pp-retry" onClick={load}>Thử lại</button></div></div>;
-  if (!data || products.length === 0) return <div className="ppx"><div className="pp-msg">Chưa có sản phẩm nào trong sheet.</div></div>;
+  // ── Thêm / Sửa / Xóa (admin) — lưu toàn bộ dữ liệu lên storage ─────────────
+  const persist = React.useCallback(async (next: ProductProfileData) => {
+    setSaving(true); setSaveErr(null);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+      if (!token) throw new Error('Bạn cần đăng nhập lại');
+      await saveProductProfiles(next, token);
+      setData(next);
+      setEditing(null);
+    } catch (e: any) {
+      setSaveErr(e?.message || 'Lưu thất bại');
+    } finally {
+      setSaving(false);
+    }
+  }, []);
+  const openAdd = () => { setSaveErr(null); setEditing({ mode: 'add', values: fields.map(() => '') }); };
+  const openEdit = () => { setSaveErr(null); setEditing({ mode: 'edit', values: [...(products[sel]?.values || fields.map(() => ''))] }); };
+  const saveEditing = () => {
+    if (!data || !editing) return;
+    const products2 = [...data.products];
+    if (editing.mode === 'add') { products2.push({ values: editing.values }); setSel(products2.length - 1); }
+    else { products2[sel] = { values: editing.values }; }
+    persist({ ...data, products: products2 });
+  };
+  const deleteCurrent = () => {
+    if (!data) return;
+    if (!window.confirm('Xóa hẳn sản phẩm này khỏi hồ sơ?')) return;
+    persist({ ...data, products: data.products.filter((_, i) => i !== sel) });
+    setSel((x) => Math.max(0, x - 1));
+  };
+
+  const styleEl = <style dangerouslySetInnerHTML={{ __html: PP_CSS }} />;
+  const modalEl = editing && data ? (
+    <div className="pp-modal-bg" onClick={(e) => { if (e.target === e.currentTarget && !saving) setEditing(null); }}>
+      <div className="pp-modal">
+        <div className="pp-modal-h">
+          <h3>{editing.mode === 'add' ? 'Thêm sản phẩm mới' : 'Sửa hồ sơ sản phẩm'}</h3>
+          <button className="pp-x" onClick={() => !saving && setEditing(null)}>×</button>
+        </div>
+        <div className="pp-modal-b">
+          {data.fields.map((f, i) => {
+            const g = (data.groups[i] || '').replace(/^\d+\.\s*/, '');
+            const prevG = i > 0 ? (data.groups[i - 1] || '').replace(/^\d+\.\s*/, '') : '';
+            return (
+              <React.Fragment key={i}>
+                {g && g !== prevG && <div className="pp-fgrp">{g}</div>}
+                <div className="pp-fld-e">
+                  <label>{f}</label>
+                  <textarea rows={(editing.values[i] || '').length > 70 ? 3 : 1} value={editing.values[i] || ''}
+                    onChange={(e) => { const v = [...editing.values]; v[i] = e.target.value; setEditing({ ...editing, values: v }); }} />
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        <div className="pp-modal-f">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {editing.mode === 'edit' && <button className="pp-btn danger" disabled={saving} onClick={deleteCurrent}>Xóa</button>}
+            {saveErr && <span style={{ color: 'var(--red)', fontSize: 12 }}>{saveErr}</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="pp-btn" disabled={saving} onClick={() => setEditing(null)}>Hủy</button>
+            <button className="pp-btn primary" disabled={saving} onClick={saveEditing}>{saving ? 'Đang lưu…' : 'Lưu'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
+
+  if (loading) return <div className="ppx">{styleEl}<div className="pp-msg"><div className="pp-spin" />Đang tải hồ sơ sản phẩm…</div></div>;
+  if (err) return <div className="ppx">{styleEl}<div className="pp-msg">⚠️ {err}<br /><button className="pp-retry" onClick={load}>Thử lại</button></div></div>;
+  if (!data || products.length === 0) return <div className="ppx">{styleEl}{modalEl}<div className="pp-msg">Chưa có sản phẩm nào.{isAdmin && <><br /><button className="pp-retry" onClick={openAdd}>＋ Thêm sản phẩm</button></>}</div></div>;
 
   const cur = products[sel] || products[0];
   const gv = (i: number) => (i >= 0 ? cur.values[i] : '') || '';
 
   return (
     <div className="ppx">
-      <style dangerouslySetInnerHTML={{ __html: PP_CSS }} />
+      {styleEl}
       <div className="pp-app" ref={appRef}>
         {/* Danh sách sản phẩm */}
         <aside className="pp-side">
@@ -269,7 +363,11 @@ export default function ProductProfilePage() {
               <button className={'pp-tab' + (tab === 'detail' ? ' on' : '')} onClick={() => setTab('detail')}>Hồ sơ chi tiết</button>
               <button className={'pp-tab' + (tab === 'matrix' ? ' on' : '')} onClick={() => setTab('matrix')}>Ma trận dữ liệu</button>
             </div>
-            <button className="pp-sync" onClick={refresh} title="Bấm để đồng bộ ngay từ Google Sheet"><span className="d" /> Đồng bộ từ Sheet</button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {isAdmin && <button className="pp-btn primary" onClick={openAdd}>＋ Thêm sản phẩm</button>}
+              {isAdmin && <button className="pp-btn" onClick={openEdit}>✎ Sửa</button>}
+              <button className="pp-sync" onClick={refresh} title="Tải lại dữ liệu mới nhất"><span className="d" /> Làm mới</button>
+            </div>
           </div>
 
           {tab === 'detail' ? (
@@ -277,7 +375,7 @@ export default function ProductProfilePage() {
               <nav className="pp-toc">
                 <div className="h">Nội dung</div>
                 {bodyGroups.flatMap((g) => g.items).filter((it) => !isEmpty(cur.values[it.idx])).map((it) => (
-                  <a key={it.idx} href={'#' + slug(it.name)}>{prettyLabel(it.name)}</a>
+                  <a key={it.idx} href={'#f-' + it.idx}>{prettyLabel(it.name)}</a>
                 ))}
               </nav>
               <div className="pp-content">
@@ -308,7 +406,7 @@ export default function ProductProfilePage() {
                   <section className="pp-card" key={gi}>
                     <div className="pp-cardh"><span className="n">{gi + 1}</span><h3>{g.group}</h3></div>
                     <div className="pp-cardb">
-                      {visible.map((it) => <FieldBlock key={it.idx} name={it.name} value={cur.values[it.idx]} />)}
+                      {visible.map((it) => <FieldBlock key={it.idx} anchor={'f-' + it.idx} name={it.name} value={cur.values[it.idx]} />)}
                     </div>
                   </section>
                 );
@@ -349,6 +447,7 @@ export default function ProductProfilePage() {
           )}
         </div>
       </div>
+      {modalEl}
     </div>
   );
 }
@@ -368,14 +467,14 @@ function renderContent(lines: string[], raw: string) {
   return <div className="pp-val">{raw}</div>;
 }
 
-function FieldBlock({ name, value }: { name: string; value: string }) {
+function FieldBlock({ name, value, anchor }: { name: string; value: string; anchor: string }) {
   const v = (value || '').trim();
   if (isEmpty(v)) return null;
   const lines = v.split(/\n+/).map((s) => s.trim()).filter(Boolean);
 
   if (/keyword|từ khóa|hashtag/i.test(name)) {
     return (
-      <div className="pp-row" id={slug(name)}>
+      <div className="pp-row" id={anchor}>
         <div className="l">{name}</div>
         <div className="pp-tags">{lines.map((c, i) => <span className={'pp-tag' + (/hashtag/i.test(name) ? ' hash' : '')} key={i}>{c}</span>)}</div>
       </div>
@@ -384,7 +483,7 @@ function FieldBlock({ name, value }: { name: string; value: string }) {
   if (/claim/i.test(name)) {
     const no = /không được/i.test(name);
     return (
-      <div className={'pp-panel ' + (no ? 'red' : 'green')} id={slug(name)}>
+      <div className={'pp-panel ' + (no ? 'red' : 'green')} id={anchor}>
         <div className="l">{name}</div>
         <ul className="pp-clist">{lines.map((c, i) => <li key={i}>{c.replace(/^[✅❌•\-]\s*/, '')}</li>)}</ul>
       </div>
@@ -392,14 +491,14 @@ function FieldBlock({ name, value }: { name: string; value: string }) {
   }
   if (/lưu ý/i.test(name)) {
     return (
-      <div className="pp-panel amber" id={slug(name)}>
+      <div className="pp-panel amber" id={anchor}>
         <div className="l">{name}</div>
         <ul className="pp-clist">{lines.map((c, i) => <li key={i}>{c.replace(/^\d+[.)]\s*|^-\s*/, '')}</li>)}</ul>
       </div>
     );
   }
   return (
-    <div className="pp-row" id={slug(name)}>
+    <div className="pp-row" id={anchor}>
       <div className="l">{name}</div>
       <div className="v">{renderContent(lines, v)}</div>
     </div>

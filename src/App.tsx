@@ -914,7 +914,7 @@ function App() {
         );
 
       case ViewType.PRODUCT_PROFILE:
-        return <ProductProfilePage />;
+        return <ProductProfilePage employee={employee} />;
 
       case ViewType.PRODUCT_LIBRARY:
         return (
