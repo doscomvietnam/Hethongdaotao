@@ -453,7 +453,9 @@ export default function ProductProfilePage({ employee }: { employee?: Employee }
 }
 
 // ── Field renderer (special cases: claim / lưu ý / chips) ────────────────────
-const NUM_RE = /^(?:bước\s*\d+\s*[:.)]?\s*|\d+\s*[.)]\s*)/i;
+// Số thứ tự: "Bước N…" hoặc số 1–2 chữ số + dấu . ) rồi PHẢI có khoảng trắng.
+// (Yêu cầu ≤2 chữ số + khoảng trắng để không bắt nhầm giá kiểu VN: "109.000", "150.000".)
+const NUM_RE = /^(?:bước\s*\d+\s*[:.)]?\s+|\d{1,2}[.)]\s+)/i;
 const BUL_RE = /^[-•+*◆·]\s+/;
 const DEF_RE = /^([^:]{2,52}):\s+(.+)$/;
 const isMajority = (lines: string[], re: RegExp) => lines.length >= 2 && lines.filter((l) => re.test(l)).length >= Math.ceil(lines.length * 0.6);
