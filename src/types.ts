@@ -3,6 +3,7 @@ export enum ViewType {
   PRODUCT_LIBRARY = 'product-library',
   PRODUCT_DETAIL = 'product-detail',
   PRODUCT_PROFILE = 'product-profile',
+  COMPANY_PROFILE = 'company-profile',
   COURSE_CATALOG = 'course-catalog',
   COURSE_DETAIL = 'course-detail',
   QUIZ = 'quiz',

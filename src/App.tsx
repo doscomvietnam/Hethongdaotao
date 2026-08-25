@@ -4,6 +4,7 @@ import Dashboard from "./components/dashboard";
 import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard";
 import OverviewTabs from "./components/dashboard/OverviewTabs";
 import ProductProfilePage from "./components/product-profile/ProductProfilePage";
+import CompanyProfilePage from "./components/company-profile/CompanyProfilePage";
 import ProductModule from "./components/product";
 import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
 import BadgesPage from "./components/gamification/BadgesPage";
@@ -83,6 +84,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.PRODUCT_LIBRARY]: '/products',
   [ViewType.PRODUCT_DETAIL]: '/products',   // + /:id
   [ViewType.PRODUCT_PROFILE]: '/product-profile',
+  [ViewType.COMPANY_PROFILE]: '/company-profile',
   [ViewType.COURSE_CATALOG]: '/courses',
   [ViewType.COURSE_DETAIL]: '/courses',     // + /:id
   [ViewType.QUIZ]: '/quiz',
@@ -117,6 +119,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.PRODUCT_LIBRARY };
     case 'product-profile':
       return { view: ViewType.PRODUCT_PROFILE };
+    case 'company-profile':
+      return { view: ViewType.COMPANY_PROFILE };
     case 'courses':
       if (segments[1]) return { view: ViewType.COURSE_DETAIL, courseId: segments[1] };
       return { view: ViewType.COURSE_CATALOG };
@@ -573,6 +577,11 @@ function App() {
       case "product-profile":
         setCurrentView(ViewType.PRODUCT_PROFILE);
         break;
+      case "company-profile":
+        setCurrentView(ViewType.COMPANY_PROFILE);
+        // Đồng bộ dữ liệu khóa học để có tài liệu mới nhất
+        initData(true);
+        break;
       case "courses":
         setSelectedCourseId(null);
         setCurrentView(ViewType.COURSE_CATALOG);
@@ -915,6 +924,15 @@ function App() {
 
       case ViewType.PRODUCT_PROFILE:
         return <ProductProfilePage employee={employee} />;
+
+      case ViewType.COMPANY_PROFILE:
+        return (
+          <CompanyProfilePage
+            courses={courses}
+            employee={employee}
+            onManage={() => handleNavigate("admin")}
+          />
+        );
 
       case ViewType.PRODUCT_LIBRARY:
         return (
