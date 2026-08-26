@@ -70,6 +70,13 @@ export const CHEST_CERTIFICATES: {
     courseName: 'Các bước triển khai hệ thống kinh doanh chuyên nghiệp và hiệu quả',
     badgeLabel: 'Chứng nhận: Triển khai HTKD',
   },
+  {
+    courseId: 'C_CEO_KN_B7',
+    badgeId: 'cert_ceo_startup',
+    minScore: 80,
+    courseName: 'Để Khởi Nghiệp Thành Công',
+    badgeLabel: 'Chứng nhận: Khởi nghiệp thành công',
+  },
 ];
 
 // Tra chứng nhận theo courseId (dùng khi mở giấy chứng nhận lúc đạt quiz)

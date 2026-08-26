@@ -599,17 +599,21 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
   const [videoWatchProgress, setVideoWatchProgress] = React.useState(() => Math.max(getVideoProgress(course.id, userId), course.videoProgress || 0));
   const [isWatching, setIsWatching] = React.useState(false);
 
-  // Video-only: xem đủ ~3 phút (180s) → TỰ đánh dấu hoàn thành, không cần bấm nút
+  // Video-only: TỰ đánh dấu hoàn thành khi xem gần hết video, không cần bấm nút.
+  // Có thời lượng thật (video_duration_seconds) → phải xem ~90%.
+  // Khóa CHƯA set thời lượng → giữ mốc cũ 30% (=180s của 600s) để không bị kẹt không hoàn thành được.
   React.useEffect(() => {
     if (!hasVideo || hasQuiz) return;
     if (course.isCompleted || videoWatchProgress >= 100) return;
-    if (Math.round(videoWatchProgress * 6) >= 180) {
+    const hasDur = Boolean(course.videoDurationSeconds && course.videoDurationSeconds > 0);
+    const completeAtPct = hasDur ? 90 : 30;
+    if (videoWatchProgress >= completeAtPct) {
       setVideoWatchProgress(100);
       setVideoProgress(course.id, 100, userId);
       if (employeeId) upsertVideoProgress(employeeId, course.id, 100);
       onSlideCompleted?.(course.id);
     }
-  }, [videoWatchProgress, hasVideo, hasQuiz, course.isCompleted, course.id, userId, employeeId, onSlideCompleted]);
+  }, [videoWatchProgress, hasVideo, hasQuiz, course.isCompleted, course.id, course.videoDurationSeconds, userId, employeeId, onSlideCompleted]);
   const videoTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
   const iframeContainerRef = React.useRef<HTMLDivElement>(null);
   const supabaseSyncRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
