@@ -127,7 +127,9 @@ function buildSummaryKey(row: any): string {
 
 // ── Build record fields cho bảng course_summary ─────────────────────────
 function buildRecordFields(row: any, _index: number): Record<string, any> {
-  const hasQuiz = Boolean(row.courses?.quiz_id);
+  // "Có quiz" khi khóa gắn quiz_id HOẶC đã có điểm quiz thực tế (vd quiz "hộp quà"
+  // cuối lộ trình — liên kết qua quizzes.course_id, không gắn vào courses.quiz_id).
+  const hasQuiz = Boolean(row.courses?.quiz_id) || row.quiz_score != null;
   const hasVideo = Boolean(row.courses?.video_url);
   const videoProg = row.video_progress || 0;
   const isSlideOnly = !hasVideo && !hasQuiz;

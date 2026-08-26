@@ -58,6 +58,25 @@ export interface EarnedBadge extends BadgeDef {
   earned: boolean;
 }
 
+// Chứng nhận hoàn thành khóa nhỏ: đạt bài kiểm tra "hộp quà" cuối lộ trình.
+// Thêm khóa nhỏ mới có kiểm tra → thêm 1 dòng ở đây (badgeId bắt đầu bằng "cert_").
+export const CHEST_CERTIFICATES: {
+  courseId: string; badgeId: string; minScore: number; courseName: string; badgeLabel: string;
+}[] = [
+  {
+    courseId: 'C_CEO_TG_03',
+    badgeId: 'cert_ceo_business_system',
+    minScore: 80,
+    courseName: 'Các bước triển khai hệ thống kinh doanh chuyên nghiệp và hiệu quả',
+    badgeLabel: 'Chứng nhận: Triển khai HTKD',
+  },
+];
+
+// Tra chứng nhận theo courseId (dùng khi mở giấy chứng nhận lúc đạt quiz)
+export function getCertificateForCourse(courseId: string) {
+  return CHEST_CERTIFICATES.find((c) => c.courseId === courseId) || null;
+}
+
 export const BADGE_DEFS: BadgeDef[] = [
   { id: 'streak_3',     icon: '🔥', label: '3 ngày lửa',          desc: 'Làm quiz 3 ngày liên tiếp' },
   { id: 'streak_7',     icon: '⚡', label: '7 ngày sấm sét',       desc: 'Làm quiz 7 ngày liên tiếp' },
@@ -69,6 +88,10 @@ export const BADGE_DEFS: BadgeDef[] = [
   { id: 'onboarding',   icon: '🎓', label: 'Nhân viên chính thức', desc: 'Vượt qua bài kiểm tra onboarding' },
   { id: 'xp_1000',      icon: '⭐', label: '1,000 XP',             desc: 'Tích lũy 1,000 XP' },
   { id: 'xp_5000',      icon: '🏆', label: '5,000 XP',             desc: 'Tích lũy 5,000 XP' },
+  ...CHEST_CERTIFICATES.map((c) => ({
+    id: c.badgeId, icon: '📜', label: c.badgeLabel,
+    desc: `Đạt bài kiểm tra cuối khóa ${c.courseName}`,
+  })),
 ];
 
 interface BadgeStats {
@@ -78,6 +101,7 @@ interface BadgeStats {
   passedOnboarding: boolean;
   totalXP: number;
   salePathComplete?: boolean;
+  certificateBadgeIds?: Set<string>;   // các huy hiệu chứng nhận đã đạt
 }
 
 function computeBadges(stats: BadgeStats): EarnedBadge[] {
@@ -94,6 +118,7 @@ function computeBadges(stats: BadgeStats): EarnedBadge[] {
       case 'onboarding':   earned = stats.passedOnboarding; break;
       case 'xp_1000':      earned = stats.totalXP >= 1000; break;
       case 'xp_5000':      earned = stats.totalXP >= 5000; break;
+      default:             earned = stats.certificateBadgeIds?.has(def.id) ?? false; break;
     }
     return { ...def, earned };
   });
@@ -139,6 +164,7 @@ export interface EmployeeGamificationData {
   passedOnboarding: boolean;
   coursesCompleted: number;
   hasPerfectQuiz: boolean;
+  certificates: { badgeId: string; courseName: string; score: number; date: string }[];
 }
 
 export async function getEmployeeGamificationData(employeeId: string): Promise<EmployeeGamificationData> {
@@ -210,9 +236,25 @@ export async function getEmployeeGamificationData(employeeId: string): Promise<E
   const monthXP = monthDailyXP + monthCourseXP;
   const streak = calcStreak(dateSet, todayVN);
   const level = getLevelInfo(totalXP);
-  const badges = computeBadges({ streak, hasPerfectQuiz, coursesCompleted, passedOnboarding, totalXP, salePathComplete });
+  // Chứng nhận khóa nhỏ: đạt bài kiểm tra "hộp quà" (quiz_score >= ngưỡng của khóa đó)
+  const certificateBadgeIds = new Set<string>();
+  const certificates: EmployeeGamificationData['certificates'] = [];
+  for (const cert of CHEST_CERTIFICATES) {
+    const row: any = courseRows.find((r: any) => r.course_id === cert.courseId && (r.quiz_score ?? 0) >= cert.minScore);
+    if (row) {
+      certificateBadgeIds.add(cert.badgeId);
+      certificates.push({
+        badgeId: cert.badgeId,
+        courseName: cert.courseName,
+        score: Math.round(row.quiz_score ?? 0),
+        date: row.quiz_completed_at ? new Date(row.quiz_completed_at).toLocaleDateString('vi-VN') : '',
+      });
+    }
+  }
 
-  return { totalXP, monthXP, streak, level, badges, passedOnboarding, coursesCompleted, hasPerfectQuiz };
+  const badges = computeBadges({ streak, hasPerfectQuiz, coursesCompleted, passedOnboarding, totalXP, salePathComplete, certificateBadgeIds });
+
+  return { totalXP, monthXP, streak, level, badges, passedOnboarding, coursesCompleted, hasPerfectQuiz, certificates };
 }
 
 // ─── Leaderboard ──────────────────────────────────────────────────────────────

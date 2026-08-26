@@ -8,6 +8,8 @@ import CompanyProfilePage from "./components/company-profile/CompanyProfilePage"
 import ProductModule from "./components/product";
 import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
 import BadgesPage from "./components/gamification/BadgesPage";
+import CertificateModal from "./components/gamification/CertificateModal";
+import { getCertificateForCourse } from "./services/gamificationService";
 import PracticePage from "./components/practice/PracticePage";
 import LearningPathPage from "./components/learning-path/LearningPathPage";
 import QuizView from "./components/course/QuizView";
@@ -209,6 +211,7 @@ function App() {
   // Exam wheel state
   const [examBrand, setExamBrand] = React.useState<'Doscom' | 'Noma' | null>(null);
   const [quizReturnView, setQuizReturnView] = React.useState<ViewType | null>(null);
+  const [certificate, setCertificate] = React.useState<{ name: string; courseName: string; score: number; date: string } | null>(null);
 
   // Onboarding test: true = đang trong màn làm bài, false = hub page
   const [onboardingTestActive, setOnboardingTestActive] = React.useState(false);
@@ -709,6 +712,13 @@ function App() {
       initData(true);
       return;
     }
+    // Nếu quiz được mở từ hộp quà Lộ trình học → quay lại Lộ trình
+    if (quizReturnView === ViewType.LEARNING_PATH) {
+      setQuizReturnView(null);
+      setCurrentView(ViewType.LEARNING_PATH);
+      initData(true);
+      return;
+    }
     setQuizReturnView(null);
     setCurrentView(ViewType.COURSE_DETAIL);
   };
@@ -775,16 +785,35 @@ function App() {
     });
   }, [refreshDashboard]);
 
+  // Đạt bài kiểm tra "hộp quà" cuối lộ trình → hiện giấy chứng nhận (huy hiệu tự ghi nhận qua training_progress)
+  const maybeShowCertificate = (result: QuizResult) => {
+    if (quizReturnView !== ViewType.LEARNING_PATH || !result.passed || !selectedCourseId) return;
+    const cert = getCertificateForCourse(selectedCourseId);
+    if (!cert) return;
+    setCertificate({
+      name: employee?.full_name || '',
+      courseName: cert.courseName,
+      score: result.score,
+      date: new Date().toLocaleDateString('vi-VN'),
+    });
+  };
+
   const handleQuizComplete = async (result: QuizResult) => {
     await persistQuizResult(result);
+    maybeShowCertificate(result);
     setActiveQuiz(null);
-    setCurrentView(ViewType.COURSE_DETAIL);
+    const back = quizReturnView === ViewType.LEARNING_PATH ? ViewType.LEARNING_PATH : ViewType.COURSE_DETAIL;
+    setQuizReturnView(null);
+    setCurrentView(back);
   };
 
   const handleQuizFinishAndExit = async (result: QuizResult) => {
     await persistQuizResult(result);
+    maybeShowCertificate(result);
     setActiveQuiz(null);
-    setCurrentView(ViewType.COURSE_DETAIL);
+    const back = quizReturnView === ViewType.LEARNING_PATH ? ViewType.LEARNING_PATH : ViewType.COURSE_DETAIL;
+    setQuizReturnView(null);
+    setCurrentView(back);
   };
 
   // ============================================================
@@ -919,6 +948,11 @@ function App() {
             courses={courses}
             onCourseClick={(course: Course) => handleOpenCourse(course.id)}
             employee={employee}
+            onOpenQuiz={(course: Course) => {
+              setSelectedCourseId(course.id);
+              setQuizReturnView(ViewType.LEARNING_PATH);
+              handleStartQuiz(undefined, course.id);
+            }}
           />
         );
 
@@ -1179,6 +1213,17 @@ function App() {
           isForced={false}
           onSuccess={handlePasswordChangeSuccess}
           onClose={() => setShowChangePassword(false)}
+        />
+      )}
+
+      {/* Giấy chứng nhận hoàn thành khóa nhỏ (đạt bài kiểm tra hộp quà) */}
+      {certificate && (
+        <CertificateModal
+          name={certificate.name}
+          courseName={certificate.courseName}
+          score={certificate.score}
+          date={certificate.date}
+          onClose={() => setCertificate(null)}
         />
       )}
 

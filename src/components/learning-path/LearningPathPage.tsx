@@ -12,6 +12,7 @@ interface LearningPathPageProps {
   courses: Course[];
   onCourseClick: (course: Course) => void;
   employee: Employee;
+  onOpenQuiz?: (course: Course) => void;   // mở bài kiểm tra "hộp quà" cuối lộ trình
 }
 
 // Độ lệch ngang zig-zag cho con đường uốn lượn (lặp lại)
@@ -37,8 +38,10 @@ interface WindingPathProps {
   viewOnly: boolean;
   onOpenCourse: (id: string) => void;
   onOpenChest: () => void;
+  quizCourse: Course | null;               // bài cuối có gắn bài kiểm tra (nếu có)
+  onOpenQuiz?: (course: Course) => void;    // mở bài kiểm tra từ hộp quà
 }
-function WindingPath({ courses, lockedIds, allDone, viewOnly, onOpenCourse, onOpenChest }: WindingPathProps) {
+function WindingPath({ courses, lockedIds, allDone, viewOnly, onOpenCourse, onOpenChest, quizCourse, onOpenQuiz }: WindingPathProps) {
   const pathRef = React.useRef<HTMLDivElement>(null);
   const capRefs = React.useRef<Map<string, HTMLElement>>(new Map());
   const [pathD, setPathD] = React.useState('');
@@ -112,21 +115,35 @@ function WindingPath({ courses, lockedIds, allDone, viewOnly, onOpenCourse, onOp
         <button
           className={`lp-node lp-chest ${allDone ? 'lp-chest-on' : 'lp-chest-off'}`}
           disabled={!allDone || viewOnly}
-          onClick={() => { if (allDone && !viewOnly) onOpenChest(); }}
-          title={allDone ? 'Mở rương phần thưởng' : 'Hoàn thành hết các bài để mở'}
+          onClick={() => {
+            if (!allDone || viewOnly) return;
+            if (quizCourse && onOpenQuiz) onOpenQuiz(quizCourse);
+            else onOpenChest();
+          }}
+          title={!allDone ? 'Hoàn thành hết các bài để mở' : (quizCourse ? 'Làm bài kiểm tra cuối' : 'Mở rương phần thưởng')}
         >
-          <span className="lp-cap" ref={el => { if (el) capRefs.current.set('__chest__', el); else capRefs.current.delete('__chest__'); }}>🎁</span>
+          <span className="lp-cap" ref={el => { if (el) capRefs.current.set('__chest__', el); else capRefs.current.delete('__chest__'); }}>{quizCourse ? '📝' : '🎁'}</span>
         </button>
         <div className={`lp-label ${allDone ? '' : 'lp-mut'}`}>
-          <span className="lp-bai">{allDone ? 'Phần thưởng' : 'Chốt lộ trình'}</span>
-          <span className="lp-ttl">{allDone ? 'Mở rương ăn mừng!' : 'Hoàn thành hết bài để mở'}</span>
+          <span className="lp-bai">{allDone ? (quizCourse ? 'Bài kiểm tra' : 'Phần thưởng') : 'Chốt lộ trình'}</span>
+          <span className="lp-ttl">{allDone ? (quizCourse ? 'Làm bài kiểm tra cuối' : 'Mở rương ăn mừng!') : (quizCourse ? 'Hoàn thành hết bài để mở bài kiểm tra' : 'Hoàn thành hết bài để mở')}</span>
         </div>
       </div>
     </div>
   );
 }
 
-export default function LearningPathPage({ courses, onCourseClick, employee }: LearningPathPageProps) {
+export default function LearningPathPage({ courses, onCourseClick, employee, onOpenQuiz }: LearningPathPageProps) {
+  // Các course_id có bài kiểm tra (để hộp quà cuối lộ trình biến thành nút làm bài)
+  const [quizCourseIds, setQuizCourseIds] = React.useState<Set<string>>(new Set());
+  React.useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from('quizzes').select('course_id').eq('status', 'active');
+      if (alive && data) setQuizCourseIds(new Set(data.map((r: any) => r.course_id).filter(Boolean)));
+    })();
+    return () => { alive = false; };
+  }, []);
   // Chỉ admin xem được tất cả phòng (có tab chọn phòng); manager & nhân viên chỉ thấy phòng của mình.
   const isAdmin = employee.role === 'admin';
 
@@ -190,6 +207,12 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
   const doneCount = pathCourses.filter(c => c.isCompleted).length;
   const pct = total ? Math.round(doneCount / total * 100) : 0;
   const allDone = total > 0 && doneCount === total;
+  // Bài kiểm tra "hộp quà" cuối lộ trình: quiz có trong bảng quizzes NHƯNG
+  // KHÔNG gắn vào courses.quiz_id (để phân biệt với quiz theo từng bài như khóa Sale).
+  const quizCourse = React.useMemo(
+    () => pathCourses.find(c => quizCourseIds.has(c.id) && !c.quizId) || null,
+    [pathCourses, quizCourseIds],
+  );
 
   // Chúc mừng theo đúng khóa nhỏ/bộ đang học; chỉ Sale thực chiến có huy hiệu riêng.
   const celebrateLabel = subCourses.length > 1 ? activeSub : activeSeries;
@@ -263,6 +286,8 @@ export default function LearningPathPage({ courses, onCourseClick, employee }: L
           viewOnly={isViewOnly}
           onOpenCourse={handleOpen}
           onOpenChest={() => setShowCelebrate(true)}
+          quizCourse={quizCourse}
+          onOpenQuiz={onOpenQuiz}
         />
       ) : (
         <div className="lp-empty">
