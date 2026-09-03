@@ -10,6 +10,13 @@ function isoToVNDateLocal(iso: string | null | undefined): string | null {
 }
 
 /** Lấy tất cả ngày nhân viên đã nộp bài (quiz khóa học + bài kiểm tra hằng ngày) trong 1 tháng */
+// Cận trên an toàn cho 1 tháng: đầu tháng SAU (luôn hợp lệ) — tránh ngày không tồn tại
+// như 2026-09-31 gây lỗi "date/time field value out of range" trên cột DATE.
+function firstDayOfNextMonth(yearMonth: string): string {
+  const [y, m] = yearMonth.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+}
+
 export async function getQuizSubmissionsForMonth(
   yearMonth: string,
 ): Promise<Map<string, Set<string>>> {
@@ -23,7 +30,7 @@ export async function getQuizSubmissionsForMonth(
       .from('daily_tests')
       .select('employee_id, test_date')
       .gte('test_date', `${yearMonth}-01`)
-      .lte('test_date', `${yearMonth}-31`)
+      .lt('test_date', firstDayOfNextMonth(yearMonth))
       .eq('status', 'submitted'),
   ]);
 
@@ -73,12 +80,11 @@ export async function getAttendanceEmployees(): Promise<AttendanceEmployee[]> {
 // Lấy ngày lễ trong tháng (YYYY-MM)
 export async function getHolidays(yearMonth: string): Promise<Set<string>> {
   const from = `${yearMonth}-01`;
-  const to   = `${yearMonth}-31`;
   const { data, error } = await supabase
     .from('company_holidays')
     .select('date')
     .gte('date', from)
-    .lte('date', to);
+    .lt('date', firstDayOfNextMonth(yearMonth));
   if (error) throw error;
   return new Set((data || []).map((r: any) => r.date as string));
 }
@@ -103,12 +109,11 @@ export async function toggleHoliday(date: string): Promise<boolean> {
 // Lấy nghỉ cá nhân trong tháng → Map<employee_id, Set<date>>
 export async function getAbsences(yearMonth: string): Promise<Map<string, Set<string>>> {
   const from = `${yearMonth}-01`;
-  const to   = `${yearMonth}-31`;
   const { data, error } = await supabase
     .from('employee_absences')
     .select('employee_id, date')
     .gte('date', from)
-    .lte('date', to);
+    .lt('date', firstDayOfNextMonth(yearMonth));
   if (error) throw error;
   const map = new Map<string, Set<string>>();
   for (const r of data || []) {
