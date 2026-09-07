@@ -77,6 +77,22 @@ export const CHEST_CERTIFICATES: {
     courseName: 'Để Khởi Nghiệp Thành Công',
     badgeLabel: 'Chứng nhận: Khởi nghiệp thành công',
   },
+  {
+    courseId: 'C_CEO_TI_23',
+    badgeId: 'cert_ceo_mindset',
+    minScore: 80,
+    courseName: 'Chuyển hóa Tâm thức',
+    badgeLabel: 'Chứng nhận: Chuyển hóa Tâm thức',
+  },
+  { courseId: 'C_CEO_QT_53', badgeId: 'cert_ceo_qt', minScore: 80, courseName: 'Giám đốc điều hành-CEO Quản trị', badgeLabel: 'Chứng nhận: CEO Quản trị' },
+  { courseId: 'C_CEO_TF_59', badgeId: 'cert_ceo_tf', minScore: 80, courseName: 'Trưởng phòng Sales NPP', badgeLabel: 'Chứng nhận: Trưởng phòng Sales NPP' },
+  { courseId: 'C_CEO_TB_41', badgeId: 'cert_ceo_tb', minScore: 80, courseName: 'Giám Đốc Khởi Nghiệp - CEO Beginner', badgeLabel: 'Chứng nhận: CEO Beginner' },
+  { courseId: 'C_CEO_TE_58', badgeId: 'cert_ceo_te', minScore: 80, courseName: 'Trưởng phòng Sales bán lẻ', badgeLabel: 'Chứng nhận: Trưởng phòng Sales bán lẻ' },
+  { courseId: 'C_CEO_TA_48', badgeId: 'cert_ceo_ta', minScore: 80, courseName: 'Giám Đốc Nhân Sự - CHRO', badgeLabel: 'Chứng nhận: Giám đốc Nhân sự (CHRO)' },
+  { courseId: 'C_CEO_TC_20', badgeId: 'cert_ceo_tc', minScore: 80, courseName: 'Xây dựng hồ sơ gọi vốn', badgeLabel: 'Chứng nhận: Hồ sơ gọi vốn' },
+  { courseId: 'C_CEO_TD_32', badgeId: 'cert_ceo_td', minScore: 80, courseName: 'Lộ trình xây dựng và phát triển Startup', badgeLabel: 'Chứng nhận: Lộ trình Startup' },
+  { courseId: 'C_CEO_TH_33', badgeId: 'cert_ceo_th', minScore: 80, courseName: 'Huấn luyện Startup ABNR', badgeLabel: 'Chứng nhận: Huấn luyện Startup ABNR' },
+  { courseId: 'C_CEO_SD_49', badgeId: 'cert_ceo_sd', minScore: 80, courseName: 'Giám Đốc Kinh Doanh - CCO', badgeLabel: 'Chứng nhận: Giám đốc Kinh doanh (CCO)' },
 ];
 
 // Tra chứng nhận theo courseId (dùng khi mở giấy chứng nhận lúc đạt quiz)

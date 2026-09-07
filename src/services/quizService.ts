@@ -65,6 +65,7 @@ export async function getQuizzes(): Promise<Quiz[]> {
             questions,
             maxAttempts: parseInt(q.max_attempts) || 3,
             passScore: parseInt(q.pass_score) || 80,
+            numToServe: parseInt(q.total_questions) || questions.length,
         } as Quiz;
     });
 }

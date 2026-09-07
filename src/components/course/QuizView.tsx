@@ -38,7 +38,11 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
   const [answers, setAnswers] = React.useState<number[]>([]);
   const [isFinished, setIsFinished] = React.useState(false);
   const [shuffledQuestions] = React.useState(() => {
-    return [...quiz.questions].sort(() => Math.random() - 0.5);
+    const shuffled = [...quiz.questions].sort(() => Math.random() - 0.5);
+    // Nếu quiz cấu hình phục vụ ít câu hơn ngân hàng (total_questions) → random tập con khác nhau mỗi lần/mỗi người
+    const n = quiz.numToServe && quiz.numToServe > 0 && quiz.numToServe < shuffled.length
+      ? quiz.numToServe : shuffled.length;
+    return shuffled.slice(0, n);
   });
 
   // ── Countdown Timer (10 minutes) ──────────────────────────────────────

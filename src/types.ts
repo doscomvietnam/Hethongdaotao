@@ -109,6 +109,7 @@ export interface Quiz {
   questions: QuizQuestion[];
   maxAttempts: number;
   passScore: number;
+  numToServe?: number;   // số câu phục vụ mỗi lần (total_questions); nếu < số câu ngân hàng → random tập con
 }
 
 export interface Course {
