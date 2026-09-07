@@ -34,11 +34,11 @@ import type { User } from "@supabase/supabase-js";
 
 import { getProducts } from "./services/productService";
 import { getCourses } from "./services/courseService";
-import { computeLockedLessonIds } from "./services/sequentialCourseHelpers";
+import { computeLockedLessonIds, sortByLessonNumber } from "./services/sequentialCourseHelpers";
 import { supabase } from "./services/supabaseClient";
 import { getQuizById, getQuizByCourseId } from "./services/quizService";
 import { getDashboardSummary } from "./services/dashboardService";
-import { saveQuizResult as saveQuizToSupabase } from "./services/trainingProgressService";
+import { saveQuizResult as saveQuizToSupabase, hasCompletedQuiz } from "./services/trainingProgressService";
 import { pushSingleRowToLark } from "./services/larkSyncService";
 import {
   getSession,
@@ -426,6 +426,16 @@ function App() {
     [courses, selectedCourseId]
   );
 
+  // Bài kế tiếp trong cùng khóa nhỏ (brand + category) theo số bài → cho nút "Bài tiếp theo"
+  const nextCourse = React.useMemo(() => {
+    if (!selectedCourse) return null;
+    const siblings = sortByLessonNumber(
+      courses.filter(c => c.brand === selectedCourse.brand && (c.category || '') === (selectedCourse.category || '')),
+    );
+    const idx = siblings.findIndex(c => c.id === selectedCourse.id);
+    return idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+  }, [courses, selectedCourse]);
+
   const lockedLessonIds = React.useMemo(() => computeLockedLessonIds(courses), [courses]);
 
   const refreshDashboard = React.useCallback(async (courseData?: Course[]) => {
@@ -675,6 +685,15 @@ function App() {
         return;
       }
       const maxAttempts = targetCourseId ? getQuizMaxAttempts(targetCourseId) : 1;
+      // Quiz chỉ 1 lượt → chặn chắc chắn ở SERVER: đã có kết quả trong training_progress = đã làm rồi,
+      // không cho làm lại dù xóa cache/đổi máy. (NOMA nhiều lượt vẫn theo gate localStorage bên dưới.)
+      if (targetCourseId && maxAttempts <= 1 && employee?.id) {
+        const already = await hasCompletedQuiz(employee.id, targetCourseId);
+        if (already) {
+          alert('Bạn đã làm bài kiểm tra này rồi — chỉ được làm 1 lần.');
+          return;
+        }
+      }
       if (targetCourseId && getQuizAttempts(targetCourseId, userId) >= maxAttempts) {
         alert(`Bạn đã sử dụng hết lượt làm bài kiểm tra (${maxAttempts}/${maxAttempts}). Không thể làm lại.`);
         return;
@@ -1032,6 +1051,8 @@ function App() {
             onBack={handleBackToCourses}
             onStartQuiz={(quizId?: string) => handleStartQuiz(quizId)}
             onSlideCompleted={handleSlideCompleted}
+            nextCourse={nextCourse}
+            onNext={() => nextCourse && handleOpenCourse(nextCourse.id)}
           />
         );
 

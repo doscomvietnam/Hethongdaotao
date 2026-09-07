@@ -5,6 +5,20 @@
  */
 import { supabase } from './supabaseClient';
 
+/**
+ * Đã có KẾT QUẢ bài kiểm tra của khóa này chưa (server-side, đúng qua mọi máy/trình duyệt).
+ * Dùng để chặn làm lại quiz chỉ-1-lượt (khác với đã xem video: video xong nhưng chưa làm quiz vẫn trả false).
+ */
+export async function hasCompletedQuiz(employeeId: string, courseId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from('training_progress')
+    .select('quiz_completed_at, quiz_score')
+    .eq('employee_id', employeeId)
+    .eq('course_id', courseId)
+    .maybeSingle();
+  return Boolean(data && (data.quiz_completed_at || data.quiz_score != null));
+}
+
 // ── Upsert video progress ───────────────────────────────────────────────
 export async function upsertVideoProgress(employeeId: string, courseId: string, progress: number) {
   try {

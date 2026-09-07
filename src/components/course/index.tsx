@@ -29,8 +29,10 @@ import { SEQUENTIAL_PATH_BRANDS, sortByLessonNumber, findCurrentLessonId, comput
 const NOMA_QUIZ_MAX_ATTEMPTS = 3;
 const NOMA_RETRY_PASS_THRESHOLD = 80;
 
-export function getQuizMaxAttempts(courseId: string): number {
-  return NOMA_ROLLOUT_COURSE_IDS.includes(courseId) ? NOMA_QUIZ_MAX_ATTEMPTS : 1;
+// TẤT CẢ bài kiểm tra chỉ 1 lượt. Việc chặn làm lại còn được cưỡng chế server-side
+// (hasCompletedQuiz) trong handleStartQuiz nên đúng qua mọi máy/trình duyệt.
+export function getQuizMaxAttempts(_courseId: string): number {
+  return 1;
 }
 
 /** Đã đạt đủ điểm (≥80) ở khóa NOMA rồi thì không được làm lại nữa, dù chưa hết lượt */
@@ -567,9 +569,11 @@ interface CourseDetailProps {
   onBack: () => void;
   onStartQuiz: (quizId?: string) => void;
   onSlideCompleted?: (courseId: string) => void;
+  nextCourse?: Course | null;   // bài kế tiếp trong cùng khóa nhỏ (để hiện nút "Bài tiếp theo")
+  onNext?: () => void;
 }
 
-export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, onSlideCompleted }: CourseDetailProps) => {
+export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, onSlideCompleted, nextCourse, onNext }: CourseDetailProps) => {
   // Auto-select initial tab based on available content
   const [activeTab, setActiveTab] = React.useState<'video' | 'slide'>(
     course.videoUrl ? 'video' : 'slide'
@@ -1099,6 +1103,20 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
 
         </section>
 
+        {/* Nút chuyển sang bài tiếp theo (hiện khi đã hoàn thành bài này) */}
+        {nextCourse && onNext && (course.isCompleted || videoWatchProgress >= 100) && (
+          <div className="flex justify-center">
+            <button
+              onClick={onNext}
+              className="group inline-flex items-center gap-3 px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white font-black uppercase tracking-widest text-xs shadow-2xl shadow-emerald-500/30 hover:-translate-y-0.5 transition-all max-w-full"
+              title={nextCourse.title}
+            >
+              <span className="truncate max-w-[70vw] sm:max-w-md normal-case">Bài tiếp theo: {nextCourse.title}</span>
+              <ArrowRight className="w-4 h-4 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
+            </button>
+          </div>
+        )}
+
         {/* BÀI KIỂM TRA — ẩn với Doscom và Noma, dùng menu Kiểm tra thay thế */}
         {showQuizSection && (
           <section className="space-y-10">
@@ -1195,9 +1213,11 @@ interface CourseModuleProps {
   onStartQuiz?: (quizId?: string) => void;
   onSlideCompleted?: (courseId: string) => void;
   initialGroup?: 'product' | 'general' | 'department' | null;
+  nextCourse?: Course | null;
+  onNext?: () => void;
 }
 
-export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz, onSlideCompleted, initialGroup }: CourseModuleProps) {
+export default function CourseModule({ mode, courses = [], course, userId = '', employeeId, onSelectCourse, onBack, onStartQuiz, onSlideCompleted, initialGroup, nextCourse, onNext }: CourseModuleProps) {
   if (mode === 'detail' && course) {
     return (
       <CourseDetail
@@ -1207,6 +1227,8 @@ export default function CourseModule({ mode, courses = [], course, userId = '', 
         onBack={onBack || (() => { })}
         onStartQuiz={onStartQuiz || (() => { })}
         onSlideCompleted={onSlideCompleted}
+        nextCourse={nextCourse}
+        onNext={onNext}
       />
     );
   }
