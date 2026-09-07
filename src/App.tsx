@@ -1044,6 +1044,7 @@ function App() {
 
         return (
           <CourseModule
+            key={selectedCourse.id}
             mode="detail"
             course={selectedCourse}
             userId={employee.auth_user_id}
