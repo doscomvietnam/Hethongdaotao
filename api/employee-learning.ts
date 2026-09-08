@@ -1,8 +1,8 @@
 /**
  * Vercel Serverless Function — API ĐỌC dữ liệu học tập của nhân viên (dùng cho app HR khác)
  *
- *  Xác thực: gửi kèm token bí mật ở header  `x-api-key: <HR_API_TOKEN>`  (hoặc ?token=...)
- *            Token đặt trong biến môi trường Vercel: HR_API_TOKEN
+ *  Xác thực: gửi kèm token bí mật ở header  `x-api-key: <OPS_API_TOKEN>`  (hoặc ?token=...)
+ *            Token đặt trong biến môi trường Vercel: OPS_API_TOKEN
  *
  *  GET /api/employee-learning?email=an@cty.com     → chi tiết học tập 1 nhân viên (kèm danh sách khóa)
  *  GET /api/employee-learning?employee_id=<uuid>   → như trên, tra theo id
@@ -94,8 +94,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Chỉ hỗ trợ GET (API chỉ đọc)' });
 
   // ---- Xác thực token ----
-  const serverToken = process.env.HR_API_TOKEN;
-  if (!serverToken) return res.status(500).json({ error: 'Server chưa cấu hình HR_API_TOKEN' });
+  const serverToken = process.env.OPS_API_TOKEN;
+  if (!serverToken) return res.status(500).json({ error: 'Server chưa cấu hình OPS_API_TOKEN' });
   const given = (req.headers['x-api-key'] as string) || (req.query.token as string) || '';
   if (given !== serverToken) return res.status(401).json({ error: 'Token không hợp lệ' });
 
