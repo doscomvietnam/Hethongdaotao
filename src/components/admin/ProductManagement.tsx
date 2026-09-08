@@ -77,6 +77,13 @@ export default function ProductManagement({ onDataChanged }: ProductManagementPr
     });
   }, [rows, search, brandFilter]);
 
+  // Nhóm cho dropdown lọc: gộp danh sách cố định + mọi brand có thật trong dữ liệu (chống sót brand mới)
+  const allBrands = React.useMemo(() => {
+    const set = new Set<string>(BRANDS);
+    rows.forEach(r => { if (r.brand) set.add(r.brand); });
+    return Array.from(set);
+  }, [rows]);
+
   const openNew = () => {
     setForm({ ...emptyForm, product_id: `P_${Date.now().toString(36).toUpperCase()}` });
     setEditing({});
@@ -157,7 +164,7 @@ export default function ProductManagement({ onDataChanged }: ProductManagementPr
             onChange={setBrandFilter}
             options={[
               { value: 'all', label: 'Tất cả nhóm đào tạo' },
-              ...BRANDS.map(b => ({ value: b, label: b })),
+              ...allBrands.map(b => ({ value: b, label: b })),
             ]}
             className="min-w-[200px]"
           />

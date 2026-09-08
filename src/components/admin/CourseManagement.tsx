@@ -41,7 +41,7 @@ function letterToCorrect(s: string): 'A' | 'B' | 'C' | 'D' {
   return (['A', 'B', 'C', 'D'] as const).includes(v as any) ? (v as any) : 'A';
 }
 
-const BRANDS = ['Nội bộ', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Doscom', 'Noma', 'Claude'];
+const BRANDS = ['Nội bộ', 'Tổng Quan Về Công Ty', 'Đào Tạo Onboarding', 'Nội Quy - Quy Chế', 'Văn Hóa Công Ty', 'Doscom', 'Noma', 'Claude', 'Khóa học CEO Ngô Minh Tuấn', 'Khóa học sale thực chiến'];
 const STATUSES = [
   { value: 'active', label: 'Đang hoạt động' },
   { value: 'inactive', label: 'Tạm ẩn' },
@@ -152,6 +152,14 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
       );
     });
   }, [rows, search, brandFilter, isManager, managerDept]);
+
+  // Nhóm đào tạo cho dropdown lọc: gộp danh sách cố định + mọi brand có thật trong dữ liệu
+  // (để không bao giờ sót brand mới như "Khóa học CEO Ngô Minh Tuấn")
+  const allBrands = React.useMemo(() => {
+    const set = new Set<string>(BRANDS);
+    rows.forEach(r => { if (r.brand) set.add(r.brand); });
+    return Array.from(set);
+  }, [rows]);
 
   // Manager chỉ được sửa/xóa khóa học thuộc phòng ban mình (khóa chung = chỉ xem)
   const canEditRow = (row: any) => {
@@ -486,7 +494,7 @@ export default function CourseManagement({ onDataChanged, currentEmployee }: Cou
             onChange={setBrandFilter}
             options={[
               { value: 'all', label: 'Tất cả nhóm đào tạo' },
-              ...BRANDS.map(b => ({ value: b, label: b })),
+              ...allBrands.map(b => ({ value: b, label: b })),
             ]}
             className="min-w-[200px]"
           />
