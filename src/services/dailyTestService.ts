@@ -3,7 +3,7 @@
  *
  * Quy tắc:
  * - Marketing/Kinh doanh: 10 câu sản phẩm Noma (quiz_questions) + 5 câu nội quy (daily_questions bank=general) = 15 câu, đạt >= 12
- * - Còn lại: 10 câu từ ngân hàng onboarding = 10 câu, đạt >= 8
+ * - Còn lại: 10 câu nội quy random (bank=general, đúng bộ sheet) = 10 câu, đạt >= 8 (nội quy áp dụng cho mọi phòng ban)
  * - Mỗi nhân viên 1 bài/ngày (key: employee_id + test_date theo Asia/Ho_Chi_Minh)
  * - Snapshot câu hỏi lưu ngay khi tạo, không random lại khi refresh
  * - Ưu tiên không lặp câu trong 3 ngày gần nhất (soft constraint)
@@ -93,27 +93,6 @@ async function getRecentUsedQuestionIds(
     .eq('bank_type', bankType);
 
   return (qRows || []).map((r: any) => r.question_id);
-}
-
-async function selectGeneralQuestions(count: number, excludeIds: string[]): Promise<any[]> {
-  const { data, error } = await supabase
-    .from('daily_questions')
-    .select('*')
-    .eq('bank_type', 'onboarding')
-    .eq('is_active', true);
-
-  if (error || !data) throw new Error(`Không thể tải câu hỏi: ${error?.message}`);
-  if (data.length < count) {
-    throw new Error(`Ngân hàng câu hỏi không đủ: cần ${count}, có ${data.length}`);
-  }
-
-  const fresh = data.filter((q: any) => !excludeIds.includes(q.question_id));
-  const used  = data.filter((q: any) =>  excludeIds.includes(q.question_id));
-  const pool  = fresh.length >= count
-    ? shuffle(fresh).slice(0, count)
-    : [...shuffle(fresh), ...shuffle(used)].slice(0, count);
-
-  return pool;
 }
 
 // Khóa học Noma chưa được MỞ vào bài kiểm tra hàng ngày — admin sẽ bảo khi nào mở.
@@ -264,10 +243,11 @@ async function createNewTest(
       ]);
       allRows = shuffle([...nomaRows, ...normsRows]);
     } else {
-      // Các phòng khác: 10 câu onboarding
-      const recentOnboarding = await getRecentUsedQuestionIds(employeeId, 'onboarding');
-      const onboardingRows = await selectGeneralQuestions(config.generalCount, recentOnboarding);
-      allRows = shuffle(onboardingRows);
+      // Các phòng khác: 10 câu random từ ngân hàng nội quy (bank=general) — đúng bộ câu trong sheet,
+      // không phân biệt onboarding. (Nội quy/văn hóa công ty áp dụng cho MỌI phòng ban.)
+      const recentNorms = await getRecentUsedQuestionIds(employeeId, 'general');
+      const normsRows = await selectNormsQuestions(config.totalQuestions, recentNorms);
+      allRows = shuffle(normsRows);
     }
 
     // Insert bài kiểm tra

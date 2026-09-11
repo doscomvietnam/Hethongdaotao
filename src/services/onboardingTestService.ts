@@ -126,18 +126,18 @@ export async function getOrCreateOnboardingTest(
     }
   }
 
-  // Lấy câu hỏi ngẫu nhiên từ bank onboarding
+  // Lấy câu hỏi ngẫu nhiên từ ngân hàng nội quy (bank=general, đúng bộ 68 câu trong sheet)
   const { data: bank, error: bankErr } = await supabase
     .from('daily_questions')
     .select('*')
-    .eq('bank_type', 'onboarding')
+    .eq('bank_type', 'general')
     .eq('is_active', true);
 
-  if (bankErr || !bank) return { session: null, error: 'Không tải được ngân hàng câu hỏi onboarding.' };
+  if (bankErr || !bank) return { session: null, error: 'Không tải được ngân hàng câu hỏi.' };
   if (bank.length < TOTAL_QUESTIONS) {
     return {
       session: null,
-      error: `Ngân hàng câu hỏi onboarding không đủ: cần ${TOTAL_QUESTIONS}, hiện có ${bank.length} câu.`,
+      error: `Ngân hàng câu hỏi không đủ: cần ${TOTAL_QUESTIONS}, hiện có ${bank.length} câu.`,
     };
   }
 
