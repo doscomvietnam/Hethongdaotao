@@ -5,6 +5,7 @@ import { EmployeeDashboardView } from "./components/dashboard/EmployeeDashboard"
 import OverviewTabs from "./components/dashboard/OverviewTabs";
 import ProductProfilePage from "./components/product-profile/ProductProfilePage";
 import CompanyProfilePage from "./components/company-profile/CompanyProfilePage";
+import PublicCompanyProfilePage from "./components/company-profile/PublicCompanyProfilePage";
 import ProductModule from "./components/product";
 import CourseModule, { getQuizMaxAttempts, hasReachedNomaPassThreshold } from "./components/course";
 import BadgesPage from "./components/gamification/BadgesPage";
@@ -856,6 +857,12 @@ function App() {
   // RENDER: AUTH PAGES (Chưa đăng nhập)
   // ============================================================
   if (!authUser || !employee) {
+    // CÔNG KHAI: Hồ sơ công ty xem không cần đăng nhập
+    const publicPath = window.location.pathname.replace(/\/+$/, '');
+    if (publicPath === '/company-profile') {
+      return <PublicCompanyProfilePage />;
+    }
+
     // Đồng bộ URL với authView khi chưa đăng nhập
     const currentPath = window.location.pathname.replace(/\/+$/, '');
     if (authView === 'login' && currentPath !== '/login' && currentPath !== '/forgot-password' && currentPath !== '/reset-password') {
