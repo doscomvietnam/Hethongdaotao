@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff, Loader2, AlertTriangle, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AlertTriangle, Mail, Lock, ArrowRight, Building2 } from 'lucide-react';
 import { loginWithValidation } from '../../services/authService';
 import type { Employee } from '../../types';
 import type { User } from '@supabase/supabase-js';
@@ -180,6 +180,17 @@ export default function LoginPage({ onLoginSuccess, onForgotPassword }: LoginPag
                         </button>
                     </form>
                 </div>
+
+                {/* Truy cập công khai — Hồ sơ công ty (không cần đăng nhập) */}
+                <a
+                    href="/company-profile"
+                    className="group mt-5 flex items-center justify-center gap-2.5 w-full rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800/70 hover:border-zinc-700 py-3.5 transition-all"
+                >
+                    <Building2 className="w-4 h-4 text-orange-400" />
+                    <span className="text-[12px] font-black text-zinc-300 uppercase tracking-wider">Xem Hồ sơ công ty</span>
+                    <span className="hidden sm:inline text-[10px] text-zinc-600 font-medium normal-case tracking-normal">· không cần đăng nhập</span>
+                    <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:translate-x-1 group-hover:text-zinc-400 transition-all" />
+                </a>
 
                 {/* Footer */}
                 <div className="text-center mt-8">
