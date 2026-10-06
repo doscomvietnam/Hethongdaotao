@@ -20,6 +20,7 @@ import GuidePage from "./components/guide";
 import ExamHubPage from "./components/exam/ExamHubPage";
 import ExamWheelPage from "./components/exam/ExamWheelPage";
 import DailyTestView from "./components/daily-test/DailyTestView";
+import DailyMissionPage from "./components/daily-mission/DailyMissionPage";
 import OnboardingTestPage from "./components/onboarding-test/OnboardingTestPage";
 import OnboardingTestView from "./components/onboarding-test/OnboardingTestView";
 import { AttendanceTab } from "./components/dashboard/AttendanceTab";
@@ -98,6 +99,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.EXAM_HUB]: '/exam',
   [ViewType.EXAM_WHEEL]: '/exam/wheel',
   [ViewType.DAILY_TEST]: '/daily-test',
+  [ViewType.DAILY_MISSION]: '/daily-mission',
   [ViewType.ONBOARDING_TEST]: '/onboarding-test',
   [ViewType.ATTENDANCE]: '/attendance',
   [ViewType.MY_DASHBOARD]: '/my-dashboard',
@@ -142,6 +144,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.EXAM_HUB };
     case 'daily-test':
       return { view: ViewType.DAILY_TEST };
+    case 'daily-mission':
+      return { view: ViewType.DAILY_MISSION };
     case 'onboarding-test':
       return { view: ViewType.ONBOARDING_TEST };
     case 'attendance':
@@ -1176,7 +1180,16 @@ function App() {
           <DailyTestView
             employeeId={employee.id}
             department={employee.department || ''}
-            onBack={() => setCurrentView(ViewType.EXAM_HUB)}
+            onBack={() => setCurrentView(ViewType.DAILY_MISSION)}
+          />
+        );
+
+      case ViewType.DAILY_MISSION:
+        return (
+          <DailyMissionPage
+            employeeId={employee.id}
+            department={employee.department || ''}
+            onStartDailyTest={() => setCurrentView(ViewType.DAILY_TEST)}
           />
         );
 

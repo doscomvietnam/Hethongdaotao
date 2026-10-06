@@ -7,6 +7,7 @@ import {
   Wrench,
   ChevronRight,
   Brain,
+  Share2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Employee } from '../../types';
@@ -16,13 +17,15 @@ import EmployeeManagement from './EmployeeManagement';
 import SystemSettings from './SystemSettings';
 import DailyTestManagement from './DailyTestManagement';
 import OnboardingTestManagement from './OnboardingTestManagement';
+import SeedingManagement from './SeedingManagement';
 
-type AdminTab = 'employees' | 'courses' | 'products' | 'settings' | 'daily-test' | 'onboarding-test';
+type AdminTab = 'employees' | 'courses' | 'products' | 'settings' | 'daily-test' | 'onboarding-test' | 'seeding';
 
 const ADMIN_TABS: { id: AdminTab; label: string; icon: React.ElementType; description: string; roles: string[] }[] = [
   { id: 'employees', label: 'Quản lý nhân viên', icon: Users, description: 'Thêm, sửa, xóa nhân viên và phân quyền', roles: ['admin', 'manager'] },
   { id: 'courses', label: 'Quản lý khóa học', icon: GraduationCap, description: 'Quản lý nội dung khóa học đào tạo', roles: ['admin', 'manager'] },
   { id: 'daily-test', label: 'Quiz hằng ngày', icon: Brain, description: 'Báo cáo và quản lý quiz kiến thức hằng ngày', roles: ['admin'] },
+  { id: 'seeding', label: 'Seeding hằng ngày', icon: Share2, description: 'Đăng link seeding theo nhóm và duyệt ảnh nhân viên nộp', roles: ['admin', 'manager'] },
   { id: 'onboarding-test', label: 'Test Onboarding', icon: GraduationCap, description: 'Báo cáo và reset bài kiểm tra onboarding nhân viên mới', roles: ['admin'] },
   { id: 'products', label: 'Quản lý sản phẩm', icon: Box, description: 'Quản lý danh mục sản phẩm giới thiệu', roles: ['admin'] },
   { id: 'settings', label: 'Cài đặt hệ thống', icon: Wrench, description: 'Thiết lập cấu hình hệ thống', roles: ['admin'] },
@@ -73,6 +76,7 @@ export default function AdminPage({ onDataChanged, employee }: AdminPageProps) {
       {activeTab === 'employees' && <EmployeeManagement onDataChanged={onDataChanged} currentEmployee={employee} />}
       {activeTab === 'courses' && <CourseManagement onDataChanged={onDataChanged} currentEmployee={employee} />}
       {activeTab === 'daily-test' && <DailyTestManagement currentEmployeeId={employee.id} />}
+      {activeTab === 'seeding' && <SeedingManagement />}
       {activeTab === 'onboarding-test' && <OnboardingTestManagement currentEmployeeId={employee.id} />}
       {activeTab === 'products' && employee.role === 'admin' && <ProductManagement onDataChanged={onDataChanged} />}
       {activeTab === 'settings' && employee.role === 'admin' && <SystemSettings />}

@@ -26,6 +26,7 @@ import {
   Award,
   Dumbbell,
   Route,
+  Target,
   FileText,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
@@ -106,6 +107,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
     { id: ViewType.COMPANY_PROFILE, icon: Building2, label: 'Hồ sơ công ty', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.COURSE_CATALOG, icon: GraduationCap, label: 'Khóa học đào tạo', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.LEARNING_PATH, icon: Route, label: 'Lộ trình học', roles: ['admin', 'manager', 'employee'], show: hasSalesPath },
+    { id: ViewType.DAILY_MISSION, icon: Target, label: 'Nhiệm vụ hàng ngày', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.PRACTICE, icon: Dumbbell, label: 'Luyện tập', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.BADGES, icon: Award, label: 'Huy hiệu', roles: ['admin', 'manager', 'employee'], show: true },
@@ -804,7 +806,8 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.GUIDE]: 'guide',
       [ViewType.EXAM_HUB]: 'exam-hub',
       [ViewType.EXAM_WHEEL]: 'exam-wheel',
-      [ViewType.DAILY_TEST]: 'exam-hub',
+      [ViewType.DAILY_TEST]: 'daily-mission',
+      [ViewType.DAILY_MISSION]: 'daily-mission',
       [ViewType.ONBOARDING_TEST]: 'onboarding-test',
       [ViewType.ATTENDANCE]: 'attendance',
       [ViewType.MY_DASHBOARD]: 'my-dashboard',
