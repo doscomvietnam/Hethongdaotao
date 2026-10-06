@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ClipboardCheck, ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, ArrowRight } from 'lucide-react';
+import { ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, Share2 } from 'lucide-react';
 import {
   getSeedingState, submitSeeding, releaseSeeding, compressImage,
   type SeedingState, type SeedingGroupView, type SeedingLinkView,
@@ -11,11 +11,8 @@ const GROUP_STYLE: Record<string, { ring: string; chip: string; dot: string }> =
   competitor: { ring: 'border-amber-500/30', chip: 'bg-amber-500/15 text-amber-300', dot: 'bg-amber-400' },
 };
 
-export default function DailyMissionPage({
-  employeeId, onStartDailyTest,
-}: {
-  employeeId: string; department: string; onStartDailyTest: () => void;
-}) {
+/** Khối "Seeding hôm nay" — nhúng trong trang Kiểm tra (ExamHubPage). */
+export default function SeedingSection() {
   const [data, setData] = React.useState<SeedingState | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [err, setErr] = React.useState<string | null>(null);
@@ -63,14 +60,21 @@ export default function DailyMissionPage({
   };
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <section>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
 
-      {/* Header */}
+      {/* Tiêu đề khối */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <div>
-          <h1 className="text-xl font-black text-zinc-100">Nhiệm vụ hàng ngày</h1>
-          <p className="text-xs text-zinc-500 mt-0.5">Làm bài kiểm tra và seeding mỗi ngày{data ? ` · ${data.date}` : ''}</p>
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-violet-500/10 ring-1 ring-violet-500/30 flex items-center justify-center">
+            <Share2 className="w-6 h-6 text-violet-400" />
+          </div>
+          <div>
+            <h2 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Seeding hằng ngày</h2>
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-2">
+              Mở link → seeding → chụp màn hình → nộp ảnh · tối đa 2 link/nhóm{data ? ` · ${data.date}` : ''}
+            </p>
+          </div>
         </div>
         <button onClick={() => load()} className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest text-zinc-400 hover:text-zinc-200 bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2">
           <RefreshCw className="w-3.5 h-3.5" /> Làm mới
@@ -84,26 +88,6 @@ export default function DailyMissionPage({
         </div>
       )}
 
-      {/* Bài kiểm tra */}
-      <div className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center"><ClipboardCheck className="w-5 h-5" /></div>
-          <div>
-            <div className="text-sm font-black text-zinc-100">Bài kiểm tra hôm nay</div>
-            <div className="text-xs text-zinc-500">Hoàn thành bài kiểm tra kiến thức trong ngày</div>
-          </div>
-        </div>
-        <button onClick={onStartDailyTest} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-400 text-white font-black text-xs uppercase tracking-widest rounded-xl px-5 py-3">
-          Làm bài <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Seeding */}
-      <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-sm font-black text-zinc-200 uppercase tracking-widest">Seeding hôm nay</h2>
-        <span className="text-[11px] text-zinc-600">· seeding càng nhiều link càng tốt</span>
-      </div>
-
       {loading ? (
         <div className="py-16 text-center text-zinc-500 text-sm">Đang tải…</div>
       ) : err ? (
@@ -113,7 +97,7 @@ export default function DailyMissionPage({
           {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} />)}
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

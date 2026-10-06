@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Plus, Trash2, Eye, EyeOff, Users, ExternalLink, RotateCcw, Ban, ImageOff } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, Users, ExternalLink, RotateCcw, Ban, ImageOff, Pencil, Check, X } from 'lucide-react';
 import {
   SEEDING_GROUPS, adminListSeeding, adminSaveLink, adminDeleteLink, adminSetLinkStatus,
   adminListSubmissions, adminRevokeSubmission, adminRestoreSubmission,
@@ -90,19 +90,7 @@ function GroupLinks({ group, date, links, people, onChanged }: {
       <div className="p-3 flex flex-col gap-2">
         {links.length === 0 && <div className="text-center text-[12px] text-zinc-600 py-3">Chưa có link</div>}
         {links.map(l => (
-          <div key={l.id} className={`rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 ${l.status !== 'active' ? 'opacity-50' : ''}`}>
-            <div className="flex items-start justify-between gap-2">
-              <div className="text-[12.5px] font-semibold text-zinc-200 min-w-0 leading-snug">{l.title}</div>
-              <span className={`flex-none text-[10px] font-black rounded-full px-2 py-0.5 ${l.count >= l.max_people ? 'bg-rose-500/15 text-rose-300' : 'bg-zinc-800 text-zinc-400'}`}>{l.count}/{l.max_people}</span>
-            </div>
-            <div className="flex items-center gap-3 mt-1.5">
-              <a href={l.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] text-sky-400 truncate"><ExternalLink className="w-3 h-3 flex-none" /> mở</a>
-              <div className="ml-auto flex items-center gap-2.5">
-                <button onClick={() => toggle(l)} className="text-zinc-500 hover:text-zinc-300" title={l.status === 'active' ? 'Ẩn' : 'Hiện'}>{l.status === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}</button>
-                <button onClick={() => del(l.id)} className="text-zinc-500 hover:text-rose-400" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
-              </div>
-            </div>
-          </div>
+          <LinkItem key={l.id} l={l} groupKey={group.key} date={date} onToggle={toggle} onDelete={del} onChanged={onChanged} />
         ))}
         {/* Thêm link */}
         <div className="rounded-xl border border-dashed border-zinc-700 p-2.5 flex flex-col gap-2 mt-1">
@@ -112,6 +100,61 @@ function GroupLinks({ group, date, links, people, onChanged }: {
             <label className="text-[11px] text-zinc-500 flex items-center gap-1">Tối đa <input type="number" min={1} max={50} value={max} onChange={e => setMax(parseInt(e.target.value) || 5)} className="w-14 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200" /> người</label>
             <button disabled={saving} onClick={add} className="ml-auto flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50"><Plus className="w-3.5 h-3.5" /> Thêm link</button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LinkItem({ l, groupKey, date, onToggle, onDelete, onChanged }: {
+  l: AdminLink; groupKey: string; date: string;
+  onToggle: (l: AdminLink) => void; onDelete: (id: string) => void; onChanged: () => void;
+}) {
+  const [editing, setEditing] = React.useState(false);
+  const [title, setTitle] = React.useState(l.title);
+  const [url, setUrl] = React.useState(l.url);
+  const [max, setMax] = React.useState(l.max_people);
+  const [saving, setSaving] = React.useState(false);
+
+  const startEdit = () => { setTitle(l.title); setUrl(l.url); setMax(l.max_people); setEditing(true); };
+  const save = async () => {
+    if (!title.trim() || !url.trim()) return;
+    setSaving(true);
+    try {
+      await adminSaveLink({ id: l.id, group_key: groupKey, title: title.trim(), url: url.trim(), task_date: date, max_people: max });
+      setEditing(false); onChanged();
+    } catch (e: any) { alert(e.message); } finally { setSaving(false); }
+  };
+
+  if (editing) {
+    return (
+      <div className="rounded-xl border border-sky-500/40 bg-zinc-900/80 p-2.5 flex flex-col gap-2">
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tiêu đề video" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
+        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Link video" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] text-zinc-500 flex items-center gap-1">Tối đa <input type="number" min={1} max={50} value={max} onChange={e => setMax(parseInt(e.target.value) || 5)} className="w-14 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200" /> người</label>
+          <div className="ml-auto flex items-center gap-2">
+            <button onClick={() => setEditing(false)} className="flex items-center gap-1 text-[11px] font-bold text-zinc-400 hover:text-zinc-200 px-2 py-1.5"><X className="w-3.5 h-3.5" /> Hủy</button>
+            <button disabled={saving} onClick={save} className="flex items-center gap-1 bg-sky-500 hover:bg-sky-400 text-white text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50"><Check className="w-3.5 h-3.5" /> {saving ? 'Đang lưu…' : 'Lưu'}</button>
+          </div>
+        </div>
+        {max < l.count && <div className="text-[10.5px] text-amber-400">Lưu ý: link đã có {l.count} người nộp, nhiều hơn số tối đa mới.</div>}
+      </div>
+    );
+  }
+
+  return (
+    <div className={`rounded-xl border border-zinc-800 bg-zinc-900/60 p-2.5 ${l.status !== 'active' ? 'opacity-50' : ''}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-[12.5px] font-semibold text-zinc-200 min-w-0 leading-snug">{l.title}</div>
+        <span className={`flex-none text-[10px] font-black rounded-full px-2 py-0.5 ${l.count >= l.max_people ? 'bg-rose-500/15 text-rose-300' : 'bg-zinc-800 text-zinc-400'}`}>{l.count}/{l.max_people}</span>
+      </div>
+      <div className="flex items-center gap-3 mt-1.5">
+        <a href={l.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[11px] text-sky-400 truncate"><ExternalLink className="w-3 h-3 flex-none" /> mở</a>
+        <div className="ml-auto flex items-center gap-2.5">
+          <button onClick={startEdit} className="text-zinc-500 hover:text-sky-400" title="Sửa"><Pencil className="w-3.5 h-3.5" /></button>
+          <button onClick={() => onToggle(l)} className="text-zinc-500 hover:text-zinc-300" title={l.status === 'active' ? 'Ẩn' : 'Hiện'}>{l.status === 'active' ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}</button>
+          <button onClick={() => onDelete(l.id)} className="text-zinc-500 hover:text-rose-400" title="Xóa"><Trash2 className="w-3.5 h-3.5" /></button>
         </div>
       </div>
     </div>

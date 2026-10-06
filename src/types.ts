@@ -23,7 +23,6 @@ export enum ViewType {
   BADGES = 'badges',
   PRACTICE = 'practice',
   LEARNING_PATH = 'learning-path',
-  DAILY_MISSION = 'daily-mission',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';

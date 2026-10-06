@@ -4,6 +4,7 @@ import { Card } from '../ui';
 import type { Course } from '../../types';
 import { getTodayVNDateStr, getDeptConfig } from '../../services/dailyTestService';
 import { supabase } from '../../services/supabaseClient';
+import SeedingSection from '../daily-mission/SeedingSection';
 
 interface ExamHubPageProps {
   products?: unknown[];
@@ -154,6 +155,8 @@ export default function ExamHubPage({ onStartDailyTest, employeeId, department }
       <div className="max-w-lg">
         <DailyTestCard status={dailyStatus} onStart={onStartDailyTest} />
       </div>
+
+      <SeedingSection />
     </div>
   );
 }
