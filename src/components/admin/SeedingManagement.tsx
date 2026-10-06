@@ -71,12 +71,17 @@ function GroupLinks({ group, date, links, people, onChanged }: {
   const [url, setUrl] = React.useState('');
   const [max, setMax] = React.useState(5);
   const [saving, setSaving] = React.useState(false);
+  const [addErr, setAddErr] = React.useState<string | null>(null);
 
   const add = async () => {
-    if (!title.trim() || !url.trim()) return;
-    setSaving(true);
-    try { await adminSaveLink({ group_key: group.key, title: title.trim(), url: url.trim(), task_date: date, max_people: max }); setTitle(''); setUrl(''); setMax(5); onChanged(); }
-    catch (e: any) { alert(e.message); } finally { setSaving(false); }
+    const u = url.trim();
+    if (!u) { setAddErr('Dán link video trước đã'); return; }
+    if (!/^https?:\/\//i.test(u)) { setAddErr('Link phải bắt đầu bằng http:// hoặc https://'); return; }
+    // Tiêu đề không bắt buộc: để trống thì tự đặt "Video N"
+    const t = title.trim() || `Video ${links.length + 1}`;
+    setSaving(true); setAddErr(null);
+    try { await adminSaveLink({ group_key: group.key, title: t, url: u, task_date: date, max_people: max }); setTitle(''); setUrl(''); setMax(5); onChanged(); }
+    catch (e: any) { setAddErr(e.message || 'Thêm link thất bại'); } finally { setSaving(false); }
   };
   const del = async (id: string) => { if (!confirm('Xóa link này? (xóa cả ảnh đã nộp của link)')) return; await adminDeleteLink(id); onChanged(); };
   const toggle = async (l: AdminLink) => { await adminSetLinkStatus(l.id, l.status === 'active' ? 'inactive' : 'active'); onChanged(); };
@@ -94,12 +99,13 @@ function GroupLinks({ group, date, links, people, onChanged }: {
         ))}
         {/* Thêm link */}
         <div className="rounded-xl border border-dashed border-zinc-700 p-2.5 flex flex-col gap-2 mt-1">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tiêu đề video" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
-          <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Dán link video…" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tiêu đề video (không bắt buộc)" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
+          <input value={url} onChange={e => { setUrl(e.target.value); setAddErr(null); }} onKeyDown={e => { if (e.key === 'Enter') add(); }} placeholder="Dán link video… (bắt buộc)" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
           <div className="flex items-center gap-2">
             <label className="text-[11px] text-zinc-500 flex items-center gap-1">Tối đa <input type="number" min={1} max={50} value={max} onChange={e => setMax(parseInt(e.target.value) || 5)} className="w-14 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200" /> người</label>
-            <button disabled={saving} onClick={add} className="ml-auto flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50"><Plus className="w-3.5 h-3.5" /> Thêm link</button>
+            <button disabled={saving} onClick={add} className="ml-auto flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50"><Plus className="w-3.5 h-3.5" /> {saving ? 'Đang thêm…' : 'Thêm link'}</button>
           </div>
+          {addErr && <div className="text-[11px] font-semibold text-rose-400">{addErr}</div>}
         </div>
       </div>
     </div>

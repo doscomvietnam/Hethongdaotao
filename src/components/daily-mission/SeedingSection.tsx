@@ -61,7 +61,7 @@ export default function SeedingSection() {
 
   return (
     <section>
-      <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onFile} className="hidden" />
+      <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
 
       {/* Tiêu đề khối */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
