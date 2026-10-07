@@ -47,6 +47,29 @@ export async function getCachedSeedingState(): Promise<SeedingState | null> {
   } catch { return null; }
 }
 
+// Link đã bấm "Mở link" (theo tài khoản + ngày) — phải mở link ít nhất 1 lần mới được nộp ảnh.
+async function openedKey(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user?.id;
+  return uid ? `seeding_opened:${uid}:${vnToday()}` : null;
+}
+export async function getOpenedLinks(): Promise<string[]> {
+  try {
+    const key = await openedKey();
+    const raw = key ? localStorage.getItem(key) : null;
+    return raw ? (JSON.parse(raw) as string[]) : [];
+  } catch { return []; }
+}
+export async function markLinkOpened(linkId: string): Promise<void> {
+  try {
+    const key = await openedKey();
+    if (!key) return;
+    const list = new Set(await getOpenedLinks());
+    list.add(linkId);
+    localStorage.setItem(key, JSON.stringify([...list]));
+  } catch { /* bỏ qua */ }
+}
+
 export async function getSeedingState(): Promise<SeedingState> {
   const t = await token();
   const r = await fetch(`/api/seeding?token=${encodeURIComponent(t)}`);

@@ -2,13 +2,14 @@ import * as React from 'react';
 import { ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, Share2 } from 'lucide-react';
 import {
   getSeedingState, getCachedSeedingState, submitSeeding, releaseSeeding, compressImage,
+  getOpenedLinks, markLinkOpened,
   type SeedingState, type SeedingGroupView, type SeedingLinkView,
 } from '../../services/seedingService';
 
-const GROUP_STYLE: Record<string, { ring: string; chip: string; dot: string }> = {
-  koc: { ring: 'border-violet-500/30', chip: 'bg-violet-500/15 text-violet-300', dot: 'bg-violet-400' },
-  company: { ring: 'border-sky-500/30', chip: 'bg-sky-500/15 text-sky-300', dot: 'bg-sky-400' },
-  competitor: { ring: 'border-amber-500/30', chip: 'bg-amber-500/15 text-amber-300', dot: 'bg-amber-400' },
+const GROUP_STYLE: Record<string, { ring: string; chip: string; dot: string; head: string; title: string }> = {
+  koc: { ring: 'border-violet-500/40', chip: 'bg-violet-500/15 text-violet-300', dot: 'bg-violet-400', head: 'bg-violet-500/10', title: 'text-violet-400' },
+  company: { ring: 'border-sky-500/40', chip: 'bg-sky-500/15 text-sky-300', dot: 'bg-sky-400', head: 'bg-sky-500/10', title: 'text-sky-400' },
+  competitor: { ring: 'border-amber-500/40', chip: 'bg-amber-500/15 text-amber-300', dot: 'bg-amber-400', head: 'bg-amber-500/10', title: 'text-amber-400' },
 };
 
 /** Khối "Seeding hôm nay" — nhúng trong trang Kiểm tra (ExamHubPage). */
@@ -19,6 +20,12 @@ export default function SeedingSection() {
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const pendingRef = React.useRef<string | null>(null);
+  const [opened, setOpened] = React.useState<Set<string>>(new Set());
+  React.useEffect(() => { getOpenedLinks().then((ids) => setOpened(new Set(ids))); }, []);
+  const onOpen = (linkId: string) => {
+    setOpened((prev) => new Set(prev).add(linkId));
+    markLinkOpened(linkId);
+  };
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const load = React.useCallback(async (silent = false) => {
@@ -103,7 +110,7 @@ export default function SeedingSection() {
         <>
           <DailyProgress done={data!.myTodayTotal} target={data!.minPerDay} />
           <div className="grid gap-4 md:grid-cols-3">
-            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} />)}
+            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} opened={opened} onOpen={onOpen} />)}
           </div>
         </>
       )}
@@ -130,20 +137,21 @@ function DailyProgress({ done, target }: { done: number; target: number }) {
   );
 }
 
-function GroupCard({ g, busy, onPick, onRelease }: {
+function GroupCard({ g, busy, onPick, onRelease, opened, onOpen }: {
   g: SeedingGroupView; busy: string | null; onPick: (id: string) => void; onRelease: (id: string) => void;
+  opened: Set<string>; onOpen: (id: string) => void;
 }) {
   const st = GROUP_STYLE[g.key] || GROUP_STYLE.koc;
   // Link nộp được / đã nộp hôm nay lên trước, link không làm được xuống cuối
   const rank = (l: SeedingLinkView) => (l.mineToday ? 0 : l.canClaim ? 1 : 2);
   const links = [...g.links].sort((a, b) => rank(a) - rank(b));
   return (
-    <div className={`rounded-2xl border ${st.ring} bg-zinc-900/50 overflow-hidden flex flex-col`}>
-      <div className="p-4 border-b border-zinc-800/80">
+    <div className={`rounded-2xl border-2 ${st.ring} bg-zinc-900/50 overflow-hidden flex flex-col`}>
+      <div className={`p-4 border-b border-zinc-800/80 ${st.head}`}>
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${st.dot}`} />
-            <span className="text-sm font-black text-zinc-100">{g.label}</span>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className={`w-3 h-3 flex-none rounded-full ${st.dot}`} />
+            <span className={`text-lg sm:text-xl font-black uppercase tracking-tight leading-tight ${st.title}`}>{g.label}</span>
           </div>
           <span className={`flex items-center gap-1 text-[11px] font-black rounded-full px-2.5 py-1 ${g.groupFull ? 'bg-rose-500/15 text-rose-300' : st.chip}`} title="Số người tham gia nhóm hôm nay">
             <Users className="w-3 h-3" /> {g.people}/{g.maxPeople}
@@ -162,15 +170,17 @@ function GroupCard({ g, busy, onPick, onRelease }: {
       <div className="p-3 flex flex-col gap-2 flex-1">
         {links.length === 0 ? (
           <div className="text-center text-[12px] text-zinc-600 py-6">Chưa có link</div>
-        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease} />)}
+        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease} opened={opened.has(l.id)} onOpen={onOpen} />)}
       </div>
     </div>
   );
 }
 
-function LinkRow({ l, busy, onPick, onRelease }: {
+function LinkRow({ l, busy, onPick, onRelease, opened, onOpen }: {
   l: SeedingLinkView; busy: boolean; onPick: (id: string) => void; onRelease: (id: string) => void;
+  opened: boolean; onOpen: (id: string) => void;
 }) {
+  const needOpen = !opened && !l.mineToday && l.canClaim;
   const dim = !l.mineToday && !l.canClaim;
   return (
     <div className={`rounded-xl border p-3 ${l.mineToday ? 'border-emerald-500/40 bg-emerald-500/5' : dim ? 'border-zinc-800 bg-zinc-900/40 opacity-60' : 'border-zinc-800 bg-zinc-900/40'}`}>
@@ -184,8 +194,11 @@ function LinkRow({ l, busy, onPick, onRelease }: {
         </div>
       </div>
       <div className="flex items-center gap-2 mt-2.5">
-        <a href={l.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[11px] font-bold text-sky-400 hover:text-sky-300">
-          <ExternalLink className="w-3.5 h-3.5" /> Mở link
+        <a href={l.url} target="_blank" rel="noopener noreferrer" onClick={() => onOpen(l.id)}
+          className={needOpen
+            ? 'flex items-center gap-1.5 text-[11px] font-black text-white bg-sky-500 hover:bg-sky-400 rounded-lg px-3 py-1.5'
+            : 'flex items-center gap-1.5 text-[11px] font-bold text-sky-400 hover:text-sky-300'}>
+          <ExternalLink className="w-3.5 h-3.5" /> {opened ? 'Mở lại link' : 'Mở link'}
         </a>
         <div className="ml-auto flex items-center gap-2">
           {l.mineToday ? (
@@ -201,9 +214,15 @@ function LinkRow({ l, busy, onPick, onRelease }: {
           ) : !l.canClaim ? (
             <span className="text-[11px] text-zinc-500">Đã đủ link trong nhóm</span>
           ) : (
-            <button disabled={busy} onClick={() => onPick(l.id)} className="flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">
-              <Upload className="w-3.5 h-3.5" /> {busy ? 'Đang gửi…' : 'Nộp ảnh'}
-            </button>
+            needOpen ? (
+              <span className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500" title="Bấm Mở link để seeding trước, sau đó mới nộp ảnh">
+                <Upload className="w-3.5 h-3.5" /> Mở link trước để nộp ảnh
+              </span>
+            ) : (
+              <button disabled={busy} onClick={() => onPick(l.id)} className="flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">
+                <Upload className="w-3.5 h-3.5" /> {busy ? 'Đang gửi…' : 'Nộp ảnh'}
+              </button>
+            )
           )}
         </div>
       </div>
