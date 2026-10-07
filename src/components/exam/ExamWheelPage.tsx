@@ -135,7 +135,7 @@ export default function ExamWheelPage({ brand, products, courses, userId, onBack
   if (n === 0) {
     return (
       <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
-        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.3em] transition-all">
+        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] transition-all">
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Quay lại
         </button>
@@ -145,7 +145,7 @@ export default function ExamWheelPage({ brand, products, courses, userId, onBack
             <Trophy className="w-10 h-10 text-emerald-400" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-black tracking-tight text-white uppercase">Đã làm hết bài kiểm tra {brand}!</h2>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white uppercase">Đã làm hết bài kiểm tra {brand}!</h2>
             <p className="text-[12px] text-zinc-500 font-bold uppercase tracking-widest">
               Không còn sản phẩm nào trong vòng quay. Quay lại để chọn thương hiệu khác.
             </p>
@@ -159,7 +159,7 @@ export default function ExamWheelPage({ brand, products, courses, userId, onBack
     <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.3em] transition-all">
+        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] transition-all">
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           Quay lại
         </button>
@@ -335,7 +335,7 @@ export default function ExamWheelPage({ brand, products, courses, userId, onBack
 
                   <button
                     onClick={() => onStartQuiz(winner.course)}
-                    className={`w-full h-14 ${theme.cta} text-white rounded-2xl font-black uppercase text-xs tracking-[0.3em] flex items-center justify-center gap-3 transition-all shadow-xl`}
+                    className={`w-full h-14 ${theme.cta} text-white rounded-2xl font-black uppercase text-xs tracking-[0.12em] sm:tracking-[0.3em] flex items-center justify-center gap-3 transition-all shadow-xl`}
                   >
                     Làm bài kiểm tra
                     <ArrowRight className="w-4 h-4" />

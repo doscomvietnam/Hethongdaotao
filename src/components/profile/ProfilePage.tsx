@@ -275,7 +275,7 @@ export default function ProfilePage({ employee, onBack, onLogout, onChangePasswo
             {/* Info section */}
             <div className="mt-6 bg-zinc-950/80 border border-zinc-800/60 rounded-3xl p-8 shadow-2xl shadow-black/40">
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">
+                    <h2 className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em]">
                         Thông tin cá nhân
                     </h2>
                     {!isEditing && (

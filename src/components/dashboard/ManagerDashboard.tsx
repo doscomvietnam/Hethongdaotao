@@ -122,7 +122,7 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
             QUẢN LÝ — {department.toUpperCase()}
           </h1>
         </div>
-        <p className="text-zinc-600 font-bold uppercase tracking-[0.3em] text-[10px] ml-5">Tổng quan đào tạo phòng {department}</p>
+        <p className="text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] text-[10px] ml-5">Tổng quan đào tạo phòng {department}</p>
       </header>
 
       {/* KPI Cards */}

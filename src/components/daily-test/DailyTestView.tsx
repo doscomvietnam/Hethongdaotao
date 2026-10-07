@@ -175,7 +175,7 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
           </motion.div>
 
           <div>
-            <h1 className="text-3xl font-black text-white uppercase tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
               {passed ? 'HOÀN THÀNH XUẤT SẮC' : 'CHƯA ĐẠT YÊU CẦU'}
             </h1>
             <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mt-2">
@@ -248,7 +248,7 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
 
         {/* Question review */}
         <div className="space-y-3">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Chi tiết từng câu</h2>
+          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em]">Chi tiết từng câu</h2>
           {session.questions.map((q, i) => (
             <div key={q.id} className={`p-4 rounded-2xl border ${q.isCorrect ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
               <div className="flex items-start gap-3">
@@ -283,7 +283,7 @@ function ResultScreen({ session, timeSpent, onBack }: ResultScreenProps) {
 
         {/* History */}
         <div className="space-y-4">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-2">
+          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] flex items-center gap-2">
             <CalendarDays className="w-4 h-4" /> Lịch sử 14 ngày gần nhất
           </h2>
           <HistoryPanel employeeId={session.employeeId} />
@@ -645,7 +645,7 @@ function AlreadySubmittedScreen({ session, onBack }: { session: DailyTestSession
         </div>
 
         <div className="space-y-4">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] flex items-center gap-2">
+          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] flex items-center gap-2">
             <CalendarDays className="w-4 h-4" /> Lịch sử 14 ngày
           </h2>
           <HistoryPanel employeeId={session.employeeId} />

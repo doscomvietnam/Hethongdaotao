@@ -1,7 +1,22 @@
 import * as React from "react";
-import { ArrowRight, ChevronLeft, Tag, Zap } from "lucide-react";
+import { ArrowRight, ChevronLeft, Tag, Zap, ImageOff } from "lucide-react";
 import { Product } from "../../types";
 import { Card, Badge, Button, cn } from "../ui";
+
+/** Ảnh sản phẩm có ảnh thay thế: link Drive chưa chia sẻ công khai / đã xóa thì hiện biểu tượng thay vì chữ alt đè lên nhãn. */
+function ProductImage({ src, alt, className }: { src: string; alt: string; className: string }) {
+  const [failed, setFailed] = React.useState(!src);
+  React.useEffect(() => setFailed(!src), [src]);
+  if (failed) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-2 text-zinc-600">
+        <ImageOff className="w-8 h-8" />
+        <span className="text-[10px] font-black uppercase tracking-widest">Chưa có ảnh</span>
+      </div>
+    );
+  }
+  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+}
 
 // ─── Product List ─────────────────────────────────────────────────────────────
 
@@ -42,10 +57,10 @@ const ProductLibrary = ({ products, onSelectProduct }: ProductLibraryProps) => {
       <div className="flex flex-col gap-6">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
           <div className="space-y-3">
-            <h1 className="text-5xl font-black tracking-tight text-white  uppercase leading-none">
+            <h1 className="text-[1.75rem] sm:text-5xl font-black tracking-tight text-white uppercase leading-none">
               KHO SẢN PHẨM
             </h1>
-            <p className="text-emerald-500 font-black font-mono text-[10px] tracking-[0.3em] uppercase  bg-emerald-500/5 inline-block px-4 py-1.5 rounded-full ring-1 ring-emerald-500/20">
+            <p className="text-emerald-500 font-black font-mono text-[10px] tracking-[0.12em] sm:tracking-[0.3em] uppercase  bg-emerald-500/5 inline-block px-4 py-1.5 rounded-full ring-1 ring-emerald-500/20">
               Thư viện sản phẩm Doscom & Noma
             </p>
           </div>
@@ -71,7 +86,7 @@ const ProductLibrary = ({ products, onSelectProduct }: ProductLibraryProps) => {
 
         {/* Category chips (level 2) — depend on selected brand */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mr-2">
+          <span className="w-full sm:w-auto text-[9px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em] mr-2">
             Dòng sản phẩm
           </span>
           {categories.map((cat) => (
@@ -79,7 +94,7 @@ const ProductLibrary = ({ products, onSelectProduct }: ProductLibraryProps) => {
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={cn(
-                "px-4 py-1.5 rounded-full text-[10px] font-black transition-all uppercase tracking-widest border",
+                "flex-none whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-black transition-all uppercase tracking-widest border",
                 activeCategory === cat
                   ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/40"
                   : "bg-zinc-900/40 text-zinc-500 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700"
@@ -100,7 +115,7 @@ const ProductLibrary = ({ products, onSelectProduct }: ProductLibraryProps) => {
             onClick={() => onSelectProduct(product)}
           >
             <div className="relative aspect-[4/3] overflow-hidden bg-zinc-950 border-b border-zinc-900 shadow-[inset_0_0_40px_rgba(0,0,0,0.6)]">
-              <img
+              <ProductImage
                 src={product.thumbnail}
                 alt={product.title}
                 className="w-full h-full object-contain p-6 transition-transform duration-700 group-hover:scale-105 drop-shadow-[0_10px_20px_rgba(0,0,0,0.8)]"
@@ -163,7 +178,7 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
       <header className="flex flex-col gap-8">
         <button
           onClick={onBack}
-          className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.3em] transition-all  underline underline-offset-8 decoration-zinc-800"
+          className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] transition-all  underline underline-offset-8 decoration-zinc-800"
         >
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           QUAY LẠI KHO SẢN PHẨM
@@ -187,7 +202,7 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
                 </Badge>
               )}
             </div>
-            <h1 className="text-6xl font-black tracking-tighter text-white  uppercase leading-tight">
+            <h1 className="text-[1.75rem] sm:text-6xl font-black tracking-tighter text-white uppercase leading-tight">
               {product.title}
             </h1>
             <p className="text-zinc-500 text-sm leading-relaxed max-w-xl">
@@ -200,7 +215,7 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
         {/* Thumbnail */}
         <div className="aspect-video rounded-[2.5rem] overflow-hidden border-2 border-zinc-900 shadow-[0_50px_100px_rgba(0,0,0,0.8)] bg-zinc-950 shadow-[inset_0_0_60px_rgba(0,0,0,0.7)]">
-          <img
+          <ProductImage
             src={product.thumbnail}
             alt={product.title}
             className="w-full h-full object-contain p-10 drop-shadow-[0_15px_30px_rgba(0,0,0,0.9)]"
@@ -213,7 +228,7 @@ const ProductDetail = ({ product, onBack }: ProductDetailProps) => {
 
           <div className="flex items-center gap-3 relative z-10">
             <Zap className="w-5 h-5 text-emerald-500" />
-            <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">
+            <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.12em] sm:tracking-[0.4em]  font-mono">
               TÍNH NĂNG NỔI BẬT
             </span>
           </div>

@@ -77,8 +77,8 @@ export default function SeedingSection() {
             <Share2 className="w-6 h-6 text-violet-400" />
           </div>
           <div>
-            <h2 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Seeding hằng ngày</h2>
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-2">
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Seeding hằng ngày</h2>
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-2">
               Mở link → seeding → chụp màn hình → nộp ảnh · ít nhất 4 link/ngày{data ? ` · ${data.date}` : ''}
             </p>
           </div>

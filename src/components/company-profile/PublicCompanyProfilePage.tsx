@@ -81,7 +81,9 @@ const PUB_CSS = `
   background:#eff6ff; color:#2563eb; border:1px solid #dbeafe; flex:none; }
 .pub-brand { font-size:15px; font-weight:900; letter-spacing:-.01em; }
 .pub-tag { font-size:11.5px; color:#64748b; margin-top:1px; }
-.pub-login { display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:#fff;
+.pub-hd-l { min-width:0; }
+@media (max-width:420px) { .pub-tag { display:none; } .pub-login { padding:8px 12px; } }
+.pub-login { flex:none; white-space:nowrap; display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:800; color:#fff;
   background:#2563eb; border:none; padding:9px 16px; border-radius:11px; text-decoration:none;
   box-shadow:0 6px 16px rgba(37,99,235,.28); transition:background .12s; }
 .pub-login:hover { background:#1d4ed8; }

@@ -31,7 +31,7 @@ export default function BadgesPage({ employee }: BadgesPageProps) {
       <header className="flex flex-col gap-4 border-l-4 border-emerald-500 pl-8 py-2">
         <div className="flex items-center gap-4">
           <Trophy className="w-8 h-8 text-emerald-500" />
-          <h1 className="text-5xl font-black tracking-tighter text-white uppercase leading-none">TỦ HUY HIỆU</h1>
+          <h1 className="text-[1.75rem] sm:text-5xl font-black tracking-tighter text-white uppercase leading-none">TỦ HUY HIỆU</h1>
         </div>
         <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs pl-12">
           {data ? `Đã đạt ${earned}/${badges.length} huy hiệu` : 'Đang tải…'} · tích lũy bằng cách học, làm quiz, giữ chuỗi ngày

@@ -54,8 +54,10 @@ export default function ThemeSwitcher({ variant = "floating" }: ThemeSwitcherPro
           onClick={() => setOpen(true)}
           aria-label="Đổi giao diện"
           title="Đổi giao diện (theme)"
-          className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-2xl border px-4 py-3 shadow-2xl backdrop-blur-md transition-all hover:scale-105"
+          // Điện thoại: chỉ hiện nút tròn nhỏ ở sát góc (nhãn tên theme che mất nút bấm của nội dung)
+          className="fixed right-3 z-40 flex items-center gap-2 rounded-full border p-1.5 opacity-80 shadow-lg backdrop-blur-md transition-all hover:scale-105 hover:opacity-100 sm:right-6 sm:rounded-2xl sm:px-4 sm:py-3 sm:opacity-100 sm:shadow-2xl"
           style={{
+            bottom: "calc(env(safe-area-inset-bottom, 0px) + 12px)",
             background: "color-mix(in srgb, var(--theme-surface) 90%, transparent)",
             borderColor: "var(--theme-border)",
             color: "var(--theme-text)",
@@ -71,7 +73,7 @@ export default function ThemeSwitcher({ variant = "floating" }: ThemeSwitcherPro
           >
             <Palette className="h-4 w-4" />
           </span>
-          <span className="text-[11px] font-black uppercase tracking-[0.2em] ">
+          <span className="hidden text-[11px] font-black uppercase tracking-[0.2em] sm:inline">
             {theme.name}
           </span>
         </button>
@@ -131,7 +133,7 @@ export default function ThemeSwitcher({ variant = "floating" }: ThemeSwitcherPro
                     Chọn giao diện
                   </h2>
                   <p
-                    className="text-[10px] font-black uppercase tracking-[0.25em] "
+                    className="text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.25em] "
                     style={{ color: "var(--theme-text-4)" }}
                   >
                     {THEMES.length} theme · cảm hứng từ getdesign.md
@@ -235,7 +237,7 @@ export default function ThemeSwitcher({ variant = "floating" }: ThemeSwitcherPro
               style={{ borderColor: "var(--theme-border-soft)" }}
             >
               <p
-                className="text-[10px] font-black uppercase tracking-[0.25em] "
+                className="text-[10px] font-black uppercase tracking-[0.12em] sm:tracking-[0.25em] "
                 style={{ color: "var(--theme-text-4)" }}
               >
                 Theme hiện tại:{" "}
@@ -243,7 +245,7 @@ export default function ThemeSwitcher({ variant = "floating" }: ThemeSwitcherPro
               </p>
               <button
                 onClick={() => setOpen(false)}
-                className="rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.25em]  transition-all hover:opacity-90"
+                className="rounded-xl px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] sm:tracking-[0.25em]  transition-all hover:opacity-90"
                 style={{
                   background: "var(--theme-accent)",
                   color: "var(--theme-accent-fg)",

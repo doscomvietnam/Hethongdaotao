@@ -1087,20 +1087,20 @@ function App() {
         return (
           <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
             <header className="flex flex-col gap-4 border-l-4 border-emerald-500 pl-8 py-2">
-              <h1 className="text-5xl font-black tracking-tighter text-white  uppercase leading-none">BÁO CÁO</h1>
+              <h1 className="text-[1.75rem] sm:text-5xl font-black tracking-tighter text-white uppercase leading-none">BÁO CÁO</h1>
               <p className="text-zinc-500 font-bold uppercase tracking-widest text-xs">Báo cáo tiến độ đào tạo và hiệu suất</p>
             </header>
             <div className="grid gap-6 md:grid-cols-3">
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 hover:border-emerald-500/20 transition-all">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black ">Tổng sản phẩm</p>
+                <p className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] text-zinc-500 font-black ">Tổng sản phẩm</p>
                 <p className="mt-4 text-5xl font-black  text-white">{products.length}</p>
               </div>
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 hover:border-emerald-500/20 transition-all">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black ">Tổng khóa học</p>
+                <p className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] text-zinc-500 font-black ">Tổng khóa học</p>
                 <p className="mt-4 text-5xl font-black  text-white">{courses.length}</p>
               </div>
               <div className="rounded-3xl border border-zinc-800 bg-zinc-950/60 p-8 hover:border-emerald-500/20 transition-all">
-                <p className="text-[10px] uppercase tracking-[0.3em] text-zinc-500 font-black ">Tỷ lệ hoàn thành</p>
+                <p className="text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] text-zinc-500 font-black ">Tỷ lệ hoàn thành</p>
                 <p className="mt-4 text-5xl font-black  text-white">{dashboardSummary?.completionRate || 0}%</p>
               </div>
             </div>

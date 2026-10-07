@@ -186,7 +186,7 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-3xl font-black text-red-500  uppercase tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-black text-red-500 uppercase tracking-tight">
               CẢNH BÁO VI PHẠM
             </h2>
             <p className="text-sm text-zinc-400 font-bold leading-relaxed">
@@ -245,7 +245,7 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
             </motion.div>
             
             <div className="space-y-4">
-                <h2 className="text-3xl font-black text-white  uppercase tracking-tight leading-none">
+                <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight leading-none">
                   {passed ? 'BÁO CÁO ĐẠT CHUẨN' : 'KHÔNG ĐẠT YÊU CẦU'}
                 </h2>
                 <div className="flex items-center justify-center gap-4">
@@ -310,7 +310,7 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
                       onExit();
                     }
                   }}
-                  className="text-zinc-600 hover:text-white font-black uppercase text-[10px] tracking-[0.3em] py-2 transition-all  underline underline-offset-8 decoration-zinc-800"
+                  className="text-zinc-600 hover:text-white font-black uppercase text-[10px] tracking-[0.12em] sm:tracking-[0.3em] py-2 transition-all  underline underline-offset-8 decoration-zinc-800"
                 >
                   THOÁT TRANG KIỂM TRA
                 </button>
@@ -334,7 +334,7 @@ export const QuizView = ({ quiz, onComplete, onExit, onFinishAndExit, attempts }
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-3xl font-black text-amber-500 uppercase tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-black text-amber-500 uppercase tracking-tight">
               XÁC NHẬN THOÁT
             </h2>
             <p className="text-sm text-zinc-400 font-bold leading-relaxed">

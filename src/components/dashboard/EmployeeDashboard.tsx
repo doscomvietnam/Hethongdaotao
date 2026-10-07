@@ -313,7 +313,7 @@ export function EmployeeDashboardView({ courses: allCourses, onCourseClick, empl
           {/* Danh tính + chỉ số nhanh */}
           <div className="min-w-0 space-y-4 text-center md:text-left">
             <div>
-              <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.35em]">Tổng quan cá nhân</p>
+              <p className="text-[10px] text-zinc-600 font-black uppercase tracking-[0.12em] sm:tracking-[0.35em]">Tổng quan cá nhân</p>
               <h1 className="text-2xl lg:text-4xl font-black tracking-tighter text-white uppercase leading-none mt-2 truncate">
                 {employeeName || 'Xin chào'}
               </h1>

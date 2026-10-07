@@ -87,8 +87,8 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                     <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white/5 border border-zinc-800/60 mb-6 shadow-[0_0_40px_rgba(16,185,129,0.15)] overflow-hidden">
                         <img src="/logo.png" alt="Doscom Academy" className="w-20 h-20 object-contain" />
                     </div>
-                    <h1 className="text-3xl font-black uppercase tracking-tight text-white">DOSCOM</h1>
-                    <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em] mt-1">Academy Platform</p>
+                    <h1 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white">DOSCOM</h1>
+                    <p className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.12em] sm:tracking-[0.4em] mt-1">Academy Platform</p>
                 </div>
 
                 <div className="bg-zinc-950/80 backdrop-blur-xl border border-zinc-800/60 rounded-3xl p-8 shadow-2xl shadow-black/40">
@@ -104,7 +104,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                             </div>
                             <form onSubmit={handleSendEmail} className="space-y-5">
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2">Email đăng ký</label>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] mb-2">Email đăng ký</label>
                                     <div className="relative group">
                                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                                         <input
@@ -144,7 +144,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                             )}
                             <form onSubmit={handleVerifyOtp} className="space-y-5">
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2">Mã xác nhận</label>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] mb-2">Mã xác nhận</label>
                                     <input
                                         type="text" value={otp}
                                         onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '').slice(0, 8)); setError(null); }}
@@ -183,7 +183,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                             )}
                             <form onSubmit={handleSetPassword} className="space-y-4">
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2">Mật khẩu mới</label>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] mb-2">Mật khẩu mới</label>
                                     <div className="relative group">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                                         <input
@@ -211,7 +211,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                                     )}
                                 </div>
                                 <div>
-                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2">Xác nhận mật khẩu</label>
+                                    <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] mb-2">Xác nhận mật khẩu</label>
                                     <div className="relative group">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-600 group-focus-within:text-emerald-500 transition-colors" />
                                         <input
@@ -261,7 +261,7 @@ export default function ForgotPasswordPage({ onBackToLogin }: ForgotPasswordPage
                 <div className="text-center mt-8">
                     <div className="flex items-center justify-center gap-2 mb-2">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">Hệ thống bảo mật nội bộ</p>
+                        <p className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em]">Hệ thống bảo mật nội bộ</p>
                     </div>
                     <p className="text-[10px] text-zinc-700 font-medium">© 2026 Doscom Enterprise. All rights reserved.</p>
                 </div>

@@ -35,7 +35,7 @@ function DailyTestCard({ status, onStart }: { status: DailyStatus; onStart: () =
 
         {/* Label + badge trên cùng một hàng */}
         <div className="flex items-center justify-between gap-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.12em] sm:tracking-[0.3em]">
             <Brain className="w-3 h-3" />
             Kiến thức hằng ngày
           </div>
@@ -57,7 +57,7 @@ function DailyTestCard({ status, onStart }: { status: DailyStatus; onStart: () =
 
         {/* Title + mô tả */}
         <div className="space-y-2">
-          <h2 className="text-4xl lg:text-5xl font-black tracking-tighter text-white uppercase leading-none">Bài kiểm tra</h2>
+          <h2 className="text-[1.75rem] sm:text-4xl lg:text-5xl font-black tracking-tighter text-white uppercase leading-none">Bài kiểm tra</h2>
           <p className="text-[11px] text-zinc-500 font-bold leading-relaxed">
             Kiểm tra kiến thức nội quy, văn hóa công ty và sản phẩm — mỗi ngày một lần
           </p>
@@ -88,7 +88,7 @@ function DailyTestCard({ status, onStart }: { status: DailyStatus; onStart: () =
         <button
           type="button"
           onClick={onStart}
-          className={`w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${
+          className={`w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.12em] sm:tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${
             isDone
               ? 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:scale-[1.02]'
               : 'bg-blue-500 hover:bg-blue-400 text-white shadow-xl hover:scale-[1.02]'
@@ -142,8 +142,8 @@ export default function ExamHubPage({ onStartDailyTest, employeeId, department }
             <Brain className="w-6 h-6 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Bài kiểm tra hằng ngày</h1>
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-2">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Bài kiểm tra hằng ngày</h1>
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-2">
               {isSalesMkt
                 ? `${config.nomaCount} câu NOMA + ${config.generalCount} câu chung — đạt ${config.passThreshold}/${config.totalQuestions}`
                 : `${config.generalCount} câu kiến thức chung — đạt ${config.passThreshold}/${config.totalQuestions}`}

@@ -88,10 +88,10 @@ export default function GuidePage() {
             <BookOpen className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">
               Hướng dẫn sử dụng
             </h1>
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-2">
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-2">
               Hệ thống đào tạo Doscom — Tham khảo nhanh trong 3 phút
             </p>
           </div>

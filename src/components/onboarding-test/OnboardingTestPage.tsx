@@ -69,8 +69,8 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
             <GraduationCap className="w-6 h-6 text-blue-400" />
           </div>
           <div>
-            <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Kiểm tra Onboarding</h1>
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-2">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Kiểm tra Onboarding</h1>
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-2">
               Dành cho nhân viên mới · 30 câu · Đạt 25/30
             </p>
           </div>
@@ -93,11 +93,11 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-transparent pointer-events-none opacity-30" />
             <div className="relative z-10 space-y-8">
               <div className="space-y-3">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.12em] sm:tracking-[0.3em]">
                   <Lock className="w-3 h-3" />
                   Chưa mở
                 </div>
-                <h2 className="text-4xl font-black tracking-tighter text-white uppercase leading-none">Kiểm tra Onboarding</h2>
+                <h2 className="text-[1.75rem] sm:text-4xl font-black tracking-tighter text-white uppercase leading-none">Kiểm tra Onboarding</h2>
                 <p className="text-[11px] text-zinc-500 font-bold leading-relaxed pt-1">
                   Bài kiểm tra sẽ mở vào <span className="text-blue-400 font-black">{formatDate(availability.availableDate)}</span>
                 </p>
@@ -125,7 +125,7 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
 
               <button
                 disabled
-                className="w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.3em] bg-zinc-900 text-zinc-600 cursor-not-allowed flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.12em] sm:tracking-[0.3em] bg-zinc-900 text-zinc-600 cursor-not-allowed flex items-center justify-center gap-3"
               >
                 <Lock className="w-4 h-4" />
                 Chưa đến ngày mở
@@ -139,11 +139,11 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-blue-500/[0.03] to-transparent pointer-events-none opacity-20" />
             <div className="relative z-10 space-y-8">
               <div className="space-y-2">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.12em] sm:tracking-[0.3em]">
                   <GraduationCap className="w-3 h-3" />
                   Sẵn sàng kiểm tra
                 </div>
-                <h2 className="text-4xl lg:text-5xl font-black tracking-tighter text-white uppercase leading-none">Kiểm tra Onboarding</h2>
+                <h2 className="text-[1.75rem] sm:text-4xl lg:text-5xl font-black tracking-tighter text-white uppercase leading-none">Kiểm tra Onboarding</h2>
                 <p className="text-[11px] text-zinc-500 font-bold leading-relaxed pt-2 max-w-md">
                   Bài kiểm tra dành cho nhân viên mới — 30 câu ngẫu nhiên về nội quy, văn hóa và quy trình công ty
                 </p>
@@ -166,7 +166,7 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
               <button
                 type="button"
                 onClick={onStartTest}
-                className="w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.3em] bg-blue-500 hover:bg-blue-400 text-white shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.12em] sm:tracking-[0.3em] bg-blue-500 hover:bg-blue-400 text-white shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
               >
                 <GraduationCap className="w-4 h-4" />
                 Bắt đầu kiểm tra
@@ -185,11 +185,11 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
             <div className="relative z-10 space-y-8">
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
-                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.3em]">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 ring-1 ring-blue-500/30 text-[9px] font-black text-blue-400 uppercase tracking-[0.12em] sm:tracking-[0.3em]">
                     <GraduationCap className="w-3 h-3" />
                     Đã hoàn thành
                   </div>
-                  <h2 className="text-4xl font-black tracking-tighter text-white uppercase leading-none">Kiểm tra Onboarding</h2>
+                  <h2 className="text-[1.75rem] sm:text-4xl font-black tracking-tighter text-white uppercase leading-none">Kiểm tra Onboarding</h2>
                 </div>
                 <div className={`flex flex-col items-center gap-1 px-3 py-2 rounded-2xl ring-1 ${
                   availability.passed
@@ -227,7 +227,7 @@ export default function OnboardingTestPage({ employeeId, onboardingAvailableDate
               <button
                 type="button"
                 onClick={onStartTest}
-                className="w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.3em] bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
+                className="w-full h-14 rounded-2xl font-black uppercase text-xs tracking-[0.12em] sm:tracking-[0.3em] bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:scale-[1.02] transition-all flex items-center justify-center gap-3"
               >
                 <Clock className="w-4 h-4" />
                 Xem lại kết quả

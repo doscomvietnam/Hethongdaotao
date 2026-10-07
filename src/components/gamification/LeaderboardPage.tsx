@@ -71,8 +71,8 @@ export default function LeaderboardPage({ employeeId }: LeaderboardPageProps) {
             <Trophy className="w-6 h-6 text-amber-400" />
           </div>
           <div>
-            <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Bảng Xếp Hạng</h1>
-            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-1">{currentMonth}</p>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Bảng Xếp Hạng</h1>
+            <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-1">{currentMonth}</p>
           </div>
         </div>
       </header>

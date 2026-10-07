@@ -130,7 +130,7 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
                         <form onSubmit={handleSubmit} className="space-y-4">
                             {/* New password */}
                             <div>
-                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
+                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] mb-2 ">
                                     Mật khẩu mới
                                 </label>
                                 <div className="relative group">
@@ -175,7 +175,7 @@ export default function ChangePasswordModal({ authUserId, isForced, onSuccess, o
 
                             {/* Confirm password */}
                             <div>
-                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-2 ">
+                                <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] mb-2 ">
                                     Xác nhận mật khẩu
                                 </label>
                                 <div className="relative group">

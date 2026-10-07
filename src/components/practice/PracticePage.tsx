@@ -91,8 +91,8 @@ function CoursePicker({
           <Icon className={`w-7 h-7 ${s.text}`} />
         </div>
         <div>
-          <h1 className="text-3xl font-black text-white uppercase tracking-tight leading-none">{topic.label}</h1>
-          <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.3em] mt-2">Chọn nội dung muốn ôn</p>
+          <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight leading-none">{topic.label}</h1>
+          <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-2">Chọn nội dung muốn ôn</p>
         </div>
       </header>
 
@@ -184,7 +184,7 @@ function PracticeSession({ topic, subtitle, questions, onExit, onRestart }: Sess
             {great ? <CheckCircle2 className={`w-12 h-12 ${s.text}`} /> : <RotateCcw className={`w-12 h-12 ${s.text}`} />}
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-black text-white uppercase tracking-tight">Hoàn thành lượt luyện</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">Hoàn thành lượt luyện</h2>
             <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-widest">{topic.label}{subtitle ? ` · ${subtitle}` : ''}</p>
           </div>
           <div className="grid grid-cols-2 gap-4">
@@ -423,7 +423,7 @@ export default function PracticePage({ employee }: PracticePageProps) {
           <Dumbbell className="w-6 h-6 text-violet-400" />
         </div>
         <div>
-          <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Luyện tập</h1>
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Luyện tập</h1>
         </div>
       </header>
 

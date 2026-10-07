@@ -371,11 +371,11 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
       <div className="flex flex-col gap-6">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-10">
           <div className="space-y-3">
-            <h1 className="text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">{initialGroup === 'department' ? 'KHÓA HỌC THEO PHÒNG BAN' : 'KHÓA HỌC PHÁT TRIỂN'}</h1>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black tracking-tight text-white uppercase leading-none">{initialGroup === 'department' ? 'KHÓA HỌC THEO PHÒNG BAN' : 'KHÓA HỌC PHÁT TRIỂN'}</h1>
           </div>
 
           {initialGroup !== 'department' && (
-            <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0 flex-wrap">
+            <div className="flex items-center gap-2 bg-zinc-900/40 p-2 rounded-2xl border border-zinc-800 backdrop-blur-md flex-shrink-0 max-w-full flex-nowrap overflow-x-auto scrollbar-hide sm:flex-wrap">
               {brands.map((brand) => (
                 <button
                   key={brand}
@@ -394,8 +394,8 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
 
         {/* Cấp 2: chip danh mục / phòng ban */}
         {subOptions.length > 1 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mr-2">
+          <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
+            <span className="flex-none text-[9px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em] mr-2">
               {subLabel}
             </span>
             {subOptions.filter(opt => opt !== 'Tất cả').map((opt) => (
@@ -403,7 +403,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
                 key={opt}
                 onClick={() => setActiveSub(opt)}
                 className={cn(
-                  "px-4 py-1.5 rounded-full text-[10px] font-black transition-all uppercase tracking-widest border",
+                  "flex-none whitespace-nowrap px-4 py-1.5 rounded-full text-[10px] font-black transition-all uppercase tracking-widest border",
                   activeSub === opt
                     ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
                     : 'bg-zinc-900/40 text-zinc-500 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
@@ -417,8 +417,8 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
 
         {/* Chip chương trình — vd "Khóa học thực chiến". Bấm vào mới hiện lộ trình. */}
         {programOptions.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em] mr-2">
+          <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap sm:overflow-visible">
+            <span className="flex-none text-[9px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em] mr-2">
               Khóa học
             </span>
             {programOptions.map((opt) => (
@@ -426,7 +426,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
                 key={opt}
                 onClick={() => setActiveProgram(opt)}
                 className={cn(
-                  "px-5 py-2 rounded-full text-sm font-black transition-all uppercase tracking-widest border",
+                  "flex-none whitespace-nowrap px-5 py-2 rounded-full text-sm font-black transition-all uppercase tracking-widest border",
                   activeProgram === opt
                     ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/40'
                     : 'bg-zinc-900/40 text-zinc-500 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
@@ -441,7 +441,7 @@ export const CourseCatalog = ({ courses, userId, onCourseClick, initialGroup }: 
 
       {!awaitingProgramPick && finalCourses.length === 0 && (
         <div className="rounded-[2rem] border border-dashed border-zinc-800 bg-zinc-950/40 py-20 px-6 text-center">
-          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">
+          <p className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em]">
             Chưa có khóa học nào cho {isInternal ? 'phòng ban' : 'danh mục'} này
           </p>
         </div>
@@ -894,7 +894,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
   return (
     <div className="space-y-12 animate-in fade-in slide-in-from-right-4 duration-700 pb-20">
       <header className="flex flex-col gap-8">
-        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.3em] transition-all">
+        <button onClick={onBack} className="text-zinc-600 hover:text-white group flex items-center gap-3 font-black text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.3em] transition-all">
           <ChevronLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
           QUAY LẠI KHÓA HỌC
         </button>
@@ -909,7 +909,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
                 {course.brand}
               </Badge>
             </div>
-            <h1 className="text-3xl md:text-4xl font-black tracking-tight text-white uppercase leading-tight">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight text-white uppercase leading-tight">
               {course.title}
             </h1>
             {/* Deadline banner */}
@@ -949,7 +949,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
           {(hasVideo || hasQuiz) && (
             <div className="flex flex-col items-end gap-5">
               <div className="flex justify-between items-center w-full min-w-[320px] mb-1">
-                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] ">
+                <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em] ">
                   {showQuizSection ? 'Tiến độ khóa học' : 'Tiến độ xem video'}
                 </span>
                 <span className="text-emerald-500 font-mono font-black text-lg ">{showQuizSection ? computedCourseProgress : videoWatchProgress}%</span>
@@ -1122,7 +1122,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
           <section className="space-y-10">
             <div className="flex items-center gap-4">
               <Trophy className="w-8 h-8 text-emerald-500" />
-              <h2 className="text-3xl font-black text-white  uppercase tracking-wider underline decoration-zinc-800 decoration-4 underline-offset-[12px]">Bài kiểm tra đánh giá</h2>
+              <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-wider underline decoration-zinc-800 decoration-4 underline-offset-[12px]">Bài kiểm tra đánh giá</h2>
             </div>
 
             <Card className="p-12 bg-zinc-900/50 border-zinc-800 rounded-[3rem] shadow-[0_40px_80px_rgba(0,0,0,0.4)] space-y-12 relative overflow-hidden group border-dashed hover:border-emerald-500/30 transition-all">
@@ -1131,7 +1131,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
               <div className="space-y-6 relative z-10">
                 <div className="flex items-center gap-3 mb-2">
                   <Zap className="w-5 h-5 text-emerald-500" />
-                  <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
+                  <span className="text-[11px] font-black text-emerald-500 uppercase tracking-[0.12em] sm:tracking-[0.4em]  font-mono">CHỨNG CHỈ NỘI BỘ</span>
                 </div>
                 <p className="text-sm font-bold text-zinc-500  leading-relaxed uppercase tracking-tight opacity-70 border-l-2 border-emerald-500/20 pl-6">Hệ thống đánh giá gồm 10 câu hỏi ngẫu nhiên. Nhân viên cần trả lời đúng tối thiểu 8/10 câu để được xét đạt. <span className="text-amber-500 font-black">
                   {quizMaxAttempts > 1 ? `Nếu chưa đạt 80 điểm, được làm lại tối đa ${quizMaxAttempts} lần; đã đạt 80 điểm trở lên thì dừng.` : 'Mỗi người chỉ được làm bài 1 lần duy nhất.'}
@@ -1177,7 +1177,7 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
                   disabled={quizDisabled}
                   onClick={() => onStartQuiz(course.quizId)}
                   className={cn(
-                    "w-full h-20 rounded-[2rem] font-black uppercase text-sm  tracking-[0.3em] transition-all flex items-center justify-center gap-5 shadow-2xl",
+                    "w-full h-20 rounded-[2rem] font-black uppercase text-sm  tracking-[0.12em] sm:tracking-[0.3em] transition-all flex items-center justify-center gap-5 shadow-2xl",
                     quizDisabled
                       ? 'bg-zinc-900 text-zinc-700 border border-zinc-800 cursor-not-allowed'
                       : 'bg-emerald-500 text-white hover:bg-emerald-600 animate-pulse-slow hover:animate-none'

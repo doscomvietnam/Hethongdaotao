@@ -146,7 +146,8 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
     <aside
       className={cn(
         'border-r border-zinc-900 bg-[#0C0C0E] h-screen flex flex-col overflow-hidden transition-all duration-300 ease-in-out',
-        'fixed top-0 left-0 z-50 w-80 md:sticky md:top-0 md:z-20',
+        // Điện thoại: menu nằm TRÊN thanh tiêu đề (header z-50) để không bị che logo
+        'fixed top-0 left-0 z-[60] w-80 max-w-[85vw] md:max-w-none md:sticky md:top-0 md:z-20',
         collapsed ? 'md:w-20' : 'md:w-80',
         mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0',
       )}
@@ -181,7 +182,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
           collapsed ? 'justify-center px-0' : 'justify-between px-4'
         )}>
           {!collapsed && (
-            <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em]">Hệ thống nội bộ</span>
+            <span className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em]">Hệ thống nội bộ</span>
           )}
           <button
             onClick={onToggleCollapse}
@@ -567,7 +568,7 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
                       <div>
                         <div className="px-6 pt-5 pb-2 flex items-center gap-2">
                           <GraduationCap className="w-3.5 h-3.5 text-emerald-500" />
-                          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">Khóa học ({courseMatches.length})</span>
+                          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em]">Khóa học ({courseMatches.length})</span>
                         </div>
                         {courseMatches.map(item => (
                           <button
@@ -598,7 +599,7 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
                       <div>
                         <div className="px-6 pt-5 pb-2 flex items-center gap-2">
                           <Box className="w-3.5 h-3.5 text-blue-400" />
-                          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.3em]">Sản phẩm ({productMatches.length})</span>
+                          <span className="text-[9px] font-black text-zinc-600 uppercase tracking-[0.12em] sm:tracking-[0.3em]">Sản phẩm ({productMatches.length})</span>
                         </div>
                         {productMatches.map(item => (
                           <button
@@ -820,7 +821,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       {/* Mobile backdrop overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/60 z-40 md:hidden"
+          className="fixed inset-0 bg-black/60 z-[55] md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}

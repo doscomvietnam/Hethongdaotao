@@ -1123,7 +1123,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
             }
             color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30"
           />
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 sm:flex-shrink-0 sm:justify-end">
             <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Ngày</label>
             <input
               type="date"
@@ -1135,7 +1135,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
             <button
               type="button"
               onClick={() => setMissedDate(getYesterdayDateStrVN())}
-              className="text-[10px] font-black text-zinc-500 hover:text-red-400 uppercase tracking-widest px-2 py-2 transition-colors"
+              className="whitespace-nowrap text-[10px] font-black text-zinc-500 hover:text-red-400 uppercase tracking-widest px-2 py-2 transition-colors"
               title="Đặt lại về hôm qua"
             >
               ↺ Hôm qua
@@ -1144,7 +1144,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
               type="button"
               onClick={() => exportOverdueEmployeesExcel(missedYesterday, missedDate)}
               disabled={missedLoading || isMissedSunday || missedYesterday.length === 0}
-              className="flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:cursor-not-allowed text-red-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 hover:border-red-500/40 transition-colors"
+              className="whitespace-nowrap flex items-center gap-2 bg-red-500/10 hover:bg-red-500/20 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:cursor-not-allowed text-red-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 hover:border-red-500/40 transition-colors"
               title="Xuất danh sách ngày đã chọn ra Excel"
             >
               <Download className="w-3.5 h-3.5" />
@@ -1168,7 +1168,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
                 }
               }}
               disabled={exportingAll}
-              className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:cursor-not-allowed text-amber-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-500/20 hover:border-amber-500/40 transition-colors"
+              className="whitespace-nowrap flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 disabled:bg-zinc-900 disabled:text-zinc-700 disabled:cursor-not-allowed text-amber-400 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-amber-500/20 hover:border-amber-500/40 transition-colors"
               title={`Xuất từ ${DEFAULT_EXPORT_START_DATE} đến hôm qua, mỗi ngày 1 sheet`}
             >
               <Download className="w-3.5 h-3.5" />

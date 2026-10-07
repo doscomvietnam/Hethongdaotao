@@ -77,7 +77,7 @@ function ResultScreen({ session, timeSpent, onBack }: { session: OnboardingTestS
             {passed ? <Trophy size={52} /> : <XCircle size={52} />}
           </motion.div>
           <div>
-            <h1 className="text-3xl font-black text-white uppercase tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tight">
               {passed ? 'ONBOARDING HOÀN TẤT!' : 'CHƯA ĐẠT YÊU CẦU'}
             </h1>
             <p className="text-zinc-500 text-xs font-black uppercase tracking-widest mt-2">Kiểm tra Onboarding dành cho nhân viên mới</p>
@@ -108,7 +108,7 @@ function ResultScreen({ session, timeSpent, onBack }: { session: OnboardingTestS
 
         {/* Chi tiết từng câu */}
         <div className="space-y-3">
-          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em]">Chi tiết từng câu</h2>
+          <h2 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.12em] sm:tracking-[0.3em]">Chi tiết từng câu</h2>
           {session.questions.map((q, i) => (
             <div key={q.id} className={`p-4 rounded-2xl border ${q.isCorrect ? 'bg-violet-500/5 border-blue-500/20' : 'bg-red-500/5 border-red-500/20'}`}>
               <div className="flex items-start gap-3">

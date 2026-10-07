@@ -230,7 +230,7 @@ export default function SystemStructurePage() {
       <header className="flex flex-col gap-4 border-l-4 border-emerald-500 pl-8 py-2">
         <div className="flex items-center gap-4">
           <GitBranch className="w-8 h-8 text-emerald-500" />
-          <h1 className="text-5xl font-black tracking-tighter text-white uppercase leading-none">
+          <h1 className="text-[1.75rem] sm:text-5xl font-black tracking-tighter text-white uppercase leading-none">
             CẤU TRÚC PHÂN QUYỀN
           </h1>
         </div>
