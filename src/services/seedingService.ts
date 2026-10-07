@@ -47,27 +47,33 @@ export async function getCachedSeedingState(): Promise<SeedingState | null> {
   } catch { return null; }
 }
 
-// Link đã bấm "Mở link" (theo tài khoản + ngày) — phải mở link ít nhất 1 lần mới được nộp ảnh.
+// Link đã bấm "Mở link" (theo tài khoản + ngày) → lưu THỜI ĐIỂM bấm lần đầu (ms).
+// Phải mở link và chờ đủ SEED_WAIT_MS mới được nộp ảnh. Mở lại không tính lại thời gian.
+export const SEED_WAIT_MS = 60_000;
 async function openedKey(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user?.id;
   return uid ? `seeding_opened:${uid}:${vnToday()}` : null;
 }
-export async function getOpenedLinks(): Promise<string[]> {
+export async function getOpenedLinks(): Promise<Record<string, number>> {
   try {
     const key = await openedKey();
     const raw = key ? localStorage.getItem(key) : null;
-    return raw ? (JSON.parse(raw) as string[]) : [];
-  } catch { return []; }
+    if (!raw) return {};
+    const v = JSON.parse(raw);
+    // Định dạng cũ (mảng id, chưa có thời điểm) → coi như đã mở từ trước, không bắt chờ
+    if (Array.isArray(v)) return Object.fromEntries(v.map((id: string) => [id, 0]));
+    return v && typeof v === 'object' ? (v as Record<string, number>) : {};
+  } catch { return {}; }
 }
-export async function markLinkOpened(linkId: string): Promise<void> {
+export async function markLinkOpened(linkId: string): Promise<Record<string, number>> {
+  const map = await getOpenedLinks();
+  if (map[linkId] === undefined) map[linkId] = Date.now(); // giữ thời điểm mở lần đầu
   try {
     const key = await openedKey();
-    if (!key) return;
-    const list = new Set(await getOpenedLinks());
-    list.add(linkId);
-    localStorage.setItem(key, JSON.stringify([...list]));
+    if (key) localStorage.setItem(key, JSON.stringify(map));
   } catch { /* bỏ qua */ }
+  return map;
 }
 
 export async function getSeedingState(): Promise<SeedingState> {

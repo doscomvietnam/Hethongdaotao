@@ -1,8 +1,8 @@
 import * as React from 'react';
-import { ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, Share2 } from 'lucide-react';
+import { ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, Share2, Clock } from 'lucide-react';
 import {
   getSeedingState, getCachedSeedingState, submitSeeding, releaseSeeding, compressImage,
-  getOpenedLinks, markLinkOpened,
+  getOpenedLinks, markLinkOpened, SEED_WAIT_MS,
   type SeedingState, type SeedingGroupView, type SeedingLinkView,
 } from '../../services/seedingService';
 
@@ -20,12 +20,21 @@ export default function SeedingSection() {
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const pendingRef = React.useRef<string | null>(null);
-  const [opened, setOpened] = React.useState<Set<string>>(new Set());
-  React.useEffect(() => { getOpenedLinks().then((ids) => setOpened(new Set(ids))); }, []);
+  // linkId → thời điểm bấm "Mở link" lần đầu; đủ SEED_WAIT_MS mới được nộp ảnh
+  const [opened, setOpened] = React.useState<Record<string, number>>({});
+  const [now, setNow] = React.useState(Date.now());
+  React.useEffect(() => { getOpenedLinks().then(setOpened); }, []);
   const onOpen = (linkId: string) => {
-    setOpened((prev) => new Set(prev).add(linkId));
+    setOpened((prev) => (prev[linkId] !== undefined ? prev : { ...prev, [linkId]: Date.now() }));
     markLinkOpened(linkId);
   };
+  // Còn link đang chờ → đếm ngược mỗi giây
+  const waiting = Object.values(opened).some((t) => now - t < SEED_WAIT_MS);
+  React.useEffect(() => {
+    if (!waiting) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [waiting]);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const load = React.useCallback(async (silent = false) => {
@@ -110,7 +119,7 @@ export default function SeedingSection() {
         <>
           <DailyProgress done={data!.myTodayTotal} target={data!.minPerDay} />
           <div className="grid gap-4 md:grid-cols-3">
-            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} opened={opened} onOpen={onOpen} />)}
+            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} opened={opened} now={now} onOpen={onOpen} />)}
           </div>
         </>
       )}
@@ -137,9 +146,9 @@ function DailyProgress({ done, target }: { done: number; target: number }) {
   );
 }
 
-function GroupCard({ g, busy, onPick, onRelease, opened, onOpen }: {
+function GroupCard({ g, busy, onPick, onRelease, opened, now, onOpen }: {
   g: SeedingGroupView; busy: string | null; onPick: (id: string) => void; onRelease: (id: string) => void;
-  opened: Set<string>; onOpen: (id: string) => void;
+  opened: Record<string, number>; now: number; onOpen: (id: string) => void;
 }) {
   const st = GROUP_STYLE[g.key] || GROUP_STYLE.koc;
   // Link nộp được / đã nộp hôm nay lên trước, link không làm được xuống cuối
@@ -170,17 +179,20 @@ function GroupCard({ g, busy, onPick, onRelease, opened, onOpen }: {
       <div className="p-3 flex flex-col gap-2 flex-1">
         {links.length === 0 ? (
           <div className="text-center text-[12px] text-zinc-600 py-6">Chưa có link</div>
-        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease} opened={opened.has(l.id)} onOpen={onOpen} />)}
+        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease} openedAt={opened[l.id]} now={now} onOpen={onOpen} />)}
       </div>
     </div>
   );
 }
 
-function LinkRow({ l, busy, onPick, onRelease, opened, onOpen }: {
+function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen }: {
   l: SeedingLinkView; busy: boolean; onPick: (id: string) => void; onRelease: (id: string) => void;
-  opened: boolean; onOpen: (id: string) => void;
+  openedAt: number | undefined; now: number; onOpen: (id: string) => void;
 }) {
+  const opened = openedAt !== undefined;
   const needOpen = !opened && !l.mineToday && l.canClaim;
+  const waitLeft = opened ? Math.max(0, Math.ceil((openedAt + SEED_WAIT_MS - now) / 1000)) : 0;
+  const waitingHere = opened && waitLeft > 0 && !l.mineToday && l.canClaim;
   const dim = !l.mineToday && !l.canClaim;
   return (
     <div className={`rounded-xl border p-3 ${l.mineToday ? 'border-emerald-500/40 bg-emerald-500/5' : dim ? 'border-zinc-800 bg-zinc-900/40 opacity-60' : 'border-zinc-800 bg-zinc-900/40'}`}>
@@ -217,6 +229,10 @@ function LinkRow({ l, busy, onPick, onRelease, opened, onOpen }: {
             needOpen ? (
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500" title="Bấm Mở link để seeding trước, sau đó mới nộp ảnh">
                 <Upload className="w-3.5 h-3.5" /> Mở link trước để nộp ảnh
+              </span>
+            ) : waitingHere ? (
+              <span className="flex items-center gap-1.5 text-[11px] font-black text-amber-500 tabular-nums" title="Seeding ít nhất 1 phút rồi mới nộp ảnh">
+                <Clock className="w-3.5 h-3.5" /> Nộp ảnh sau {Math.floor(waitLeft / 60)}:{String(waitLeft % 60).padStart(2, '0')}
               </span>
             ) : (
               <button disabled={busy} onClick={() => onPick(l.id)} className="flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">
