@@ -93,18 +93,21 @@ export const adminRevokeSubmission = (submission_id: string) => postAdmin({ acti
 export const adminRestoreSubmission = (submission_id: string) => postAdmin({ action: 'restore', submission_id });
 
 // ───────── Nén ảnh trên trình duyệt trước khi upload ─────────
-export async function compressImage(file: File, maxW = 1280, quality = 0.7): Promise<{ base64: string; contentType: string }> {
+// Giới hạn theo CẠNH DÀI NHẤT (ảnh chụp màn hình điện thoại là ảnh dọc ~1080×2400 — giới hạn theo chiều
+// ngang thì gần như không thu nhỏ). 1600px cạnh dài + JPEG 0.7 ≈ 150KB/ảnh, chữ vẫn đọc rõ.
+export async function compressImage(file: File, maxSide = 1600, quality = 0.7): Promise<{ base64: string; contentType: string }> {
   const dataUrl: string = await new Promise((res, rej) => {
     const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.onerror = rej; fr.readAsDataURL(file);
   });
   const img = await new Promise<HTMLImageElement>((res, rej) => {
     const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = dataUrl;
   });
-  const scale = Math.min(1, maxW / img.width);
+  const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
   const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
   const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
   const ctx = canvas.getContext('2d');
   if (!ctx) return { base64: dataUrl, contentType: file.type || 'image/jpeg' };
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); // PNG nền trong suốt → không bị đen khi đổi sang JPEG
   ctx.drawImage(img, 0, 0, w, h);
   const out = canvas.toDataURL('image/jpeg', quality);
   return { base64: out, contentType: 'image/jpeg' };
