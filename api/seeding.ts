@@ -1,16 +1,26 @@
 /**
- * Serverless — Seeding hàng ngày (phía NHÂN VIÊN). Chỉ qua service_role (RLS chặn client).
- *  GET  /api/seeding?token=<jwt>            → trạng thái nhóm/link hôm nay + số đếm + claim của tôi
+ * Serverless — Seeding (phía NHÂN VIÊN). Chỉ qua service_role (RLS chặn client).
+ *  GET  /api/seeding?token=<jwt>            → nhóm + link đang chạy + số đếm + tiến độ của tôi
  *  POST /api/seeding  { token, action, ... }
- *     action='submit'  { link_id, image_base64, content_type }  → nộp/đổi ảnh (chống tràn chỗ)
- *     action='release' { link_id }                              → bỏ chỗ (xóa ảnh đã nộp của mình)
+ *     action='submit'  { link_id, image_base64, content_type }  → nộp/đổi ảnh (kiểm tra giới hạn)
+ *     action='release' { link_id }                              → bỏ lượt hôm nay (xóa ảnh của mình)
+ *
+ * Luật (chốt 06/10/2026):
+ *  - Link chạy nhiều ngày; mỗi link tổng LINK_TOTAL lượt (seeding_links.max_people), tối đa LINK_DAILY lượt/ngày.
+ *    Đủ tổng lượt → link 'completed' (ẩn khỏi nhân viên); ảnh giữ thêm 7 ngày rồi tự xóa (xem seeding-admin).
+ *  - Mỗi nhóm tối đa GROUP_MAX người/ngày. Mỗi người tối đa MAX_PER_GROUP link/nhóm/ngày; nếu ≥2 nhóm đã đầy
+ *    với người đó thì được MAX_PER_GROUP_EXCEPTION link trong nhóm còn lại. Mục tiêu MIN_PER_DAY link/ngày.
+ *  - Mỗi người seed 1 link tối đa 1 lần (unique link_id + employee_id).
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
 const BUCKET = 'seeding-proofs';
-const GROUP_MAX = 15;                 // tối đa 15 người/nhóm/ngày
-const MAX_LINKS_PER_GROUP = 2;        // mỗi người tối đa 2 link/nhóm
+const GROUP_MAX = 28;
+const LINK_DAILY = 2;
+const MAX_PER_GROUP = 2;
+const MAX_PER_GROUP_EXCEPTION = 4;
+const MIN_PER_DAY = 4;
 const GROUPS = [
   { key: 'koc', label: 'Seeding KOC' },
   { key: 'company', label: 'Seeding video công ty' },
@@ -33,60 +43,92 @@ async function verifyUser(s: any, token: string) {
   return emp || null;
 }
 
-// Gom số đếm + cờ trạng thái cho 1 nhân viên
-async function buildState(s: any, meId: string) {
+/** Số liệu chung: link đang chạy + lượt hôm nay + tổng lượt. */
+async function loadCounts(s: any) {
   const date = vnToday();
-  const { data: links } = await s
-    .from('seeding_links')
-    .select('id, group_key, title, url, max_people')
-    .eq('task_date', date)
-    .eq('status', 'active')
-    .order('created_at', { ascending: true });
+  // 3 truy vấn chạy SONG SONG (trước chạy nối tiếp → chậm khi hàm ở xa DB)
+  const [{ data: links }, { data: linkSubs }, { data: todaySubs }] = await Promise.all([
+    s.from('seeding_links')
+      .select('id, group_key, title, url, max_people, status, created_at')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true }),
+    // Bài nộp của các link đang chạy (mọi ngày) → tổng lượt + "tôi đã seed link này chưa"
+    s.from('seeding_submissions')
+      .select('link_id, employee_id, task_date, seeding_links!inner(status)')
+      .eq('status', 'active').eq('seeding_links.status', 'active'),
+    // Bài nộp HÔM NAY (mọi link) → số người/nhóm/ngày + số link của mỗi người hôm nay
+    s.from('seeding_submissions')
+      .select('link_id, group_key, employee_id').eq('task_date', date).eq('status', 'active'),
+  ]);
 
-  const { data: subs } = await s
-    .from('seeding_submissions')
-    .select('link_id, group_key, employee_id, image_path')
-    .eq('task_date', date)
-    .eq('status', 'active');
+  return { date, links: links || [], linkSubs: linkSubs || [], todaySubs: todaySubs || [] };
+}
 
-  const allSubs = subs || [];
-  const linkCount: Record<string, number> = {};
-  const groupPeople: Record<string, Set<string>> = {};
-  const myLinksInGroup: Record<string, number> = {};
-  const myLinks = new Set<string>();
-  for (const r of allSubs) {
-    linkCount[r.link_id] = (linkCount[r.link_id] || 0) + 1;
-    (groupPeople[r.group_key] ||= new Set()).add(r.employee_id);
+/** Giới hạn của 1 nhân viên theo nhóm (gồm ngoại lệ 2/3 nhóm đầy). */
+function limitsFor(meId: string, todaySubs: any[]) {
+  const people: Record<string, Set<string>> = {};
+  const mine: Record<string, number> = {};
+  for (const r of todaySubs) {
+    (people[r.group_key] ||= new Set()).add(r.employee_id);
+    if (r.employee_id === meId) mine[r.group_key] = (mine[r.group_key] || 0) + 1;
+  }
+  const fullForMe = (g: string) => (people[g]?.size || 0) >= GROUP_MAX && !people[g]?.has(meId);
+  const unavailable = GROUPS.filter((g) => fullForMe(g.key)).length;
+  const perGroupMax = unavailable >= 2 ? MAX_PER_GROUP_EXCEPTION : MAX_PER_GROUP;
+  return { people, mine, fullForMe, perGroupMax };
+}
+
+async function buildState(s: any, meId: string, pre?: Awaited<ReturnType<typeof loadCounts>> | null) {
+  const { date, links, linkSubs, todaySubs } = pre || await loadCounts(s);
+  const total: Record<string, number> = {};
+  const today: Record<string, number> = {};
+  const mineAny = new Set<string>();
+  const mineToday = new Set<string>();
+  for (const r of linkSubs) {
+    total[r.link_id] = (total[r.link_id] || 0) + 1;
+    if (r.task_date === date) today[r.link_id] = (today[r.link_id] || 0) + 1;
     if (r.employee_id === meId) {
-      myLinks.add(r.link_id);
-      myLinksInGroup[r.group_key] = (myLinksInGroup[r.group_key] || 0) + 1;
+      mineAny.add(r.link_id);
+      if (r.task_date === date) mineToday.add(r.link_id);
     }
   }
+  const { people, mine, fullForMe, perGroupMax } = limitsFor(meId, todaySubs);
+  const myTodayTotal = todaySubs.filter((r: any) => r.employee_id === meId).length;
 
   const groups = GROUPS.map((g) => {
-    const gLinks = (links || []).filter((l: any) => l.group_key === g.key);
-    const people = groupPeople[g.key]?.size || 0;
-    const myCount = myLinksInGroup[g.key] || 0;
-    const inGroup = (groupPeople[g.key]?.has(meId)) || false;
-    const groupFull = people >= GROUP_MAX && !inGroup;
+    const groupFull = fullForMe(g.key);
+    const myInGroup = mine[g.key] || 0;
+    const gLinks = links.filter((l: any) => l.group_key === g.key).map((l: any) => {
+      const t = today[l.id] || 0;
+      const tot = total[l.id] || 0;
+      const isMine = mineAny.has(l.id);
+      const isMineToday = mineToday.has(l.id);
+      const linkFull = !isMine && t >= LINK_DAILY;
+      const canClaim = !isMine && t < LINK_DAILY && tot < l.max_people && !groupFull && myInGroup < perGroupMax;
+      return {
+        id: l.id, title: l.title, url: l.url,
+        today: t, dailyMax: LINK_DAILY, total: tot, totalMax: l.max_people,
+        mine: isMine, mineToday: isMineToday, linkFull, canClaim,
+      };
+    });
     return {
-      key: g.key,
-      label: g.label,
-      people,
-      maxPeople: GROUP_MAX,
-      groupFull,
-      myLinksInGroup: myCount,
-      maxLinksPerGroup: MAX_LINKS_PER_GROUP,
-      links: gLinks.map((l: any) => {
-        const cnt = linkCount[l.id] || 0;
-        const mine = myLinks.has(l.id);
-        const linkFull = cnt >= l.max_people && !mine;
-        const canClaim = mine || (!linkFull && !groupFull && myCount < MAX_LINKS_PER_GROUP);
-        return { id: l.id, title: l.title, url: l.url, count: cnt, max: l.max_people, mine, linkFull, canClaim };
-      }),
+      key: g.key, label: g.label,
+      people: people[g.key]?.size || 0, maxPeople: GROUP_MAX, groupFull,
+      myLinksInGroup: myInGroup, maxLinksPerGroup: perGroupMax,
+      links: gLinks,
     };
   });
-  return { date, groups };
+  return { date, groups, myTodayTotal, minPerDay: MIN_PER_DAY };
+}
+
+/** Cập nhật trạng thái link theo tổng lượt: đủ → completed, thiếu (do thu hồi/bỏ) → active. */
+async function syncLinkStatus(s: any, linkId: string) {
+  const { data: link } = await s.from('seeding_links').select('id, status, max_people').eq('id', linkId).maybeSingle();
+  if (!link || link.status === 'inactive') return;
+  const { count } = await s.from('seeding_submissions')
+    .select('id', { count: 'exact', head: true }).eq('link_id', linkId).eq('status', 'active');
+  const next = (count || 0) >= link.max_people ? 'completed' : 'active';
+  if (next !== link.status) await s.from('seeding_links').update({ status: next }).eq('id', linkId);
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -97,13 +139,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const s = svc();
   const token = (req.method === 'GET' ? (req.query.token as string) : req.body?.token) || '';
-  const me = await verifyUser(s, token);
+  // GET: xác thực + tải số liệu chạy song song (số liệu không phụ thuộc người dùng)
+  const [me, preCounts] = await Promise.all([
+    verifyUser(s, token),
+    req.method === 'GET' && token ? loadCounts(s) : Promise.resolve(null),
+  ]);
   if (!me) return res.status(401).json({ error: 'Chưa đăng nhập hoặc phiên không hợp lệ' });
 
   try {
     if (req.method === 'GET') {
       res.setHeader('Cache-Control', 'no-store');
-      return res.status(200).json(await buildState(s, me.id));
+      return res.status(200).json(await buildState(s, me.id, preCounts));
     }
 
     if (req.method === 'POST') {
@@ -113,10 +159,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (action === 'release') {
         const linkId = req.body?.link_id;
         const { data: row } = await s.from('seeding_submissions')
-          .select('id, image_path').eq('link_id', linkId).eq('employee_id', me.id).maybeSingle();
+          .select('id, image_path, task_date').eq('link_id', linkId).eq('employee_id', me.id).maybeSingle();
+        if (row && row.task_date !== date) return res.status(400).json({ error: 'Chỉ bỏ được lượt nộp trong hôm nay' });
         if (row) {
           if (row.image_path) await s.storage.from(BUCKET).remove([row.image_path]);
           await s.from('seeding_submissions').delete().eq('id', row.id);
+          await syncLinkStatus(s, linkId);
         }
         return res.status(200).json(await buildState(s, me.id));
       }
@@ -128,25 +176,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!linkId || !b64) return res.status(400).json({ error: 'Thiếu link hoặc ảnh' });
 
         const { data: link } = await s.from('seeding_links')
-          .select('id, group_key, max_people, status, task_date').eq('id', linkId).maybeSingle();
-        if (!link || link.status !== 'active' || link.task_date !== date)
-          return res.status(400).json({ error: 'Link không còn hiệu lực hôm nay' });
+          .select('id, group_key, max_people, status').eq('id', linkId).maybeSingle();
+        if (!link || link.status !== 'active')
+          return res.status(400).json({ error: 'LINK_CLOSED', message: 'Link này đã đủ lượt hoặc đã đóng, chọn link khác nhé.' });
 
-        // Đã nộp link này chưa? (đổi ảnh thì bỏ qua kiểm tra trần chỗ)
         const { data: existing } = await s.from('seeding_submissions')
-          .select('id, image_path').eq('link_id', linkId).eq('employee_id', me.id).maybeSingle();
+          .select('id, image_path, task_date').eq('link_id', linkId).eq('employee_id', me.id).maybeSingle();
+        if (existing && existing.task_date !== date)
+          return res.status(409).json({ error: 'ALREADY', message: 'Bạn đã seed link này vào ngày trước rồi, chọn link khác nhé.' });
 
         if (!existing) {
-          // Kiểm tra trần chỗ TRƯỚC khi nhận
-          const { data: subs } = await s.from('seeding_submissions')
-            .select('link_id, group_key, employee_id').eq('task_date', date).eq('status', 'active');
-          const all = subs || [];
-          const linkCnt = all.filter((r: any) => r.link_id === linkId).length;
-          const grpPeople = new Set(all.filter((r: any) => r.group_key === link.group_key).map((r: any) => r.employee_id));
-          const myLinksInGrp = new Set(all.filter((r: any) => r.group_key === link.group_key && r.employee_id === me.id).map((r: any) => r.link_id)).size;
-          if (linkCnt >= link.max_people) return res.status(409).json({ error: 'LINK_FULL', message: 'Link này vừa đủ người, chọn link khác nhé.' });
-          if (!grpPeople.has(me.id) && grpPeople.size >= GROUP_MAX) return res.status(409).json({ error: 'GROUP_FULL', message: 'Nhóm này vừa đủ 15 người, chuyển nhóm khác nhé.' });
-          if (myLinksInGrp >= MAX_LINKS_PER_GROUP) return res.status(409).json({ error: 'MAX_LINKS', message: `Bạn đã seed tối đa ${MAX_LINKS_PER_GROUP} link trong nhóm này.` });
+          const { linkSubs, todaySubs } = await loadCounts(s);
+          const subsOfLink = linkSubs.filter((r: any) => r.link_id === linkId);
+          const linkToday = subsOfLink.filter((r: any) => r.task_date === date).length;
+          const { mine, fullForMe, perGroupMax } = limitsFor(me.id, todaySubs);
+          if (subsOfLink.length >= link.max_people) return res.status(409).json({ error: 'LINK_DONE', message: 'Link này vừa đủ lượt, chọn link khác nhé.' });
+          if (linkToday >= LINK_DAILY) return res.status(409).json({ error: 'LINK_FULL', message: `Link này đã đủ ${LINK_DAILY} lượt hôm nay, chọn link khác nhé.` });
+          if (fullForMe(link.group_key)) return res.status(409).json({ error: 'GROUP_FULL', message: `Nhóm này đã đủ ${GROUP_MAX} người hôm nay, chuyển nhóm khác nhé.` });
+          if ((mine[link.group_key] || 0) >= perGroupMax) return res.status(409).json({ error: 'MAX_LINKS', message: `Bạn đã seed tối đa ${perGroupMax} link trong nhóm này hôm nay.` });
         }
 
         // Upload ảnh
@@ -156,30 +203,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const up = await s.storage.from(BUCKET).upload(path, buf, { contentType: ct, upsert: true });
         if (up.error) return res.status(500).json({ error: 'Lỗi tải ảnh: ' + up.error.message });
 
-        // Ghi / cập nhật submission
         if (existing) {
+          if (existing.image_path && existing.image_path !== path) await s.storage.from(BUCKET).remove([existing.image_path]);
           await s.from('seeding_submissions').update({ image_path: path, submitted_at: new Date().toISOString() }).eq('id', existing.id);
-        } else {
-          const ins = await s.from('seeding_submissions').insert({
-            link_id: linkId, group_key: link.group_key, employee_id: me.id,
-            task_date: date, image_path: path, status: 'active',
-          });
-          // Bù trừ: nếu vừa bị tràn do 2 người cùng nộp → rút lại
-          if (!ins.error) {
-            const { count } = await s.from('seeding_submissions')
-              .select('id', { count: 'exact', head: true }).eq('link_id', linkId).eq('status', 'active');
-            if ((count || 0) > link.max_people) {
-              await s.from('seeding_submissions').delete().eq('link_id', linkId).eq('employee_id', me.id);
-              await s.storage.from(BUCKET).remove([path]);
-              return res.status(409).json({ error: 'LINK_FULL', message: 'Link này vừa đủ người, chọn link khác nhé.' });
-            }
-          } else if (ins.error.code === '23505') {
-            // unique race: đã có row → coi như đổi ảnh, update
-            await s.from('seeding_submissions').update({ image_path: path }).eq('link_id', linkId).eq('employee_id', me.id);
-          } else {
-            return res.status(500).json({ error: ins.error.message });
-          }
+          return res.status(200).json(await buildState(s, me.id));
         }
+
+        const ins = await s.from('seeding_submissions').insert({
+          link_id: linkId, group_key: link.group_key, employee_id: me.id,
+          task_date: date, image_path: path, status: 'active',
+        });
+        if (ins.error) {
+          await s.storage.from(BUCKET).remove([path]);
+          if (ins.error.code === '23505') return res.status(409).json({ error: 'ALREADY', message: 'Bạn đã nộp link này rồi.' });
+          return res.status(500).json({ error: ins.error.message });
+        }
+
+        // Bù trừ khi 2 người cùng nộp chỗ cuối: vượt giới hạn → rút lại
+        const { data: after } = await s.from('seeding_submissions')
+          .select('id, task_date').eq('link_id', linkId).eq('status', 'active');
+        const afterTotal = (after || []).length;
+        const afterToday = (after || []).filter((r: any) => r.task_date === date).length;
+        if (afterTotal > link.max_people || afterToday > LINK_DAILY) {
+          await s.from('seeding_submissions').delete().eq('link_id', linkId).eq('employee_id', me.id);
+          await s.storage.from(BUCKET).remove([path]);
+          return res.status(409).json({ error: 'LINK_FULL', message: 'Link này vừa đủ lượt, chọn link khác nhé.' });
+        }
+        await syncLinkStatus(s, linkId); // đủ tổng lượt → completed (ẩn khỏi nhân viên)
         return res.status(200).json(await buildState(s, me.id));
       }
 

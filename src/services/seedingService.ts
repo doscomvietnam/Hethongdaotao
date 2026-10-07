@@ -8,8 +8,10 @@ export const SEEDING_GROUPS = [
 
 export interface SeedingLinkView {
   id: string; title: string; url: string;
-  count: number; max: number;
-  mine: boolean; linkFull: boolean; canClaim: boolean;
+  today: number; dailyMax: number;      // lượt hôm nay / tối đa mỗi ngày (2)
+  total: number; totalMax: number;      // tổng lượt / tổng tối đa (10)
+  mine: boolean; mineToday: boolean;    // tôi đã seed link này (bất kỳ ngày) / trong hôm nay
+  linkFull: boolean; canClaim: boolean;
 }
 export interface SeedingGroupView {
   key: string; label: string;
@@ -17,7 +19,7 @@ export interface SeedingGroupView {
   myLinksInGroup: number; maxLinksPerGroup: number;
   links: SeedingLinkView[];
 }
-export interface SeedingState { date: string; groups: SeedingGroupView[]; }
+export interface SeedingState { date: string; groups: SeedingGroupView[]; myTodayTotal: number; minPerDay: number; }
 
 async function token(): Promise<string> {
   const { data } = await supabase.auth.getSession();
@@ -25,11 +27,33 @@ async function token(): Promise<string> {
 }
 
 // ───────── Nhân viên ─────────
+// Bộ nhớ đệm theo tài khoản + ngày: mở tab Kiểm tra là hiện ngay dữ liệu lần trước, rồi tải mới ở nền.
+const vnToday = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+async function cacheKey(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  const uid = data.session?.user?.id;
+  return uid ? `seeding_state:${uid}` : null;
+}
+function saveCache(key: string | null, st: SeedingState) {
+  if (!key) return;
+  try { localStorage.setItem(key, JSON.stringify(st)); } catch { /* bỏ qua */ }
+}
+export async function getCachedSeedingState(): Promise<SeedingState | null> {
+  try {
+    const key = await cacheKey();
+    const raw = key ? localStorage.getItem(key) : null;
+    const st = raw ? (JSON.parse(raw) as SeedingState) : null;
+    return st && st.date === vnToday() && Array.isArray(st.groups) ? st : null;
+  } catch { return null; }
+}
+
 export async function getSeedingState(): Promise<SeedingState> {
   const t = await token();
   const r = await fetch(`/api/seeding?token=${encodeURIComponent(t)}`);
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || 'Không tải được nhiệm vụ seeding');
-  return r.json();
+  const st: SeedingState = await r.json();
+  saveCache(await cacheKey(), st);
+  return st;
 }
 
 async function postSeeding(body: any): Promise<SeedingState> {
@@ -40,6 +64,7 @@ async function postSeeding(body: any): Promise<SeedingState> {
   });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) { const e: any = new Error(j.message || j.error || 'Lỗi'); e.code = j.error; throw e; }
+  saveCache(await cacheKey(), j);
   return j;
 }
 export const submitSeeding = (linkId: string, imageBase64: string, contentType: string) =>
@@ -57,8 +82,9 @@ async function postAdmin(body: any): Promise<any> {
   if (!r.ok) throw new Error(j.error || 'Lỗi');
   return j;
 }
-export const adminListSeeding = (date: string) => postAdmin({ action: 'list', date });
-export const adminSaveLink = (link: { id?: string; group_key: string; title: string; url: string; task_date?: string; max_people?: number }) =>
+export const adminListSeeding = () => postAdmin({ action: 'list' });
+export const adminSeedingProgress = (date: string) => postAdmin({ action: 'progress', date });
+export const adminSaveLink = (link: { id?: string; group_key: string; title?: string; url: string; max_people?: number }) =>
   postAdmin({ action: 'save-link', ...link });
 export const adminDeleteLink = (id: string) => postAdmin({ action: 'delete-link', id });
 export const adminSetLinkStatus = (id: string, status: string) => postAdmin({ action: 'set-status', id, status });
