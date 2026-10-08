@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { fetchAll } from './fetchAll';
 import { SEQUENTIAL_PATH_BRANDS } from './sequentialCourseHelpers';
 
 const SALE_PATH_BRAND = SEQUENTIAL_PATH_BRANDS[0]; // 'Khóa học sale thực chiến'
@@ -196,8 +197,8 @@ export async function getEmployeeGamificationData(employeeId: string): Promise<E
   const monthStart = currentYM + '-01';
 
   const [dailyRes, courseRes, onboardingRes, saleRes] = await Promise.all([
-    supabase.from('daily_tests').select('test_date, correct_count, score_percent').eq('employee_id', employeeId).eq('status', 'submitted'),
-    supabase.from('training_progress').select('quiz_score, quiz_completed_at, video_progress, course_id').eq('employee_id', employeeId).not('quiz_score', 'is', null),
+    fetchAll(() => supabase.from('daily_tests').select('test_date, correct_count, score_percent').eq('employee_id', employeeId).eq('status', 'submitted'), 'test_id'),
+    fetchAll(() => supabase.from('training_progress').select('quiz_score, quiz_completed_at, video_progress, course_id').eq('employee_id', employeeId).not('quiz_score', 'is', null), 'id'),
     supabase.from('onboarding_tests').select('passed, correct_count, status').eq('employee_id', employeeId).maybeSingle(),
     supabase.from('courses').select('course_id').eq('brand', SALE_PATH_BRAND).eq('status', 'active'),
   ]);
@@ -304,8 +305,8 @@ export async function getLeaderboard(): Promise<{ monthly: LeaderboardEntry[]; a
 
   const [empsRes, dailyRes, courseRes, onboardingRes] = await Promise.all([
     supabase.from('employees').select('id, full_name, department').eq('employment_status', 'active').order('full_name'),
-    supabase.from('daily_tests').select('employee_id, test_date, correct_count, score_percent').eq('status', 'submitted'),
-    supabase.from('training_progress').select('employee_id, quiz_score, quiz_completed_at').not('quiz_score', 'is', null),
+    fetchAll(() => supabase.from('daily_tests').select('employee_id, test_date, correct_count, score_percent').eq('status', 'submitted'), 'test_id'),
+    fetchAll(() => supabase.from('training_progress').select('employee_id, quiz_score, quiz_completed_at').not('quiz_score', 'is', null), 'id'),
     supabase.from('onboarding_tests').select('employee_id, passed, correct_count, status'),
   ]);
 

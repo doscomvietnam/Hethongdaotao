@@ -30,6 +30,7 @@ import {
   exportOverdueByDayExcel,
   DEFAULT_EXPORT_START_DATE,
   type OverdueEmployeeRow,
+  MISSING_LABEL,
 } from '../../services/dailyAttendanceService';
 
 // ── Shared sub-components ───────────────────────────────────────────────
@@ -1119,7 +1120,7 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
                 ? 'Ngày đã chọn là Chủ nhật — không tính'
                 : missedLoading
                   ? 'Đang kiểm tra...'
-                  : `${missedYesterday.length} nhân viên chưa làm kiểm tra trong ngày này`
+                  : `${missedYesterday.length} nhân viên chưa hoàn thành nhiệm vụ ngày (bài kiểm tra + seeding)`
             }
             color="text-red-400" bg="bg-red-500/10" ring="ring-red-500/30"
           />
@@ -1201,6 +1202,9 @@ export function AdminDashboardView({ data, loading, onExport, exporting, onLarkS
                   <p className="text-xs font-black text-zinc-200 truncate">{m.full_name}</p>
                   <p className="text-[9px] text-zinc-500 font-bold truncate">{m.department}</p>
                 </div>
+                <span className={`text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full flex-shrink-0 ${m.missing === 'seeding' ? 'bg-violet-500/15 text-violet-300' : m.missing === 'quiz' ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-300'}`}>
+                  {MISSING_LABEL[m.missing]}
+                </span>
                 <Badge variant="warning" className="text-[8px] px-2 py-0.5 flex-shrink-0 font-mono">
                   {m.missedDate}
                 </Badge>

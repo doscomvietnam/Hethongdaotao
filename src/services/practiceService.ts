@@ -12,6 +12,7 @@
  * Hai ngân hàng chung (Nội quy, Onboarding) là kiến thức toàn công ty → mọi người đều ôn được.
  */
 import { supabase } from './supabaseClient';
+import { fetchAll } from './fetchAll';
 
 const NOMA_BRAND = 'Noma';
 const SALE_BRAND = 'Khóa học sale thực chiến';
@@ -103,11 +104,11 @@ export async function getPracticeTopics(department: string, role: string): Promi
   const countByQuiz: Record<string, number> = {};
   if (quizIds.length) {
     // Đếm theo đúng quy tắc hợp lệ của toPracticeQuestion để số câu trên thẻ khớp với lúc luyện.
-    const { data: qRows } = await supabase
+    const { data: qRows } = await fetchAll(() => supabase
       .from('quiz_questions')
       .select('quiz_id, question_id, question_text, option_a, option_b, option_c, option_d, correct_answer')
       .in('quiz_id', quizIds)
-      .eq('status', 'active');
+      .eq('status', 'active'), 'id');
     (qRows || []).forEach((r: any) => {
       if (toPracticeQuestion(r)) countByQuiz[r.quiz_id] = (countByQuiz[r.quiz_id] || 0) + 1;
     });
@@ -177,11 +178,11 @@ export async function getPracticeQuestions(opts: {
   let rows: any[] = [];
 
   if (opts.quizIds && opts.quizIds.length) {
-    const { data } = await supabase
+    const { data } = await fetchAll(() => supabase
       .from('quiz_questions')
       .select('question_id, question_text, option_a, option_b, option_c, option_d, correct_answer')
       .in('quiz_id', opts.quizIds)
-      .eq('status', 'active');
+      .eq('status', 'active'), 'id');
     rows = data || [];
   } else if (opts.bankType) {
     const { data } = await supabase

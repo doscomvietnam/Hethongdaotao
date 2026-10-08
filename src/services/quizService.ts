@@ -1,5 +1,6 @@
 import type { Quiz, QuizQuestion } from "../types";
 import { supabase } from "./supabaseClient";
+import { fetchAll } from "./fetchAll";
 
 /**
  * Chuyển đáp án chữ cái (A/B/C/D) sang index số (0-3)
@@ -34,7 +35,8 @@ function mapQuestionRow(item: any): QuizQuestion {
 export async function getQuizzes(): Promise<Quiz[]> {
     const [quizRes, questionRes] = await Promise.all([
         supabase.from("quizzes").select("*").eq("status", "active"),
-        supabase.from("quiz_questions").select("*").eq("status", "active"),
+        // >1.000 câu → phải đọc theo trang (trước đây 4 bài quiz CEO bị mất câu hỏi)
+        fetchAll(() => supabase.from("quiz_questions").select("*").eq("status", "active"), "id"),
     ]);
 
     if (quizRes.error) {
@@ -88,11 +90,13 @@ export async function getAllQuizzesRaw(): Promise<any[]> {
 }
 
 export async function getAllQuestionsRaw(quizId?: string): Promise<any[]> {
-    let q = supabase.from("quiz_questions").select("*").order("question_id", { ascending: true });
-    if (quizId) q = q.eq("quiz_id", quizId);
-    const { data, error } = await q;
+    const { data, error } = await fetchAll(() => {
+        let q = supabase.from("quiz_questions").select("*");
+        if (quizId) q = q.eq("quiz_id", quizId);
+        return q;
+    }, "id");
     if (error) { console.error("Lỗi tải quiz_questions (admin):", error); throw error; }
-    return Array.isArray(data) ? data : [];
+    return [...data].sort((a: any, b: any) => String(a.question_id).localeCompare(String(b.question_id), undefined, { numeric: true }));
 }
 
 export interface QuizInput {

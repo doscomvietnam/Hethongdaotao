@@ -95,7 +95,7 @@ export default function SeedingSection() {
           <div>
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight text-white uppercase leading-none">Seeding hằng ngày</h2>
             <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-[0.12em] sm:tracking-[0.3em] mt-2">
-              Mở link → seeding → chụp màn hình → nộp ảnh · ít nhất 4 link/ngày{data ? ` · ${data.date}` : ''}
+              Mở link → seeding → chụp màn hình → nộp ảnh · bắt buộc 1 link/ngày, tự nguyện thêm 2{data ? ` · ${data.date}` : ''}
             </p>
           </div>
         </div>
@@ -117,9 +117,9 @@ export default function SeedingSection() {
         <div className="py-16 text-center text-rose-400 text-sm">{err}</div>
       ) : (
         <>
-          <DailyProgress done={data!.myTodayTotal} target={data!.minPerDay} />
-          <div className="grid gap-4 md:grid-cols-3">
-            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} opened={opened} now={now} onOpen={onOpen} />)}
+          <DailyProgress st={data!} />
+          <div className="grid gap-4 md:grid-cols-3 md:grid-rows-[auto_1fr] md:gap-y-0">
+            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} opened={opened} now={now} onOpen={onOpen} dayFull={data!.dayFull} />)}
           </div>
         </>
       )}
@@ -128,34 +128,54 @@ export default function SeedingSection() {
 }
 
 /** Thanh tiến độ: hôm nay đã seed x / mục tiêu tối thiểu 4 link. */
-function DailyProgress({ done, target }: { done: number; target: number }) {
-  const pct = Math.min(100, Math.round((done / target) * 100));
-  const ok = done >= target;
+/** Tiến độ ngày: 1 lượt bắt buộc + lượt tự nguyện, kèm điểm seeding tích lũy. */
+function DailyProgress({ st }: { st: SeedingState }) {
+  const reqDone = Math.min(st.myTodayTotal, st.requiredPerDay);
+  const optDone = Math.max(0, Math.min(st.myTodayTotal - st.requiredPerDay, st.optionalPerDay));
+  const reqOk = reqDone >= st.requiredPerDay;
   return (
-    <div className={`mb-4 rounded-2xl border p-4 ${ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-zinc-800 bg-zinc-900/50'}`}>
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <span className="text-sm font-black text-zinc-100">Hôm nay bạn đã seed {done}/{target} link</span>
-        <span className={`text-[11px] font-black ${ok ? 'text-emerald-400' : 'text-amber-400'}`}>
-          {ok ? '✓ Đạt chỉ tiêu ngày' : `Còn ${target - done} link nữa`}
-        </span>
+    <div className={`mb-4 rounded-2xl border p-4 ${reqOk ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/5'}`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-amber-400/15 flex items-center justify-center text-xl">⭐</div>
+          <div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Điểm seeding của bạn</div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-amber-500 leading-none tabular-nums">{st.points}</span>
+              <span className="text-xs font-bold text-zinc-500">điểm</span>
+              {st.pointsToday > 0 && <span className="text-xs font-black text-emerald-500">+{st.pointsToday} hôm nay</span>}
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
-        <div className={`h-full rounded-full ${ok ? 'bg-emerald-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+
+      <div className="grid grid-cols-2 gap-2 mt-3">
+        <div className={`rounded-xl border px-3 py-2 ${reqOk ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-amber-500/40 bg-amber-500/10'}`}>
+          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Bắt buộc</div>
+          <div className={`text-sm font-black ${reqOk ? 'text-emerald-500' : 'text-amber-500'}`}>
+            {reqOk ? `✓ Đã xong ${reqDone}/${st.requiredPerDay}` : `Còn ${st.requiredPerDay - reqDone} link`}
+          </div>
+        </div>
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+          <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Tự nguyện (không bắt buộc)</div>
+          <div className="text-sm font-black text-zinc-200">{optDone}/{st.optionalPerDay} link</div>
+        </div>
       </div>
+      {st.dayFull && <div className="text-[11px] font-black text-emerald-500 mt-2">Hôm nay bạn đã seed đủ {st.maxPerDay} lượt — cảm ơn bạn!</div>}
     </div>
   );
 }
 
-function GroupCard({ g, busy, onPick, onRelease, opened, now, onOpen }: {
+function GroupCard({ g, busy, onPick, onRelease, opened, now, onOpen, dayFull }: {
   g: SeedingGroupView; busy: string | null; onPick: (id: string) => void; onRelease: (id: string) => void;
-  opened: Record<string, number>; now: number; onOpen: (id: string) => void;
+  opened: Record<string, number>; now: number; onOpen: (id: string) => void; dayFull: boolean;
 }) {
   const st = GROUP_STYLE[g.key] || GROUP_STYLE.koc;
   // Link nộp được / đã nộp hôm nay lên trước, link không làm được xuống cuối
   const rank = (l: SeedingLinkView) => (l.mineToday ? 0 : l.canClaim ? 1 : 2);
   const links = [...g.links].sort((a, b) => rank(a) - rank(b));
   return (
-    <div className={`rounded-2xl border-2 ${st.ring} bg-zinc-900/50 overflow-hidden flex flex-col`}>
+    <div className={`rounded-2xl border-2 ${st.ring} bg-zinc-900/50 overflow-hidden flex flex-col md:grid md:grid-rows-subgrid md:row-span-2`}>
       <div className={`p-4 border-b border-zinc-800/80 ${st.head}`}>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -179,15 +199,15 @@ function GroupCard({ g, busy, onPick, onRelease, opened, now, onOpen }: {
       <div className="p-3 flex flex-col gap-2 flex-1">
         {links.length === 0 ? (
           <div className="text-center text-[12px] text-zinc-600 py-6">Chưa có link</div>
-        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease} openedAt={opened[l.id]} now={now} onOpen={onOpen} />)}
+        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease} openedAt={opened[l.id]} now={now} onOpen={onOpen} dayFull={dayFull} />)}
       </div>
     </div>
   );
 }
 
-function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen }: {
+function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen, dayFull }: {
   l: SeedingLinkView; busy: boolean; onPick: (id: string) => void; onRelease: (id: string) => void;
-  openedAt: number | undefined; now: number; onOpen: (id: string) => void;
+  openedAt: number | undefined; now: number; onOpen: (id: string) => void; dayFull: boolean;
 }) {
   const opened = openedAt !== undefined;
   const needOpen = !opened && !l.mineToday && l.canClaim;
@@ -215,7 +235,7 @@ function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen }: {
         <div className="ml-auto flex items-center gap-2">
           {l.mineToday ? (
             <>
-              <span className="flex items-center gap-1 text-[11px] font-black text-emerald-400"><Check className="w-3.5 h-3.5" /> Đã nộp</span>
+              <span className="flex items-center gap-1 text-[11px] font-black text-emerald-400"><Check className="w-3.5 h-3.5" /> Đã nộp <span className="text-amber-500">+1 điểm</span></span>
               <button disabled={busy} onClick={() => onPick(l.id)} className="text-[11px] font-bold text-zinc-400 hover:text-zinc-200">Đổi ảnh</button>
               <button disabled={busy} onClick={() => onRelease(l.id)} className="text-zinc-600 hover:text-rose-400" title="Bỏ lượt"><X className="w-3.5 h-3.5" /></button>
             </>
@@ -224,15 +244,15 @@ function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen }: {
           ) : l.linkFull ? (
             <span className="text-[11px] font-black text-rose-300">Đủ lượt hôm nay — chọn link khác</span>
           ) : !l.canClaim ? (
-            <span className="text-[11px] text-zinc-500">Đã đủ link trong nhóm</span>
+            <span className="text-[11px] text-zinc-500">{dayFull ? 'Đã đủ lượt hôm nay' : 'Đã đủ link trong nhóm'}</span>
           ) : (
             needOpen ? (
               <span className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-500" title="Bấm Mở link để seeding trước, sau đó mới nộp ảnh">
                 <Upload className="w-3.5 h-3.5" /> Mở link trước để nộp ảnh
               </span>
             ) : waitingHere ? (
-              <span className="flex items-center gap-1.5 text-[11px] font-black text-amber-500 tabular-nums" title="Seeding ít nhất 1 phút rồi mới nộp ảnh">
-                <Clock className="w-3.5 h-3.5" /> Nộp ảnh sau {Math.floor(waitLeft / 60)}:{String(waitLeft % 60).padStart(2, '0')}
+              <span className="flex items-center gap-1.5 text-[11px] font-black text-amber-500" title="Xem hết video rồi mới nộp ảnh">
+                <Clock className="w-3.5 h-3.5" /> Bạn cần xem hết video để nộp ảnh
               </span>
             ) : (
               <button disabled={busy} onClick={() => onPick(l.id)} className="flex items-center gap-1.5 bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] font-black rounded-lg px-3 py-1.5 disabled:opacity-50">

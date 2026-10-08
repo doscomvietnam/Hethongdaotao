@@ -269,12 +269,13 @@ const GROUP_SHORT: Record<string, string> = { koc: 'KOC', company: 'Công ty', c
 
 function ProgressTable({ data }: { data: any | null }) {
   if (!data) return null;
-  const under = data.rows.filter((r: any) => r.count < data.minPerDay);
+  const under = data.rows.filter((r: any) => r.count < data.requiredPerDay);
   return (
     <div>
       <div className="flex items-center gap-3 flex-wrap mb-4">
-        <span className="text-sm font-black text-zinc-100">{data.done}/{data.total} nhân viên đạt ≥ {data.minPerDay} link</span>
-        <span className="text-[11px] font-bold text-amber-400">{under.length} người chưa đủ</span>
+        <span className="text-sm font-black text-zinc-100">{data.done}/{data.total} nhân viên đã seed lượt bắt buộc</span>
+        <span className="text-[11px] font-bold text-amber-400">{under.length} người chưa seed hôm nay</span>
+        <span className="text-[11px] text-zinc-500">· tối đa {data.maxPerDay} lượt/ngày (1 bắt buộc + 2 tự nguyện)</span>
       </div>
       <div className="overflow-x-auto rounded-xl border border-zinc-800">
         <table className="w-full text-sm min-w-[520px]">
@@ -283,12 +284,13 @@ function ProgressTable({ data }: { data: any | null }) {
               <th className="text-left px-4 py-3">Nhân viên</th>
               <th className="text-left px-4 py-3">Phòng ban</th>
               <th className="text-left px-4 py-3">Theo nhóm</th>
-              <th className="text-right px-4 py-3">Đã seed</th>
+              <th className="text-right px-4 py-3">Hôm nay</th>
+              <th className="text-right px-4 py-3">Điểm</th>
             </tr>
           </thead>
           <tbody>
             {data.rows.map((r: any) => {
-              const ok = r.count >= data.minPerDay;
+              const ok = r.count >= data.requiredPerDay;
               return (
                 <tr key={r.id} className="border-b border-zinc-800/60 last:border-0">
                   <td className="px-4 py-2.5 font-semibold text-zinc-200">{r.name}</td>
@@ -298,9 +300,10 @@ function ProgressTable({ data }: { data: any | null }) {
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <span className={`text-[11px] font-black rounded-full px-2.5 py-1 ${ok ? 'bg-emerald-500/15 text-emerald-300' : r.count === 0 ? 'bg-rose-500/15 text-rose-300' : 'bg-amber-500/15 text-amber-300'}`}>
-                      {r.count}/{data.minPerDay}
+                      {r.count}/{data.maxPerDay}
                     </span>
                   </td>
+                  <td className="px-4 py-2.5 text-right font-black text-amber-500 tabular-nums">⭐ {r.points}</td>
                 </tr>
               );
             })}

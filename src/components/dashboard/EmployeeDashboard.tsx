@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
-import { getYesterdayOverdueForUser } from '../../services/dailyAttendanceService';
+import { getYesterdayOverdueForUser, type MissingPart } from '../../services/dailyAttendanceService';
 import { getEmployeeMonthlyQuizCalendar, type MonthlyQuizCalendar } from '../../services/attendanceService';
 import { GamificationWidget } from '../gamification/GamificationWidget';
 
@@ -261,7 +261,7 @@ export function EmployeeDashboardView({ courses: allCourses, onCourseClick, empl
   const now = new Date();
 
   // Cảnh báo vắng làm bài hôm qua (8h30-18h, trừ Chủ nhật, miễn trừ nếu hoàn thành tất cả khóa)
-  const [overdueInfo, setOverdueInfo] = React.useState<{ overdue: boolean; missedDate?: string }>({ overdue: false });
+  const [overdueInfo, setOverdueInfo] = React.useState<{ overdue: boolean; missedDate?: string; missing?: MissingPart }>({ overdue: false });
   React.useEffect(() => {
     if (!employeeId) return;
     getYesterdayOverdueForUser(employeeId, department || '')
@@ -348,9 +348,17 @@ export function EmployeeDashboardView({ courses: allCourses, onCourseClick, empl
             <AlertCircle className="w-5 h-5 text-red-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-black text-red-300 uppercase tracking-widest mb-1">Bạn đã bỏ lỡ quiz hôm qua</p>
+            <p className="text-[11px] font-black text-red-300 uppercase tracking-widest mb-1">
+              {overdueInfo.missing === 'seeding' ? 'Bạn chưa seeding hôm qua' : overdueInfo.missing === 'both' ? 'Bạn bỏ lỡ bài kiểm tra và seeding hôm qua' : 'Bạn đã bỏ lỡ quiz hôm qua'}
+            </p>
             <p className="text-xs font-bold text-red-200/80 leading-relaxed">
-              Ngày <span className="font-mono text-red-300">{overdueInfo.missedDate}</span> bạn không có điểm quiz nào được ghi nhận. Vui lòng hoàn thành ít nhất 1 bài hôm nay để không bị tính quá hạn.
+              Ngày <span className="font-mono text-red-300">{overdueInfo.missedDate}</span>{' '}
+              {overdueInfo.missing === 'seeding'
+                ? 'bạn đã làm bài kiểm tra nhưng chưa seeding link nào.'
+                : overdueInfo.missing === 'both'
+                  ? 'bạn chưa làm bài kiểm tra và chưa seeding link nào.'
+                  : 'bạn không có điểm quiz nào được ghi nhận.'}{' '}
+              Mỗi ngày cần làm bài kiểm tra và seeding ít nhất 1 link để được tính hoàn thành.
             </p>
           </div>
         </div>

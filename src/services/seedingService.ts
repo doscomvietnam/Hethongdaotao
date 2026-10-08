@@ -19,7 +19,12 @@ export interface SeedingGroupView {
   myLinksInGroup: number; maxLinksPerGroup: number;
   links: SeedingLinkView[];
 }
-export interface SeedingState { date: string; groups: SeedingGroupView[]; myTodayTotal: number; minPerDay: number; }
+export interface SeedingState {
+  date: string; groups: SeedingGroupView[];
+  myTodayTotal: number; dayFull: boolean;                       // số lượt hôm nay / đã đủ tối đa ngày
+  requiredPerDay: number; optionalPerDay: number; maxPerDay: number; // 1 bắt buộc + 2 tự nguyện
+  points: number; pointsToday: number; pointsPerSeed: number;    // điểm seeding tích lũy / hôm nay
+}
 
 async function token(): Promise<string> {
   const { data } = await supabase.auth.getSession();
@@ -43,13 +48,13 @@ export async function getCachedSeedingState(): Promise<SeedingState | null> {
     const key = await cacheKey();
     const raw = key ? localStorage.getItem(key) : null;
     const st = raw ? (JSON.parse(raw) as SeedingState) : null;
-    return st && st.date === vnToday() && Array.isArray(st.groups) ? st : null;
+    return st && st.date === vnToday() && Array.isArray(st.groups) && typeof st.points === 'number' ? st : null;
   } catch { return null; }
 }
 
 // Link đã bấm "Mở link" (theo tài khoản + ngày) → lưu THỜI ĐIỂM bấm lần đầu (ms).
 // Phải mở link và chờ đủ SEED_WAIT_MS mới được nộp ảnh. Mở lại không tính lại thời gian.
-export const SEED_WAIT_MS = 60_000;
+export const SEED_WAIT_MS = 45_000;
 async function openedKey(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   const uid = data.session?.user?.id;

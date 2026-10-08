@@ -9,18 +9,36 @@
  *  - Link chạy nhiều ngày; mỗi link tổng LINK_TOTAL lượt (seeding_links.max_people), tối đa LINK_DAILY lượt/ngày.
  *    Đủ tổng lượt → link 'completed' (ẩn khỏi nhân viên); ảnh giữ thêm 7 ngày rồi tự xóa (xem seeding-admin).
  *  - Mỗi nhóm tối đa GROUP_MAX người/ngày. Mỗi người tối đa MAX_PER_GROUP link/nhóm/ngày; nếu ≥2 nhóm đã đầy
- *    với người đó thì được MAX_PER_GROUP_EXCEPTION link trong nhóm còn lại. Mục tiêu MIN_PER_DAY link/ngày.
+ *    với người đó thì được MAX_PER_GROUP_EXCEPTION link trong nhóm còn lại.
+ *  - Mỗi ngày: REQUIRED_PER_DAY lượt bắt buộc + OPTIONAL_PER_DAY lượt tự nguyện → tối đa MAX_PER_DAY lượt.
+ *  - Mỗi lượt seeding = POINTS_PER_SEED điểm (lưu ở stars_awarded); ảnh bị thu hồi thì không tính điểm.
  *  - Mỗi người seed 1 link tối đa 1 lần (unique link_id + employee_id).
  */
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+// Supabase trả tối đa 1.000 dòng/lần → đọc theo trang (bản sao của src/services/fetchAll.ts;
+// chép thẳng vào đây vì import file ngoài api/ dễ lỗi ESM trên Vercel)
+async function fetchAll(build: () => any, orderBy: string): Promise<{ data: any[]; error: any }> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().order(orderBy, { ascending: true }).range(from, from + 999);
+    if (error) return { data: out, error };
+    out.push(...(data || []));
+    if ((data || []).length < 1000) break;
+  }
+  return { data: out, error: null };
+}
+
 const BUCKET = 'seeding-proofs';
 const GROUP_MAX = 28;
 const LINK_DAILY = 2;
 const MAX_PER_GROUP = 2;
-const MAX_PER_GROUP_EXCEPTION = 4;
-const MIN_PER_DAY = 4;
+const REQUIRED_PER_DAY = 1;   // bắt buộc mỗi ngày
+const OPTIONAL_PER_DAY = 2;   // tự nguyện thêm
+const MAX_PER_DAY = REQUIRED_PER_DAY + OPTIONAL_PER_DAY;
+const MAX_PER_GROUP_EXCEPTION = MAX_PER_DAY;
+const POINTS_PER_SEED = 1;
 const GROUPS = [
   { key: 'koc', label: 'Seeding KOC' },
   { key: 'company', label: 'Seeding video công ty' },
@@ -53,12 +71,12 @@ async function loadCounts(s: any) {
       .eq('status', 'active')
       .order('created_at', { ascending: true }),
     // Bài nộp của các link đang chạy (mọi ngày) → tổng lượt + "tôi đã seed link này chưa"
-    s.from('seeding_submissions')
+    fetchAll(() => s.from('seeding_submissions')
       .select('link_id, employee_id, task_date, seeding_links!inner(status)')
-      .eq('status', 'active').eq('seeding_links.status', 'active'),
+      .eq('status', 'active').eq('seeding_links.status', 'active'), 'id'),
     // Bài nộp HÔM NAY (mọi link) → số người/nhóm/ngày + số link của mỗi người hôm nay
-    s.from('seeding_submissions')
-      .select('link_id, group_key, employee_id').eq('task_date', date).eq('status', 'active'),
+    fetchAll(() => s.from('seeding_submissions')
+      .select('link_id, group_key, employee_id').eq('task_date', date).eq('status', 'active'), 'id'),
   ]);
 
   return { date, links: links || [], linkSubs: linkSubs || [], todaySubs: todaySubs || [] };
@@ -94,6 +112,12 @@ async function buildState(s: any, meId: string, pre?: Awaited<ReturnType<typeof 
   }
   const { people, mine, fullForMe, perGroupMax } = limitsFor(meId, todaySubs);
   const myTodayTotal = todaySubs.filter((r: any) => r.employee_id === meId).length;
+  const dayFull = myTodayTotal >= MAX_PER_DAY;
+  // Điểm seeding của tôi (mọi ngày, chỉ tính ảnh còn hợp lệ)
+  const { data: myPts } = await fetchAll(() => s.from('seeding_submissions')
+    .select('stars_awarded, task_date').eq('employee_id', meId).eq('status', 'active'), 'id');
+  const points = (myPts || []).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
+  const pointsToday = (myPts || []).filter((r: any) => r.task_date === date).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
 
   const groups = GROUPS.map((g) => {
     const groupFull = fullForMe(g.key);
@@ -104,7 +128,7 @@ async function buildState(s: any, meId: string, pre?: Awaited<ReturnType<typeof 
       const isMine = mineAny.has(l.id);
       const isMineToday = mineToday.has(l.id);
       const linkFull = !isMine && t >= LINK_DAILY;
-      const canClaim = !isMine && t < LINK_DAILY && tot < l.max_people && !groupFull && myInGroup < perGroupMax;
+      const canClaim = !isMine && !dayFull && t < LINK_DAILY && tot < l.max_people && !groupFull && myInGroup < perGroupMax;
       return {
         id: l.id, title: l.title, url: l.url,
         today: t, dailyMax: LINK_DAILY, total: tot, totalMax: l.max_people,
@@ -118,7 +142,11 @@ async function buildState(s: any, meId: string, pre?: Awaited<ReturnType<typeof 
       links: gLinks,
     };
   });
-  return { date, groups, myTodayTotal, minPerDay: MIN_PER_DAY };
+  return {
+    date, groups, myTodayTotal, dayFull,
+    requiredPerDay: REQUIRED_PER_DAY, optionalPerDay: OPTIONAL_PER_DAY, maxPerDay: MAX_PER_DAY,
+    points, pointsToday, pointsPerSeed: POINTS_PER_SEED,
+  };
 }
 
 /** Cập nhật trạng thái link theo tổng lượt: đủ → completed, thiếu (do thu hồi/bỏ) → active. */
@@ -190,6 +218,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const subsOfLink = linkSubs.filter((r: any) => r.link_id === linkId);
           const linkToday = subsOfLink.filter((r: any) => r.task_date === date).length;
           const { mine, fullForMe, perGroupMax } = limitsFor(me.id, todaySubs);
+          const myToday = todaySubs.filter((r: any) => r.employee_id === me.id).length;
+          if (myToday >= MAX_PER_DAY) return res.status(409).json({ error: 'DAY_FULL', message: `Hôm nay bạn đã seed đủ ${MAX_PER_DAY} lượt (1 bắt buộc + ${OPTIONAL_PER_DAY} tự nguyện).` });
           if (subsOfLink.length >= link.max_people) return res.status(409).json({ error: 'LINK_DONE', message: 'Link này vừa đủ lượt, chọn link khác nhé.' });
           if (linkToday >= LINK_DAILY) return res.status(409).json({ error: 'LINK_FULL', message: `Link này đã đủ ${LINK_DAILY} lượt hôm nay, chọn link khác nhé.` });
           if (fullForMe(link.group_key)) return res.status(409).json({ error: 'GROUP_FULL', message: `Nhóm này đã đủ ${GROUP_MAX} người hôm nay, chuyển nhóm khác nhé.` });
@@ -211,7 +241,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         const ins = await s.from('seeding_submissions').insert({
           link_id: linkId, group_key: link.group_key, employee_id: me.id,
-          task_date: date, image_path: path, status: 'active',
+          task_date: date, image_path: path, status: 'active', stars_awarded: POINTS_PER_SEED,
         });
         if (ins.error) {
           await s.storage.from(BUCKET).remove([path]);

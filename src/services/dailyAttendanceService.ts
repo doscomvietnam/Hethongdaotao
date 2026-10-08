@@ -12,6 +12,16 @@
  * - getOverdueEmployeesYesterday() — widget cho admin dashboard.
  */
 import { supabase } from './supabaseClient';
+import { fetchAll } from './fetchAll';
+import { getSeedingDays, seedingOk } from './seedingDaysService';
+
+/** Phần nhiệm vụ ngày còn thiếu: bài kiểm tra / seeding (bắt buộc từ ngày áp dụng) / cả hai */
+export type MissingPart = 'quiz' | 'seeding' | 'both';
+export const MISSING_LABEL: Record<MissingPart, string> = {
+  quiz: 'Thiếu bài kiểm tra', seeding: 'Thiếu seeding', both: 'Thiếu cả hai',
+};
+const missingOf = (quizDone: boolean, seedDone: boolean): MissingPart | null =>
+  quizDone && seedDone ? null : !quizDone && !seedDone ? 'both' : !quizDone ? 'quiz' : 'seeding';
 
 const VN_UTC_OFFSET_HOURS = 7;
 
@@ -53,7 +63,7 @@ function isCourseCompleted(progress: any, course: any): boolean {
 async function hasUserCompletedAllCourses(employeeId: string, department: string): Promise<boolean> {
   const [coursesRes, progressRes] = await Promise.all([
     supabase.from('courses').select('course_id, department, video_url, quiz_id, status').eq('status', 'active'),
-    supabase.from('training_progress').select('course_id, status, quiz_completed_at, video_progress').eq('employee_id', employeeId),
+    fetchAll(() => supabase.from('training_progress').select('course_id, status, quiz_completed_at, video_progress').eq('employee_id', employeeId), 'id'),
   ]);
   const allCourses = coursesRes.data || [];
   const assigned = allCourses.filter((c: any) => !c.department || c.department === department);
@@ -75,6 +85,8 @@ export interface OverdueStatus {
   overdue: boolean;
   /** Ngày bị vắng (YYYY-MM-DD theo giờ VN) — chỉ có giá trị khi overdue=true */
   missedDate?: string;
+  /** Phần còn thiếu của ngày đó */
+  missing?: MissingPart;
 }
 
 /**
@@ -91,33 +103,34 @@ export async function getYesterdayOverdueForUser(
   if (vnDayOfWeek(dateStr) === 0) return { overdue: false }; // Chủ nhật → bỏ qua
 
   // Kiểm tra training_progress (quiz khóa học)
-  const { data, error } = await supabase
+  const { data, error } = await fetchAll(() => supabase
     .from('training_progress')
     .select('course_id, quiz_score, quiz_completed_at')
     .eq('employee_id', employeeId)
-    .not('quiz_score', 'is', null);
+    .not('quiz_score', 'is', null), 'id');
   if (error) {
     console.error('getYesterdayOverdueForUser query error:', error);
     return { overdue: false };
   }
-  const submittedOnDate = (data || []).some((r: any) => isoToVNDateStr(r.quiz_completed_at) === dateStr);
-  if (submittedOnDate) return { overdue: false };
+  let quizDone = (data || []).some((r: any) => isoToVNDateStr(r.quiz_completed_at) === dateStr);
+  if (!quizDone) {
+    // Kiểm tra daily_tests (bài kiểm tra hằng ngày từ menu Kiểm tra)
+    const { data: dtData } = await supabase
+      .from('daily_tests')
+      .select('test_id')
+      .eq('employee_id', employeeId)
+      .eq('test_date', dateStr)
+      .eq('status', 'submitted')
+      .limit(1);
+    quizDone = !!(dtData && dtData.length > 0);
+  }
+  const seedDone = seedingOk(await getSeedingDays(dateStr, dateStr, [employeeId]), employeeId, dateStr);
+  if (quizDone && seedDone) return { overdue: false };
 
-  // Kiểm tra daily_tests (bài kiểm tra hằng ngày từ menu Kiểm tra)
-  const { data: dtData } = await supabase
-    .from('daily_tests')
-    .select('test_id')
-    .eq('employee_id', employeeId)
-    .eq('test_date', dateStr)
-    .eq('status', 'submitted')
-    .limit(1);
-  if (dtData && dtData.length > 0) return { overdue: false };
-
-  // Không submit hôm qua → kiểm tra miễn trừ
-  const exempt = await hasUserCompletedAllCourses(employeeId, department);
-  if (exempt) return { overdue: false };
-
-  return { overdue: true, missedDate: dateStr };
+  // Miễn trừ (đã hoàn thành tất cả khóa) chỉ áp cho phần bài kiểm tra — seeding vẫn bắt buộc
+  if (!quizDone && await hasUserCompletedAllCourses(employeeId, department)) quizDone = true;
+  const missing = missingOf(quizDone, seedDone);
+  return missing ? { overdue: true, missedDate: dateStr, missing } : { overdue: false };
 }
 
 export interface OverdueEmployeeRow {
@@ -126,6 +139,7 @@ export interface OverdueEmployeeRow {
   department: string;
   email: string;
   missedDate: string;
+  missing: MissingPart;
 }
 
 /**
@@ -150,15 +164,15 @@ export async function getOverdueEmployeesForDate(dateStr?: string): Promise<Over
 
   // 2. Lấy danh sách đã submit: training_progress (quiz khóa học) + daily_tests (kiểm tra hằng ngày)
   const [submitsRes, dailyRes] = await Promise.all([
-    supabase
+    fetchAll(() => supabase
       .from('training_progress')
       .select('employee_id, quiz_score, quiz_completed_at')
-      .not('quiz_score', 'is', null),
-    supabase
+      .not('quiz_score', 'is', null), 'id'),
+    fetchAll(() => supabase
       .from('daily_tests')
       .select('employee_id')
       .eq('test_date', targetDate)
-      .eq('status', 'submitted'),
+      .eq('status', 'submitted'), 'test_id'),
   ]);
   if (submitsRes.error) {
     console.error('getOverdueEmployees submits error:', submitsRes.error);
@@ -175,16 +189,17 @@ export async function getOverdueEmployeesForDate(dateStr?: string): Promise<Over
   console.log(`[Overdue] Tổng nhân viên active: ${employees.length}`);
   console.log(`[Overdue] Đã submit hôm đó: ${submittedIds.size}`);
 
-  // 3. Candidates = active employees chưa submit hôm qua (bỏ Chủ Tịch)
+  // 3. Candidates = chưa xong bài kiểm tra HOẶC thiếu seeding bắt buộc (bỏ Chủ Tịch)
+  const sd = await getSeedingDays(targetDate, targetDate);
   const candidates = employees.filter((e: any) =>
-    !submittedIds.has(e.id) && (e.department || '').toLowerCase().trim() !== 'chủ tịch',
+    (!submittedIds.has(e.id) || !seedingOk(sd, e.id, targetDate)) && (e.department || '').toLowerCase().trim() !== 'chủ tịch',
   );
   if (candidates.length === 0) return [];
 
   // 4. Load all courses + all progress để check miễn trừ batch
   const [coursesRes, progressRes] = await Promise.all([
     supabase.from('courses').select('course_id, department, video_url, quiz_id, status').eq('status', 'active'),
-    supabase.from('training_progress').select('employee_id, course_id, status, quiz_completed_at, video_progress'),
+    fetchAll(() => supabase.from('training_progress').select('employee_id, course_id, status, quiz_completed_at, video_progress'), 'id'),
   ]);
   const allCourses = (coursesRes.data || []) as any[];
   const allProgress = (progressRes.data || []) as any[];
@@ -200,22 +215,24 @@ export async function getOverdueEmployeesForDate(dateStr?: string): Promise<Over
   const skipped: { name: string; reason: string }[] = [];
 
   for (const emp of candidates as any[]) {
-    const dept = emp.department || '';
-    const assigned = allCourses.filter((c) => !c.department || c.department === dept);
-    if (assigned.length === 0) {
-      skipped.push({ name: emp.full_name, reason: `không có khóa nào thuộc dept="${dept}"` });
-      continue;
+    let quizDone = submittedIds.has(emp.id);
+    const seedDone = seedingOk(sd, emp.id, targetDate);
+    if (!quizDone) {
+      // Miễn trừ phần bài kiểm tra: không có khóa được giao / đã hoàn thành tất cả khóa
+      const dept = emp.department || '';
+      const assigned = allCourses.filter((c) => !c.department || c.department === dept);
+      const empProgress = progressByEmp.get(emp.id) || new Map<string, any>();
+      const completedAll = assigned.length === 0 || assigned.every((c) => {
+        const p = empProgress.get(c.course_id);
+        return p ? isCourseCompleted(p, c) : false;
+      });
+      if (completedAll) {
+        quizDone = true;
+        if (seedDone) { skipped.push({ name: emp.full_name, reason: assigned.length === 0 ? `không có khóa nào thuộc dept="${dept}"` : `đã hoàn thành tất cả ${assigned.length} khóa` }); continue; }
+      }
     }
-
-    const empProgress = progressByEmp.get(emp.id) || new Map<string, any>();
-    const completedAll = assigned.every((c) => {
-      const p = empProgress.get(c.course_id);
-      return p ? isCourseCompleted(p, c) : false;
-    });
-    if (completedAll) {
-      skipped.push({ name: emp.full_name, reason: `đã hoàn thành tất cả ${assigned.length} khóa` });
-      continue;
-    }
+    const missing = missingOf(quizDone, seedDone);
+    if (!missing) continue;
 
     result.push({
       employee_id: emp.id,
@@ -223,6 +240,7 @@ export async function getOverdueEmployeesForDate(dateStr?: string): Promise<Over
       department: emp.department || '—',
       email: emp.email || '',
       missedDate: targetDate,
+      missing,
     });
   }
 
@@ -264,9 +282,9 @@ export async function getOverdueEmployeesByDay(
   const [empRes, coursesRes, progressRes, dailyRes] = await Promise.all([
     supabase.from('employees').select('id, full_name, department, email, employment_status').eq('employment_status', 'active'),
     supabase.from('courses').select('course_id, department, video_url, quiz_id, status').eq('status', 'active'),
-    supabase.from('training_progress').select('employee_id, course_id, status, quiz_completed_at, updated_at, video_progress'),
-    supabase.from('daily_tests').select('employee_id, test_date').eq('status', 'submitted')
-      .gte('test_date', startDateStr).lte('test_date', endDateStr),
+    fetchAll(() => supabase.from('training_progress').select('employee_id, course_id, status, quiz_completed_at, updated_at, video_progress'), 'id'),
+    fetchAll(() => supabase.from('daily_tests').select('employee_id, test_date').eq('status', 'submitted')
+      .gte('test_date', startDateStr).lte('test_date', endDateStr), 'test_id'),
   ]);
   const employees = (empRes.data || []) as any[];
   if (employees.length === 0) return [];
@@ -295,9 +313,9 @@ export async function getOverdueEmployeesByDay(
     if (completedAll) exemptIds.add(emp.id);
   }
 
-  const candidates = employees.filter((e) =>
-    !exemptIds.has(e.id) && (e.department || '').toLowerCase().trim() !== 'chủ tịch',
-  );
+  // Miễn trừ (exemptIds) chỉ áp cho phần bài kiểm tra — seeding bắt buộc vẫn xét riêng
+  const candidates = employees.filter((e) => (e.department || '').toLowerCase().trim() !== 'chủ tịch');
+  const sd = await getSeedingDays(startDateStr, endDateStr);
   const groups: OverdueDayGroup[] = [];
 
   // Iterate từng ngày làm việc
@@ -321,13 +339,15 @@ export async function getOverdueEmployeesByDay(
 
     const missedRows: OverdueEmployeeRow[] = [];
     for (const emp of candidates) {
-      if (submittedIds.has(emp.id)) continue;
+      const missing = missingOf(submittedIds.has(emp.id) || exemptIds.has(emp.id), seedingOk(sd, emp.id, dayStr));
+      if (!missing) continue;
       missedRows.push({
         employee_id: emp.id,
         full_name: emp.full_name || '—',
         department: emp.department || '—',
         email: emp.email || '',
         missedDate: dayStr,
+        missing,
       });
     }
     missedRows.sort((a, b) =>
@@ -350,13 +370,13 @@ export async function exportOverdueByDayExcel(groups: OverdueDayGroup[], startDa
     return;
   }
   const XLSX = await import('xlsx');
-  const HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Email', 'Ngày vắng'];
+  const HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Email', 'Ngày vắng', 'Thiếu'];
   const generatedAt = new Date().toLocaleString('vi-VN');
   const endDateStr = getYesterdayDateStrVN();
   const wb = XLSX.utils.book_new();
 
   for (const g of groups) {
-    const dataRows = g.rows.map((r, i) => [i + 1, r.full_name, r.department, r.email, r.missedDate]);
+    const dataRows = g.rows.map((r, i) => [i + 1, r.full_name, r.department, r.email, r.missedDate, MISSING_LABEL[r.missing] || '']);
     const isEmpty = dataRows.length === 0;
 
     const aoa: any[][] = [
@@ -365,7 +385,7 @@ export async function exportOverdueByDayExcel(groups: OverdueDayGroup[], startDa
       [],
       HEADERS,
       ...(isEmpty
-        ? [['', 'Không có ai vắng trong ngày này', '', '', '']]
+        ? [['', 'Không có ai vắng trong ngày này', '', '', '', '']]
         : dataRows),
     ];
 
@@ -376,6 +396,7 @@ export async function exportOverdueByDayExcel(groups: OverdueDayGroup[], startDa
       { wch: 18 },  // Phòng ban
       { wch: 32 },  // Email
       { wch: 14 },  // Ngày vắng
+      { wch: 20 },  // Thiếu
     ];
     ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } }];
     ws['!freeze'] = { xSplit: 0, ySplit: 4 };
@@ -423,13 +444,14 @@ export async function exportOverdueEmployeesExcel(
 ): Promise<void> {
   const XLSX = await import('xlsx');
 
-  const HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Email', 'Ngày vắng'];
+  const HEADERS = ['STT', 'Họ và tên', 'Phòng ban', 'Email', 'Ngày vắng', 'Thiếu'];
   const dataRows = rows.map((r, i) => [
     i + 1,
     r.full_name,
     r.department,
     r.email,
     r.missedDate,
+    MISSING_LABEL[r.missing] || '',
   ]);
 
   const generatedAt = new Date().toLocaleString('vi-VN');
@@ -448,6 +470,7 @@ export async function exportOverdueEmployeesExcel(
     { wch: 18 },  // Phòng ban
     { wch: 32 },  // Email
     { wch: 14 },  // Ngày vắng
+    { wch: 20 },  // Thiếu
   ];
   ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: HEADERS.length - 1 } }];
   ws['!freeze'] = { xSplit: 0, ySplit: 4 };

@@ -21,6 +21,19 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+// Supabase trả tối đa 1.000 dòng/lần → đọc theo trang (bản sao của src/services/fetchAll.ts;
+// chép thẳng vào đây vì import file ngoài api/ dễ lỗi ESM trên Vercel)
+async function fetchAll(build: () => any, orderBy: string): Promise<{ data: any[]; error: any }> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().order(orderBy, { ascending: true }).range(from, from + 999);
+    if (error) return { data: out, error };
+    out.push(...(data || []));
+    if ((data || []).length < 1000) break;
+  }
+  return { data: out, error: null };
+}
+
 const svc = () =>
   createClient(process.env.VITE_SUPABASE_URL as string, process.env.SUPABASE_SERVICE_ROLE_KEY as string);
 
@@ -130,14 +143,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (e1) return res.status(500).json({ error: e1.message });
 
     // Lấy toàn bộ progress + daily 1 lần rồi gom theo employee_id (tránh N query)
-    let progQ = s.from('training_progress')
-      .select('employee_id, course_id, video_progress, quiz_score, quiz_passed, quiz_completed_at, status, created_at, updated_at');
-    progQ = applyRangeTs(progQ, 'updated_at', range);
-    const { data: prog } = await progQ;
+    // >1.000 dòng → đọc theo trang (Supabase chỉ trả tối đa 1.000 dòng/lần)
+    const { data: prog } = await fetchAll(() => applyRangeTs(s.from('training_progress')
+      .select('employee_id, course_id, video_progress, quiz_score, quiz_passed, quiz_completed_at, status, created_at, updated_at'),
+      'updated_at', range), 'id');
 
-    let dailyQ = s.from('daily_tests').select('employee_id, status, passed, score_percent, test_date');
-    dailyQ = applyRangeDate(dailyQ, 'test_date', range);
-    const { data: daily } = await dailyQ;
+    const { data: daily } = await fetchAll(() => applyRangeDate(
+      s.from('daily_tests').select('employee_id, status, passed, score_percent, test_date'), 'test_date', range), 'test_id');
 
     const byEmpProg = new Map<string, any[]>();
     (prog || []).forEach(r => { const a = byEmpProg.get(r.employee_id) || []; a.push(r); byEmpProg.set(r.employee_id, a); });

@@ -3,6 +3,7 @@
  * Cung cấp dữ liệu dashboard cho 3 role: Admin, Manager, Employee
  */
 import { supabase } from './supabaseClient';
+import { fetchAll } from './fetchAll';
 import { getEmployeesMonthlyQuizStats } from './attendanceService';
 
 // Phòng ban bị ẩn khỏi toàn bộ dashboard
@@ -102,11 +103,11 @@ function getDaysOverdue(endDate: string): number {
 // ── Fetch all raw data (used by admin & manager) ────────────────────────
 async function fetchAllData() {
   const [progressRes, employeesRes, coursesRes] = await Promise.all([
-    supabase.from('training_progress').select(`
+    fetchAll(() => supabase.from('training_progress').select(`
       *, 
       employees!fk_employee(id, full_name, department, email),
       courses!fk_course(course_id, course_name, brand, category, video_url, quiz_id, end_date, department)
-    `).order('updated_at', { ascending: false }),
+    `).order('updated_at', { ascending: false }), 'id'),
     supabase.from('employees').select('id, full_name, department, email, role').eq('employment_status', 'active'),
     supabase.from('courses').select('course_id, course_name, brand, category, video_url, quiz_id, end_date, department, status').eq('status', 'active'),
   ]);
@@ -549,19 +550,19 @@ function normDate(d: string) { return String(d).slice(0, 10); }
 
 export async function getLeaderboardData(startDate: string, endDate: string): Promise<LeaderboardData> {
   const [progressRes, employeesRes, dailyTestRes] = await Promise.all([
-    supabase
+    fetchAll(() => supabase
       .from('training_progress')
-      .select('employee_id, quiz_score, quiz_passed, quiz_completed_at, updated_at, status, video_progress'),
+      .select('employee_id, quiz_score, quiz_passed, quiz_completed_at, updated_at, status, video_progress'), 'id'),
     supabase
       .from('employees')
       .select('id, full_name, department')
       .eq('employment_status', 'active'),
-    supabase
+    fetchAll(() => supabase
       .from('daily_tests')
       .select('employee_id, score_percent, test_date')
       .eq('status', 'submitted')
       .gte('test_date', startDate)
-      .lte('test_date', endDate),
+      .lte('test_date', endDate), 'test_id'),
   ]);
 
   const allProgress = progressRes.data || [];
@@ -788,18 +789,18 @@ export async function getQuizActivity3Months(): Promise<{
   const startDate = monthKeys[0].key + '-01';
 
 const [testsRes, coursesRes, empsRes] = await Promise.all([
-    supabase
+    fetchAll(() => supabase
       .from('daily_tests')
       .select('employee_id, test_date, score_percent')
       .eq('status', 'submitted')
       .gte('test_date', startDate)
       .lte('test_date', todayStr)
-      .limit(10000),
-    supabase
+      .limit(10000), 'test_id'),
+    fetchAll(() => supabase
       .from('training_progress')
       .select('employee_id, quiz_score, quiz_passed, quiz_completed_at')
       .gte('quiz_completed_at', startDate)
-      .limit(5000),
+      .limit(5000), 'id'),
     supabase
       .from('employees')
       .select('id, full_name, department, skip_daily_quiz')

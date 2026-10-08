@@ -13,10 +13,24 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createClient } from '@supabase/supabase-js';
 
+// Supabase trả tối đa 1.000 dòng/lần → đọc theo trang (bản sao của src/services/fetchAll.ts;
+// chép thẳng vào đây vì import file ngoài api/ dễ lỗi ESM trên Vercel)
+async function fetchAll(build: () => any, orderBy: string): Promise<{ data: any[]; error: any }> {
+  const out: any[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await build().order(orderBy, { ascending: true }).range(from, from + 999);
+    if (error) return { data: out, error };
+    out.push(...(data || []));
+    if ((data || []).length < 1000) break;
+  }
+  return { data: out, error: null };
+}
+
 const BUCKET = 'seeding-proofs';
 const LINK_TOTAL_DEFAULT = 10;
 const LINK_DAILY = 2;
-const MIN_PER_DAY = 4;
+const REQUIRED_PER_DAY = 1;   // bắt buộc mỗi ngày
+const MAX_PER_DAY = 3;        // 1 bắt buộc + 2 tự nguyện
 const MIN_LINKS_PER_GROUP = 28;
 const IMAGE_KEEP_DAYS = 7;
 
@@ -54,8 +68,9 @@ async function cleanupOldImages(s: any) {
   const { data: done } = await s.from('seeding_links').select('id').eq('status', 'completed');
   if (!done?.length) return;
   const cutoff = Date.now() - IMAGE_KEEP_DAYS * 86400000;
-  const { data: subs } = await s.from('seeding_submissions')
-    .select('id, link_id, image_path, submitted_at').in('link_id', done.map((d: any) => d.id));
+  const { data: subs } = await fetchAll(() => s.from('seeding_submissions')
+    .select('id, link_id, image_path, submitted_at, seeding_links!inner(status)')
+    .eq('seeding_links.status', 'completed'), 'id');
   const lastAt: Record<string, number> = {};
   for (const r of subs || []) lastAt[r.link_id] = Math.max(lastAt[r.link_id] || 0, new Date(r.submitted_at).getTime());
   const old = (subs || []).filter((r: any) => r.image_path && lastAt[r.link_id] < cutoff);
@@ -94,7 +109,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .order('created_at', { ascending: true });
       const ids = (links || []).map((l: any) => l.id);
       const { data: subs } = ids.length
-        ? await s.from('seeding_submissions').select('link_id, group_key, employee_id, task_date, submitted_at, image_path, status').in('link_id', ids)
+        ? await fetchAll(() => s.from('seeding_submissions').select('link_id, group_key, employee_id, task_date, submitted_at, image_path, status'), 'id')
         : { data: [] };
       const total: Record<string, number> = {}, today: Record<string, number> = {}, lastAt: Record<string, string> = {}, imgs: Record<string, number> = {};
       const grpPeople: Record<string, Set<string>> = {};
@@ -207,20 +222,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const date = req.body?.date || vnToday();
       const { data: emps } = await s.from('employees')
         .select('id, full_name, department, employment_status').eq('employment_status', 'active');
-      const { data: subs } = await s.from('seeding_submissions')
-        .select('employee_id, group_key').eq('task_date', date).eq('status', 'active');
+      const { data: subs } = await fetchAll(() => s.from('seeding_submissions')
+        .select('employee_id, group_key').eq('task_date', date).eq('status', 'active'), 'id');
       const cnt: Record<string, number> = {};
       const byGroup: Record<string, Record<string, number>> = {};
       for (const r of subs || []) {
         cnt[r.employee_id] = (cnt[r.employee_id] || 0) + 1;
         ((byGroup[r.employee_id] ||= {})[r.group_key] = (byGroup[r.employee_id]?.[r.group_key] || 0) + 1);
       }
+      // Điểm seeding tích lũy (mọi ngày, ảnh còn hợp lệ)
+      const { data: allPts } = await fetchAll(() => s.from('seeding_submissions')
+        .select('employee_id, stars_awarded').eq('status', 'active'), 'id');
+      const pts: Record<string, number> = {};
+      for (const r of allPts || []) pts[r.employee_id] = (pts[r.employee_id] || 0) + (r.stars_awarded || 0);
       const rows = (emps || []).map((e: any) => ({
         id: e.id, name: e.full_name, department: e.department || '',
-        count: cnt[e.id] || 0, byGroup: byGroup[e.id] || {},
+        count: cnt[e.id] || 0, byGroup: byGroup[e.id] || {}, points: pts[e.id] || 0,
       })).sort((a: any, b: any) => a.count - b.count || a.name.localeCompare(b.name));
-      const done = rows.filter((r: any) => r.count >= MIN_PER_DAY).length;
-      return res.status(200).json({ date, minPerDay: MIN_PER_DAY, done, total: rows.length, rows });
+      const done = rows.filter((r: any) => r.count >= REQUIRED_PER_DAY).length;
+      return res.status(200).json({ date, requiredPerDay: REQUIRED_PER_DAY, maxPerDay: MAX_PER_DAY, done, total: rows.length, rows });
     }
 
     if (action === 'revoke' || action === 'restore') {

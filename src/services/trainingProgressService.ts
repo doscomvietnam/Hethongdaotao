@@ -4,6 +4,7 @@
  * Dùng cho: admin dashboard, xuất báo cáo Excel
  */
 import { supabase } from './supabaseClient';
+import { fetchAll } from './fetchAll';
 
 /**
  * Đã có KẾT QUẢ bài kiểm tra của khóa này chưa (server-side, đúng qua mọi máy/trình duyệt).
@@ -107,21 +108,21 @@ export async function getSupabaseVideoProgress(employeeId: string, courseId: str
 export async function getAllTrainingProgress(): Promise<any[]> {
   try {
     // Try join query first
-    const { data, error } = await supabase
+    const { data, error } = await fetchAll(() => supabase
       .from('training_progress')
       .select(`
         *,
         employees!fk_employee(full_name, department, email),
         courses!fk_course(course_name, brand, category, video_url, quiz_id)
       `)
-      .order('updated_at', { ascending: false });
+      .order('updated_at', { ascending: false }), 'id');
 
     if (!error && data && data.length > 0) return data;
 
     // Fallback: manual join
     console.warn('Join query failed or empty, using manual join:', error?.message);
     const [progressRes, empRes, courseRes] = await Promise.all([
-      supabase.from('training_progress').select('*').order('updated_at', { ascending: false }),
+      fetchAll(() => supabase.from('training_progress').select('*').order('updated_at', { ascending: false }), 'id'),
       supabase.from('employees').select('id, full_name, department, email'),
       supabase.from('courses').select('course_id, course_name, brand, category, video_url, quiz_id'),
     ]);
@@ -148,10 +149,10 @@ export async function getAdminStats(department?: string) {
       const [employeesRes, coursesRes, progressRes] = await Promise.all([
         supabase.from('employees').select('id').eq('employment_status', 'active').eq('department', department),
         supabase.from('courses').select('course_id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.from('training_progress').select(`
+        fetchAll(() => supabase.from('training_progress').select(`
           *,
           employees!fk_employee(department)
-        `),
+        `), 'id'),
       ]);
 
       const deptEmployeeIds = new Set((employeesRes.data || []).map((e: any) => e.id));
@@ -172,7 +173,7 @@ export async function getAdminStats(department?: string) {
     const [employeesRes, coursesRes, progressRes] = await Promise.all([
       supabase.from('employees').select('id', { count: 'exact', head: true }).eq('employment_status', 'active'),
       supabase.from('courses').select('course_id', { count: 'exact', head: true }).eq('status', 'active'),
-      supabase.from('training_progress').select('*'),
+      fetchAll(() => supabase.from('training_progress').select('*'), 'id'),
     ]);
 
     const employeeCount = employeesRes.count || 0;
@@ -195,13 +196,13 @@ export async function getAdminStats(department?: string) {
 // ── Admin: Department stats for charts ──────────────────────────────────
 export async function getDepartmentStats(): Promise<{ name: string; hoanthanh: number; hieusuat: number }[]> {
   try {
-    const { data } = await supabase
+    const { data } = await fetchAll(() => supabase
       .from('training_progress')
       .select(`
         quiz_passed, quiz_score, quiz_completed_at, video_progress, status,
         employees!fk_employee(department),
         courses!fk_course(video_url, quiz_id)
-      `);
+      `), 'id');
 
     if (!data || data.length === 0) return [];
 
@@ -255,13 +256,13 @@ export interface MonthlyStat {
 
 export async function getMonthlyStats(months = 12, department?: string): Promise<MonthlyStat[]> {
   try {
-    const { data } = await supabase
+    const { data } = await fetchAll(() => supabase
       .from('training_progress')
       .select(`
         quiz_completed_at, status, video_progress, updated_at,
         employees!fk_employee(department),
         courses!fk_course(video_url, quiz_id)
-      `);
+      `), 'id');
     if (!data) return [];
 
     const now = new Date();
@@ -340,20 +341,20 @@ export async function exportTrainingReportExcel() {
   // Fetch data with manual join fallback
   let rows: any[] = [];
 
-  const { data, error } = await supabase
+  const { data, error } = await fetchAll(() => supabase
     .from('training_progress')
     .select(`
       video_progress, quiz_score, quiz_time_seconds, quiz_passed, quiz_completed_at, status,
       employees!fk_employee(full_name, department),
       courses!fk_course(course_name)
     `)
-    .order('updated_at', { ascending: false });
+    .order('updated_at', { ascending: false }), 'id');
 
   if (!error && data) {
     rows = data;
   } else {
     const [progressRes, empRes, courseRes] = await Promise.all([
-      supabase.from('training_progress').select('*').order('updated_at', { ascending: false }),
+      fetchAll(() => supabase.from('training_progress').select('*').order('updated_at', { ascending: false }), 'id'),
       supabase.from('employees').select('id, full_name, department'),
       supabase.from('courses').select('course_id, course_name'),
     ]);

@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient';
+import { fetchAll } from './fetchAll';
+import { getSeedingDays, applySeedingRule, seedingOk } from './seedingDaysService';
 
 const VN_OFFSET_MS = 7 * 3600 * 1000;
 
@@ -21,17 +23,17 @@ export async function getQuizSubmissionsForMonth(
   yearMonth: string,
 ): Promise<Map<string, Set<string>>> {
   const [trainingRes, dailyRes] = await Promise.all([
-    supabase
+    fetchAll(() => supabase
       .from('training_progress')
       .select('employee_id, quiz_completed_at')
       .not('quiz_score', 'is', null)
-      .not('quiz_completed_at', 'is', null),
-    supabase
+      .not('quiz_completed_at', 'is', null), 'id'),
+    fetchAll(() => supabase
       .from('daily_tests')
       .select('employee_id, test_date')
       .gte('test_date', `${yearMonth}-01`)
       .lt('test_date', firstDayOfNextMonth(yearMonth))
-      .eq('status', 'submitted'),
+      .eq('status', 'submitted'), 'test_id'),
   ]);
 
   const map = new Map<string, Set<string>>();
@@ -47,6 +49,10 @@ export async function getQuizSubmissionsForMonth(
   for (const r of (dailyRes.data || []) as any[]) {
     if ((r.test_date as string)?.startsWith(yearMonth)) add(r.employee_id, r.test_date);
   }
+
+  // Từ ngày áp dụng: phải có thêm 1 lượt seeding mới tính là hoàn thành ngày
+  const [yy, mm] = yearMonth.split('-').map(Number);
+  applySeedingRule(map, await getSeedingDays(`${yearMonth}-01`, `${yearMonth}-${String(new Date(yy, mm, 0).getDate()).padStart(2, '0')}`));
 
   return map;
 }
@@ -186,17 +192,17 @@ export async function getYearlySummary(year: number, startMonth: number = 1): Pr
       .order('full_name'),
     supabase.from('company_holidays').select('date').gte('date', startDate).lte('date', endDate),
     supabase.from('employee_absences').select('employee_id, date').gte('date', startDate).lte('date', endDate),
-    supabase
+    fetchAll(() => supabase
       .from('training_progress')
       .select('employee_id, quiz_completed_at')
       .not('quiz_score', 'is', null)
-      .not('quiz_completed_at', 'is', null),
-    supabase
+      .not('quiz_completed_at', 'is', null), 'id'),
+    fetchAll(() => supabase
       .from('daily_tests')
       .select('employee_id, test_date')
       .gte('test_date', startDate)
       .lte('test_date', todayVN)
-      .eq('status', 'submitted'),
+      .eq('status', 'submitted'), 'test_id'),
   ]);
 
   const employees = (empsRes.data || []).filter(
@@ -223,6 +229,7 @@ export async function getYearlySummary(year: number, startMonth: number = 1): Pr
   for (const r of (dailyRes.data || []) as any[]) {
     addSub(r.employee_id, r.test_date as string);
   }
+  applySeedingRule(subMap, await getSeedingDays(startDate, todayVN));
 
   const rows: EmployeeYearlySummary[] = employees.map((emp: any) => {
     let totalRequired = 0, totalDone = 0, totalMissed = 0, totalAbsent = 0;
@@ -290,8 +297,8 @@ export async function getEmployeesMonthlyQuizStats(
   const [holsRes, absRes, trainingRes, dailyRes] = await Promise.all([
     supabase.from('company_holidays').select('date').gte('date', from).lte('date', ceiling),
     supabase.from('employee_absences').select('employee_id, date').in('employee_id', employeeIds).gte('date', from).lte('date', ceiling),
-    supabase.from('training_progress').select('employee_id, quiz_completed_at').not('quiz_score', 'is', null).not('quiz_completed_at', 'is', null).in('employee_id', employeeIds),
-    supabase.from('daily_tests').select('employee_id, test_date').gte('test_date', from).lte('test_date', ceiling).eq('status', 'submitted').in('employee_id', employeeIds),
+    fetchAll(() => supabase.from('training_progress').select('employee_id, quiz_completed_at').not('quiz_score', 'is', null).not('quiz_completed_at', 'is', null).in('employee_id', employeeIds), 'id'),
+    fetchAll(() => supabase.from('daily_tests').select('employee_id, test_date').gte('test_date', from).lte('test_date', ceiling).eq('status', 'submitted').in('employee_id', employeeIds), 'test_id'),
   ]);
 
   const holidaySet = new Set<string>((holsRes.data || []).map((r: any) => r.date as string));
@@ -314,6 +321,7 @@ export async function getEmployeesMonthlyQuizStats(
     if (!subMap.has(r.employee_id)) subMap.set(r.employee_id, new Set());
     subMap.get(r.employee_id)!.add(r.test_date as string);
   }
+  applySeedingRule(subMap, await getSeedingDays(from, ceiling, employeeIds));
 
   const result = new Map<string, MonthlyQuizStat>();
   for (const emp of employees) {
@@ -364,8 +372,8 @@ export async function getEmployeeMonthlyQuizCalendar(
   const [holsRes, absRes, trainingRes, dailyRes] = await Promise.all([
     supabase.from('company_holidays').select('date').gte('date', from).lte('date', to),
     supabase.from('employee_absences').select('date').eq('employee_id', employeeId).gte('date', from).lte('date', to),
-    supabase.from('training_progress').select('quiz_completed_at').not('quiz_score', 'is', null).not('quiz_completed_at', 'is', null).eq('employee_id', employeeId),
-    supabase.from('daily_tests').select('test_date').gte('test_date', from).lte('test_date', to).eq('status', 'submitted').eq('employee_id', employeeId),
+    fetchAll(() => supabase.from('training_progress').select('quiz_completed_at').not('quiz_score', 'is', null).not('quiz_completed_at', 'is', null).eq('employee_id', employeeId), 'id'),
+    fetchAll(() => supabase.from('daily_tests').select('test_date').gte('test_date', from).lte('test_date', to).eq('status', 'submitted').eq('employee_id', employeeId), 'test_id'),
   ]);
 
   const holidaySet = new Set<string>((holsRes.data || []).map((r: any) => r.date as string));
@@ -379,6 +387,8 @@ export async function getEmployeeMonthlyQuizCalendar(
   for (const r of (dailyRes.data || []) as any[]) {
     subSet.add(r.test_date as string);
   }
+  const sd = await getSeedingDays(from, to, [employeeId]);
+  for (const d of [...subSet]) if (!seedingOk(sd, employeeId, d)) subSet.delete(d);
 
   const days: DayEntry[] = [];
   let done = 0, missed = 0, required = 0, absent = 0;
