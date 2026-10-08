@@ -139,7 +139,7 @@ function DailyProgress({ st }: { st: SeedingState }) {
         <div className="flex items-center gap-3">
           <div className="w-11 h-11 rounded-xl bg-amber-400/15 flex items-center justify-center text-xl">⭐</div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Điểm seeding của bạn</div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Điểm seeding tháng này</div>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black text-amber-500 leading-none tabular-nums">{st.points}</span>
               <span className="text-xs font-bold text-zinc-500">điểm</span>

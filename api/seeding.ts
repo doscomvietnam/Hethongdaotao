@@ -113,9 +113,10 @@ async function buildState(s: any, meId: string, pre?: Awaited<ReturnType<typeof 
   const { people, mine, fullForMe, perGroupMax } = limitsFor(meId, todaySubs);
   const myTodayTotal = todaySubs.filter((r: any) => r.employee_id === meId).length;
   const dayFull = myTodayTotal >= MAX_PER_DAY;
-  // Điểm seeding của tôi (mọi ngày, chỉ tính ảnh còn hợp lệ)
+  // Điểm seeding của tôi trong THÁNG này (chỉ tính ảnh còn hợp lệ) — khớp menu Hệ thống điểm
   const { data: myPts } = await fetchAll(() => s.from('seeding_submissions')
-    .select('stars_awarded, task_date').eq('employee_id', meId).eq('status', 'active'), 'id');
+    .select('stars_awarded, task_date').eq('employee_id', meId).eq('status', 'active')
+    .gte('task_date', date.slice(0, 7) + '-01'), 'id');
   const points = (myPts || []).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
   const pointsToday = (myPts || []).filter((r: any) => r.task_date === date).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
 

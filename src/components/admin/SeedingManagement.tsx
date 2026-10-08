@@ -103,10 +103,11 @@ function GroupLinks({ group, minLinks, links, people, onChanged }: {
 
   const add = async () => {
     const u = url.trim();
+    if (!title.trim()) { setAddErr('Nhập tên sản phẩm trước đã'); return; }
     if (!u) { setAddErr('Dán link video trước đã'); return; }
     if (!/^https?:\/\//i.test(u)) { setAddErr('Link phải bắt đầu bằng http:// hoặc https://'); return; }
     setSaving(true); setAddErr(null);
-    try { await adminSaveLink({ group_key: group.key, title: title.trim() || undefined, url: u, max_people: quota }); setTitle(''); setUrl(''); setQuota(10); onChanged(); }
+    try { await adminSaveLink({ group_key: group.key, title: title.trim(), url: u, max_people: quota }); setTitle(''); setUrl(''); setQuota(10); onChanged(); }
     catch (e: any) { setAddErr(e.message || 'Thêm link thất bại'); } finally { setSaving(false); }
   };
   const del = async (id: string) => { if (!confirm('Xóa hẳn link này? Ảnh đã nộp của link cũng bị xóa.')) return; await adminDeleteLink(id); onChanged(); };
@@ -128,7 +129,7 @@ function GroupLinks({ group, minLinks, links, people, onChanged }: {
       <div className="p-3 flex flex-col gap-2">
         {/* Thêm link */}
         <div className="rounded-xl border border-dashed border-zinc-700 p-2.5 flex flex-col gap-2">
-          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tiêu đề video (không bắt buộc)" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tên sản phẩm (bắt buộc)" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
           <input value={url} onChange={e => { setUrl(e.target.value); setAddErr(null); }} onKeyDown={e => { if (e.key === 'Enter') add(); }} placeholder="Dán link video… (bắt buộc)" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
           <div className="flex items-center gap-2">
             <label className="text-[11px] text-zinc-500 flex items-center gap-1">Tổng <input type="number" min={1} max={100} value={quota} onChange={e => setQuota(parseInt(e.target.value) || 10)} className="w-14 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200" /> lượt</label>
@@ -183,10 +184,11 @@ function LinkItem({ l, groupKey, onToggle, onDelete, onChanged }: {
   const startEdit = () => { setTitle(l.title); setUrl(l.url); setQuota(l.max_people); setEditErr(null); setEditing(true); };
   const save = async () => {
     const u = url.trim();
+    if (!title.trim()) { setEditErr('Tên sản phẩm không được để trống'); return; }
     if (!u) { setEditErr('Link không được để trống'); return; }
     setSaving(true); setEditErr(null);
     try {
-      await adminSaveLink({ id: l.id, group_key: groupKey, title: title.trim() || undefined, url: u, max_people: quota });
+      await adminSaveLink({ id: l.id, group_key: groupKey, title: title.trim(), url: u, max_people: quota });
       setEditing(false); onChanged();
     } catch (e: any) { setEditErr(e.message || 'Lưu thất bại'); } finally { setSaving(false); }
   };
@@ -194,7 +196,7 @@ function LinkItem({ l, groupKey, onToggle, onDelete, onChanged }: {
   if (editing) {
     return (
       <div className="rounded-xl border border-sky-500/40 bg-zinc-900/80 p-2.5 flex flex-col gap-2">
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tiêu đề video" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Tên sản phẩm (bắt buộc)" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
         <input value={url} onChange={e => setUrl(e.target.value)} placeholder="Link video" className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-2 text-xs text-zinc-200" />
         <div className="flex items-center gap-2">
           <label className="text-[11px] text-zinc-500 flex items-center gap-1">Tổng <input type="number" min={1} max={100} value={quota} onChange={e => setQuota(parseInt(e.target.value) || 10)} className="w-14 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-zinc-200" /> lượt</label>
@@ -285,7 +287,7 @@ function ProgressTable({ data }: { data: any | null }) {
               <th className="text-left px-4 py-3">Phòng ban</th>
               <th className="text-left px-4 py-3">Theo nhóm</th>
               <th className="text-right px-4 py-3">Hôm nay</th>
-              <th className="text-right px-4 py-3">Điểm</th>
+              <th className="text-right px-4 py-3">Điểm tháng</th>
             </tr>
           </thead>
           <tbody>

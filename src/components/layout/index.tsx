@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   CalendarDays,
   Award,
+  Star,
   Dumbbell,
   Route,
   FileText,
@@ -108,6 +109,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
     { id: ViewType.LEARNING_PATH, icon: Route, label: 'Lộ trình học', roles: ['admin', 'manager', 'employee'], show: hasSalesPath },
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.PRACTICE, icon: Dumbbell, label: 'Luyện tập', roles: ['admin', 'manager', 'employee'], show: true },
+    { id: ViewType.POINTS, icon: Star, label: 'Hệ thống điểm', roles: ['admin'], show: true },
     { id: ViewType.BADGES, icon: Award, label: 'Huy hiệu', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.ONBOARDING_TEST, icon: ClipboardCheck, label: 'Test Onboarding', roles: ['admin', 'manager', 'employee'], show: hasOnboarding },
     { id: ViewType.ATTENDANCE, icon: CalendarDays, label: 'Điểm danh', roles: ['admin'], show: true },
@@ -811,6 +813,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.MY_DASHBOARD]: 'my-dashboard',
       [ViewType.BADGES]: 'badges',
       [ViewType.PRACTICE]: 'practice',
+      [ViewType.POINTS]: 'points',
       [ViewType.LEARNING_PATH]: 'learning-path',
     };
     onNavigate(viewMap[view] || 'dashboard');

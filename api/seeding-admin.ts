@@ -2,7 +2,7 @@
  * Serverless — Seeding (phía ADMIN). service_role, yêu cầu role admin/manager.
  *  POST /api/seeding-admin { token, action, ... }
  *    'list'                                                     → link đang chạy/đã ẩn + đã hoàn thành, số lượt hôm nay/tổng
- *    'save-link'     { id?, group_key, title?, url, max_people? } → thêm/sửa (CHẶN trùng link cũ, mặc định 10 lượt)
+ *    'save-link'     { id?, group_key, title (= tên sản phẩm, bắt buộc), url, max_people? } → thêm/sửa (CHẶN trùng link cũ, mặc định 10 lượt)
  *    'delete-link'   { id }
  *    'set-status'    { id, status: 'active'|'inactive' }       → ẩn/hiện link
  *    'submissions'   { date, link_id? }                         → bài nộp theo ngày + link ảnh ký tạm
@@ -137,6 +137,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const { id, group_key } = req.body;
       const url = (req.body?.url || '').trim();
       if (!group_key || !url) return res.status(400).json({ error: 'Thiếu nhóm hoặc link' });
+      const title = (req.body?.title || '').trim();
+      if (!title) return res.status(400).json({ error: 'Thiếu tên sản phẩm' });
       const quota = parseInt(req.body?.max_people) || LINK_TOTAL_DEFAULT;
 
       // Chặn trùng với MỌI link đã từng đăng (kể cả đã hoàn thành / đã ẩn)
@@ -149,14 +151,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       if (id) {
-        const payload: any = { group_key, url, max_people: quota };
-        if (req.body?.title?.trim()) payload.title = req.body.title.trim();
+        const payload: any = { group_key, title, url, max_people: quota };
         const r = await s.from('seeding_links').update(payload).eq('id', id);
         if (r.error) return res.status(500).json({ error: r.error.message });
         await syncLinkStatus(s, id); // đổi tổng lượt có thể làm link đủ/thiếu
       } else {
-        const n = (all || []).filter((l: any) => l.group_key === group_key).length + 1;
-        const title = req.body?.title?.trim() || `Video ${n}`;
         const r = await s.from('seeding_links').insert({ group_key, title, url, max_people: quota, task_date: vnToday(), status: 'active' });
         if (r.error) return res.status(500).json({ error: r.error.message });
       }
@@ -230,9 +229,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         cnt[r.employee_id] = (cnt[r.employee_id] || 0) + 1;
         ((byGroup[r.employee_id] ||= {})[r.group_key] = (byGroup[r.employee_id]?.[r.group_key] || 0) + 1);
       }
-      // Điểm seeding tích lũy (mọi ngày, ảnh còn hợp lệ)
+      // Điểm seeding trong tháng của ngày đang xem (ảnh còn hợp lệ) — khớp menu Hệ thống điểm
       const { data: allPts } = await fetchAll(() => s.from('seeding_submissions')
-        .select('employee_id, stars_awarded').eq('status', 'active'), 'id');
+        .select('employee_id, stars_awarded').eq('status', 'active')
+        .gte('task_date', date.slice(0, 7) + '-01').lte('task_date', date), 'id');
       const pts: Record<string, number> = {};
       for (const r of allPts || []) pts[r.employee_id] = (pts[r.employee_id] || 0) + (r.stars_awarded || 0);
       const rows = (emps || []).map((e: any) => ({
