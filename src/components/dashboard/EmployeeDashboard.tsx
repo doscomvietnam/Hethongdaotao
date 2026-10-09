@@ -2,13 +2,14 @@ import * as React from 'react';
 import {
   BookOpen, CheckCircle2, Zap, AlertCircle, Clock,
   Trophy, Star, Award, Flame, ArrowRight, Play, TrendingUp,
-  CalendarCheck, XCircle,
+  CalendarCheck, XCircle, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
 import { getYesterdayOverdueForUser, type MissingPart } from '../../services/dailyAttendanceService';
 import { getEmployeeMonthlyQuizCalendar, type MonthlyQuizCalendar } from '../../services/attendanceService';
 import { GamificationWidget } from '../gamification/GamificationWidget';
+import { getMyPoints, type MyPoints } from '../../services/pointsService';
 
 // ── Helper: level info ──────────────────────────────────────────────────
 function getLevelInfo(rate: number) {
@@ -118,6 +119,49 @@ function SectionHeader({ icon: Icon, title, subtitle, color = 'text-emerald-500'
         {subtitle && <p className="text-[9px] text-zinc-600 font-bold uppercase tracking-widest mt-1">{subtitle}</p>}
       </div>
     </div>
+  );
+}
+
+// ── Điểm tích lũy (hiện tại = điểm seeding; sau này dùng để đổi quà) ─────
+function PointsCard({ pts, month, curMonth, onMonth }: {
+  pts: MyPoints | null; month: string; curMonth: string; onMonth: (m: string) => void;
+}) {
+  const shift = (d: number) => {
+    const [y, mo] = month.split('-').map(Number);
+    onMonth(new Date(Date.UTC(y, mo - 1 + d, 1)).toISOString().slice(0, 7));
+  };
+  const loading = !pts || pts.monthKey !== month;
+  const arrow = 'w-5 h-5 rounded-md flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-25 disabled:hover:bg-transparent';
+  return (
+    <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-amber-500/25 rounded-2xl">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+        <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 ring-1 ring-amber-500/30 flex items-center justify-center text-2xl flex-shrink-0">⭐</div>
+          <div className="min-w-0">
+            <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest leading-none">Điểm tích lũy</p>
+            <div className="flex items-baseline gap-2 mt-2">
+              <span className="text-4xl font-black text-amber-500 tracking-tighter tabular-nums leading-none">{pts ? pts.total : '—'}</span>
+              <span className="text-sm font-bold text-zinc-500">điểm</span>
+            </div>
+            <p className="text-[10px] text-zinc-600 font-bold mt-2">Mỗi lượt seeding hợp lệ +1 điểm · đổi quà sắp ra mắt</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:w-72">
+          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-2 py-2">
+            <div className="flex items-center justify-between gap-1">
+              <button type="button" onClick={() => shift(-1)} className={arrow} aria-label="Tháng trước"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest leading-none whitespace-nowrap">T{Number(month.slice(5))}/{month.slice(0, 4)}</p>
+              <button type="button" onClick={() => shift(1)} disabled={month >= curMonth} className={arrow} aria-label="Tháng sau"><ChevronRight className="w-3.5 h-3.5" /></button>
+            </div>
+            <p className={`text-xl font-black text-white tabular-nums leading-none mt-1.5 text-center ${loading ? 'opacity-40' : ''}`}>{pts ? pts.month : '—'}</p>
+          </div>
+          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2.5">
+            <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest leading-none pt-1.5 text-center">Hôm nay</p>
+            <p className="text-xl font-black text-emerald-500 tabular-nums leading-none mt-2.5 text-center">{pts ? `+${pts.today}` : '—'}</p>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -281,6 +325,14 @@ export function EmployeeDashboardView({ courses: allCourses, onCourseClick, empl
       .catch(e => console.error('Quiz stat error:', e));
   }, [employeeId, currentYM]);
 
+  // Điểm tích lũy của tôi
+  const [myPoints, setMyPoints] = React.useState<MyPoints | null>(null);
+  const [pointsMonth, setPointsMonth] = React.useState(() => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 7));
+  React.useEffect(() => {
+    if (!employeeId) return;
+    getMyPoints(pointsMonth).then(setMyPoints).catch(e => console.warn('Points error:', e));
+  }, [employeeId, pointsMonth]);
+
   const completedCourses = courses.filter(c => c.progress === 100 || c.isCompleted);
   const ongoingCourses = courses.filter(c => c.progress > 0 && c.progress < 100 && !c.isCompleted);
   const completionRate = courses.length > 0 ? Math.round((completedCourses.length / courses.length) * 100) : 0;
@@ -368,6 +420,9 @@ export function EmployeeDashboardView({ courses: allCourses, onCourseClick, empl
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
         {kpiCards.map((kpi, i) => <KpiCard key={i} {...kpi} />)}
       </div>
+
+      {/* Điểm tích lũy */}
+      {employeeId && <PointsCard pts={myPoints} month={pointsMonth} curMonth={currentYM} onMonth={setPointsMonth} />}
 
       {/* Gamification: XP · Streak · Thành tích */}
       {employeeId && <GamificationWidget employeeId={employeeId} />}

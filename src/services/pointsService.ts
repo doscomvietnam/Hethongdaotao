@@ -10,6 +10,19 @@ export interface PointsData {
   items: PointsItem[];
 }
 
+export interface MyPoints { total: number; month: number; today: number; monthKey: string }
+
+/** Điểm tích lũy của chính mình (mọi nhân viên). */
+export async function getMyPoints(month?: string): Promise<MyPoints> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Phiên đăng nhập đã hết');
+  const r = await fetch(`/api/points?self=1&token=${encodeURIComponent(token)}${month ? `&month=${month}` : ''}`);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Không tải được điểm');
+  return j as MyPoints;
+}
+
 /** Điểm theo tháng (YYYY-MM) của toàn công ty — CHỈ ADMIN. Hiện chỉ có điểm seeding. */
 export async function getMonthlyPoints(month: string): Promise<PointsData> {
   const { data } = await supabase.auth.getSession();

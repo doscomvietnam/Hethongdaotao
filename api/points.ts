@@ -1,5 +1,6 @@
 /**
  * Serverless — HỆ THỐNG ĐIỂM (tính theo tháng).
+ *  GET /api/points?token=<jwt>&self=1[&month=YYYY-MM] → MỌI nhân viên: điểm của CHÍNH MÌNH { total, month, today, monthKey }
  *  CHỈ ADMIN.  GET /api/points?token=<jwt>&month=YYYY-MM   (bỏ month → tháng hiện tại, giờ VN)
  *   → { month, summary: { total, withPoints, employees }, sources, leaderboard: [...], items: [...mọi lượt, kèm employee_id] }
  *
@@ -40,6 +41,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (ue || !u?.user) return res.status(401).json({ error: 'Chưa đăng nhập hoặc phiên không hợp lệ' });
   const { data: me } = await s.from('employees').select('id, role').eq('auth_user_id', u.user.id).maybeSingle();
   if (!me) return res.status(403).json({ error: 'Không tìm thấy nhân viên' });
+
+  // Điểm tích lũy của chính mình (thẻ trên Tổng quan cá nhân)
+  if (req.query.self === '1' || req.query.self === 'true') {
+    const today = vnToday();
+    const monthKey = /^\d{4}-\d{2}$/.test((req.query.month as string) || '') ? (req.query.month as string) : today.slice(0, 7);
+    const { data: rows, error } = await fetchAll(() => s.from('seeding_submissions')
+      .select('stars_awarded, task_date').eq('employee_id', me.id).eq('status', 'active'), 'id');
+    if (error) return res.status(500).json({ error: error.message });
+    const sum = (f: (r: any) => boolean) => rows.filter(f).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.status(200).json({
+      total: sum(() => true),                                   // tích lũy từ trước tới nay
+      month: sum(r => (r.task_date || '').startsWith(monthKey)), // tháng được chọn (mặc định tháng này)
+      today: sum(r => r.task_date === today),
+      monthKey,
+    });
+  }
+
   if (me.role !== 'admin') return res.status(403).json({ error: 'Chỉ admin được xem Hệ thống điểm' });
 
   const month = /^\d{4}-\d{2}$/.test((req.query.month as string) || '') ? (req.query.month as string) : vnToday().slice(0, 7);
