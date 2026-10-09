@@ -1,7 +1,9 @@
 import * as React from 'react';
-import { Star, ChevronLeft, ChevronRight, Gift, Trophy, RefreshCw, Search } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight, Trophy, RefreshCw, Search } from 'lucide-react';
 import type { Employee } from '../../types';
 import { getMonthlyPoints, type PointsData } from '../../services/pointsService';
+import { RedeemAdmin } from './RedeemAdmin';
+import { BonusAdmin } from './BonusAdmin';
 
 /** Hệ thống điểm — CHỈ ADMIN. Điểm nhân viên theo tháng (hiện chỉ có điểm seeding); đổi quà làm sau. */
 const GROUP_LABEL: Record<string, string> = { koc: 'Seeding KOC', company: 'Seeding video công ty', competitor: 'Seeding đối thủ' };
@@ -51,7 +53,7 @@ export default function PointsPage(_: { employee: Employee }) {
           <h1 className="text-[1.75rem] sm:text-5xl font-black tracking-tighter text-white uppercase leading-none">Hệ thống điểm</h1>
         </div>
         <p className="text-zinc-500 font-bold uppercase tracking-wider sm:tracking-widest text-xs sm:pl-12">
-          Điểm nhân viên theo tháng · hiện tại gồm điểm seeding · chỉ admin xem
+          Điểm nhân viên theo tháng · duyệt đổi quà · chỉ admin xem
         </p>
       </header>
 
@@ -92,9 +94,15 @@ export default function PointsPage(_: { employee: Employee }) {
               <span className="text-sm font-black text-amber-500 tabular-nums">{data ? s.points : '–'}</span>
             </div>
           ))}
-          <div className="text-[11px] text-zinc-600 mt-2">Mỗi lượt seeding hợp lệ = +1 điểm. Ảnh bị thu hồi sẽ bị trừ điểm.</div>
+          <div className="text-[11px] text-zinc-600 mt-2">Seeding: mỗi lượt hợp lệ +1 điểm (ảnh bị thu hồi thì trừ). Điểm thưởng: admin cộng kèm lý do.</div>
         </div>
       </div>
+
+      {/* Yêu cầu đổi quà — admin duyệt / từ chối */}
+      {/* Điểm thưởng — admin cộng điểm kèm lý do */}
+      <BonusAdmin employees={board} month={month} onChanged={load} />
+
+      <RedeemAdmin />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Bảng xếp hạng tháng — bấm 1 người để xem lịch sử */}
@@ -148,7 +156,7 @@ export default function PointsPage(_: { employee: Employee }) {
                 <div className="mt-1.5 space-y-1">
                   {its.map((i, k) => (
                     <div key={k} className="flex items-center justify-between gap-3 text-[12.5px]">
-                      <span className="text-zinc-300 truncate">{GROUP_LABEL[i.group_key] || 'Seeding'}{i.title ? ` · ${i.title}` : ''}</span>
+                      <span className="text-zinc-300 truncate">{i.source === 'bonus' ? '⭐ Điểm thưởng' : GROUP_LABEL[i.group_key] || 'Seeding'}{i.title ? ` · ${i.title}` : ''}</span>
                       <span className="text-amber-500 font-bold flex-none tabular-nums">+{i.points}</span>
                     </div>
                   ))}
@@ -159,14 +167,6 @@ export default function PointsPage(_: { employee: Employee }) {
         </section>
       </div>
 
-      {/* Đổi quà — giai đoạn sau */}
-      <section className="rounded-2xl border border-dashed border-zinc-700 bg-[#0C0C0E] p-6 flex items-center gap-4">
-        <div className="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center flex-none"><Gift className="w-6 h-6 text-zinc-500" /></div>
-        <div>
-          <div className="text-sm font-black uppercase tracking-tight text-white">Đổi quà <span className="ml-1.5 text-[10px] font-black text-amber-500 bg-amber-500/10 rounded-full px-2 py-0.5 align-middle">Sắp ra mắt</span></div>
-          <div className="text-xs text-zinc-500 mt-1">Nhân viên dùng điểm tích lũy để đổi quà — tính năng đang được chuẩn bị.</div>
-        </div>
-      </section>
     </div>
   );
 }

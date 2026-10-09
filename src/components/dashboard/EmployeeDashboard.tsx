@@ -10,6 +10,7 @@ import { getYesterdayOverdueForUser, type MissingPart } from '../../services/dai
 import { getEmployeeMonthlyQuizCalendar, type MonthlyQuizCalendar } from '../../services/attendanceService';
 import { GamificationWidget } from '../gamification/GamificationWidget';
 import { getMyPoints, type MyPoints } from '../../services/pointsService';
+import { RedeemCard } from '../points/RedeemCard';
 
 // ── Helper: level info ──────────────────────────────────────────────────
 function getLevelInfo(rate: number) {
@@ -143,7 +144,9 @@ function PointsCard({ pts, month, curMonth, onMonth }: {
               <span className="text-4xl font-black text-amber-500 tracking-tighter tabular-nums leading-none">{pts ? pts.total : '—'}</span>
               <span className="text-sm font-bold text-zinc-500">điểm</span>
             </div>
-            <p className="text-[10px] text-zinc-600 font-bold mt-2">Mỗi lượt seeding hợp lệ +1 điểm · đổi quà sắp ra mắt</p>
+            <p className="text-[10px] text-zinc-600 font-bold mt-2">
+              {pts && pts.spent > 0 ? `Đã kiếm ${pts.earned} · đã đổi quà ${pts.spent} · ` : ''}Seeding +1 điểm/lượt · điểm thưởng do admin cộng
+            </p>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:w-72">
@@ -423,6 +426,9 @@ export function EmployeeDashboardView({ courses: allCourses, onCourseClick, empl
 
       {/* Điểm tích lũy */}
       {employeeId && <PointsCard pts={myPoints} month={pointsMonth} curMonth={currentYM} onMonth={setPointsMonth} />}
+
+      {/* Đổi quà (gửi yêu cầu → admin duyệt / từ chối) */}
+      {employeeId && <RedeemCard />}
 
       {/* Gamification: XP · Streak · Thành tích */}
       {employeeId && <GamificationWidget employeeId={employeeId} />}

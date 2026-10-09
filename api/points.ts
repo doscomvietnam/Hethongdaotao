@@ -49,10 +49,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const { data: rows, error } = await fetchAll(() => s.from('seeding_submissions')
       .select('stars_awarded, task_date').eq('employee_id', me.id).eq('status', 'active'), 'id');
     if (error) return res.status(500).json({ error: error.message });
+    // Điểm thưởng admin cộng (tính theo award_date) — chưa có bảng thì bỏ qua
+    const { data: bonusRows } = await fetchAll(() => s.from('point_bonuses')
+      .select('points, award_date').eq('employee_id', me.id), 'id');
+    for (const b of bonusRows || []) rows.push({ stars_awarded: b.points, task_date: b.award_date });
     const sum = (f: (r: any) => boolean) => rows.filter(f).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
+    // Điểm đã dùng đổi quà (yêu cầu đã duyệt) — lỗi/chưa có bảng thì coi như 0
+    const { data: spentRows } = await fetchAll(() => s.from('point_redemptions')
+      .select('points_spent').eq('employee_id', me.id).eq('status', 'approved'), 'id');
+    const spent = (spentRows || []).reduce((a: number, r: any) => a + (r.points_spent || 0), 0);
+    const earned = sum(() => true);
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
-      total: sum(() => true),                                   // tích lũy từ trước tới nay
+      total: earned - spent,                                    // điểm tích lũy còn lại (đã trừ đổi quà)
+      earned, spent,                                            // tổng kiếm được / đã đổi quà
       month: sum(r => (r.task_date || '').startsWith(monthKey)), // tháng được chọn (mặc định tháng này)
       today: sum(r => r.task_date === today),
       monthKey,
@@ -65,16 +75,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { from, to } = monthBounds(month);
 
   try {
-    const [{ data: subs }, { data: emps }] = await Promise.all([
+    const [{ data: subs }, { data: emps }, { data: bonuses }] = await Promise.all([
       fetchAll(() => s.from('seeding_submissions')
         .select('id, employee_id, link_id, task_date, submitted_at, stars_awarded')
         .eq('status', 'active').gte('task_date', from).lte('task_date', to), 'id'),
       s.from('employees').select('id, full_name, department').eq('employment_status', 'active'),
+      fetchAll(() => s.from('point_bonuses')
+        .select('id, employee_id, points, reason, award_date, created_at')
+        .gte('award_date', from).lte('award_date', to), 'id'),   // chưa có bảng → rỗng
     ]);
 
     // Bảng xếp hạng tháng
     const pts: Record<string, number> = {};
     for (const r of subs) pts[r.employee_id] = (pts[r.employee_id] || 0) + (r.stars_awarded || 0);
+    for (const b of bonuses || []) pts[b.employee_id] = (pts[b.employee_id] || 0) + (b.points || 0);
     const leaderboard = (emps || [])
       .map((e: any): any => ({ employee_id: e.id, full_name: e.full_name, department: e.department, points: pts[e.id] || 0, rank: null }))
       .sort((a: any, b: any) => b.points - a.points || a.full_name.localeCompare(b.full_name, 'vi'));
@@ -88,13 +102,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       ? await s.from('seeding_links').select('id, title, group_key').in('id', linkIds)
       : { data: [] as any[] };
     const linkMap = Object.fromEntries((links || []).map((l: any) => [l.id, l]));
-    const items = subs
-      .sort((a: any, b: any) => (b.submitted_at || '').localeCompare(a.submitted_at || ''))
-      .map((r: any) => ({
+    const items = [
+      ...subs.map((r: any) => ({
         employee_id: r.employee_id, date: r.task_date, at: r.submitted_at, points: r.stars_awarded || 0, source: 'seeding',
         title: linkMap[r.link_id]?.title || '', group_key: linkMap[r.link_id]?.group_key || '',
-      }));
-    const total = subs.reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
+      })),
+      ...(bonuses || []).map((b: any) => ({
+        employee_id: b.employee_id, date: b.award_date, at: b.created_at, points: b.points || 0, source: 'bonus',
+        title: b.reason || '', group_key: '',
+      })),
+    ].sort((a: any, b: any) => (b.at || '').localeCompare(a.at || ''));
+    const seedTotal = subs.reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
+    const bonusTotal = (bonuses || []).reduce((a: number, b: any) => a + (b.points || 0), 0);
+    const total = seedTotal + bonusTotal;
 
     res.setHeader('Cache-Control', 'no-store');
     return res.status(200).json({
@@ -104,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         withPoints: leaderboard.filter((r: any) => r.points > 0).length,
         employees: leaderboard.length,                             // số nhân viên đang làm
       },
-      sources: [{ key: 'seeding', label: 'Seeding', points: total }],
+      sources: [{ key: 'seeding', label: 'Seeding', points: seedTotal }, { key: 'bonus', label: 'Điểm thưởng', points: bonusTotal }],
       leaderboard,
       items,
     });

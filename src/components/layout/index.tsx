@@ -24,6 +24,7 @@ import {
   ClipboardCheck,
   CalendarDays,
   Award,
+  Gift,
   Star,
   Dumbbell,
   Route,
@@ -52,6 +53,7 @@ function notifIcon(type: string): { icon: React.ElementType; color: string; bg: 
     case 'course_overdue':          return { icon: AlertTriangle, color: 'text-red-400',     bg: 'bg-red-500/10' };
     case 'quiz_result':             return { icon: CheckCircle2,  color: 'text-blue-400',    bg: 'bg-blue-500/10' };
     case 'system':                  return { icon: Megaphone,     color: 'text-purple-400',  bg: 'bg-purple-500/10' };
+    case 'reward':                  return { icon: Gift,          color: 'text-rose-400',    bg: 'bg-rose-500/10' };
     default:                        return { icon: Bell,          color: 'text-zinc-400',    bg: 'bg-zinc-500/10' };
   }
 }
@@ -389,10 +391,11 @@ interface NavbarProps {
   onCourseClick: (courseId: string) => void;
   onProductClick: (productId: string) => void;
   onNotificationCourseClick?: (courseId: string) => void;
+  onNotificationNavigate?: (view: string) => void;
   onToggleMobile?: () => void;
 }
 
-export const Navbar = ({ employee, courses, products, onCourseClick, onProductClick, onNotificationCourseClick, onToggleMobile }: NavbarProps) => {
+export const Navbar = ({ employee, courses, products, onCourseClick, onProductClick, onNotificationCourseClick, onNotificationNavigate, onToggleMobile }: NavbarProps) => {
   // --- Search state ---
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showSearchResults, setShowSearchResults] = React.useState(false);
@@ -512,6 +515,9 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
     }
     if (n.link_view === 'course-detail' && n.link_id && onNotificationCourseClick) {
       onNotificationCourseClick(n.link_id);
+      setShowNotifications(false);
+    } else if ((n.link_view === 'points' || n.link_view === 'dashboard') && onNotificationNavigate) {
+      onNotificationNavigate(n.link_view);
       setShowNotifications(false);
     }
   };
@@ -850,6 +856,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
           onCourseClick={onCourseClick}
           onProductClick={onProductClick}
           onNotificationCourseClick={onCourseClick}
+          onNotificationNavigate={onNavigate}
           onToggleMobile={() => setMobileOpen(p => !p)}
         />
         <main className="flex-1 overflow-y-auto p-4 lg:p-8 xl:p-12">
