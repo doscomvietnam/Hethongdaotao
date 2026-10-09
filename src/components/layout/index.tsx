@@ -116,7 +116,9 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
     { id: ViewType.ADMIN, icon: Settings, label: 'Quản trị hệ thống', roles: ['admin', 'manager'], show: true },
   ];
 
-  const menuItems = allMenuItems.filter(item => item.roles.includes(employee.role) && item.show);
+  // Cộng tác viên seeding (nhân viên có can_manage_seeding) thấy menu Quản trị (chỉ có mục Seeding)
+  const isSeedingCtv = employee.role === 'employee' && !!employee.can_manage_seeding;
+  const menuItems = allMenuItems.filter(item => (item.roles.includes(employee.role) || (isSeedingCtv && item.id === ViewType.ADMIN)) && item.show);
 
   const isCourseView = currentView === ViewType.COURSE_CATALOG || currentView === ViewType.COURSE_DETAIL || currentView === ViewType.QUIZ;
   const [courseMenuOpen, setCourseMenuOpen] = React.useState(isCourseView);

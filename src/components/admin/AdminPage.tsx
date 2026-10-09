@@ -37,7 +37,8 @@ interface AdminPageProps {
 }
 
 export default function AdminPage({ onDataChanged, employee }: AdminPageProps) {
-  const visibleTabs = ADMIN_TABS.filter(tab => tab.roles.includes(employee.role));
+  const isSeedingCtv = employee.role === 'employee' && !!employee.can_manage_seeding;
+  const visibleTabs = ADMIN_TABS.filter(tab => tab.roles.includes(employee.role) || (isSeedingCtv && tab.id === 'seeding'));
   const [activeTab, setActiveTab] = React.useState<AdminTab>(visibleTabs[0]?.id || 'courses');
 
   return (
@@ -76,7 +77,7 @@ export default function AdminPage({ onDataChanged, employee }: AdminPageProps) {
       {activeTab === 'employees' && <EmployeeManagement onDataChanged={onDataChanged} currentEmployee={employee} />}
       {activeTab === 'courses' && <CourseManagement onDataChanged={onDataChanged} currentEmployee={employee} />}
       {activeTab === 'daily-test' && <DailyTestManagement currentEmployeeId={employee.id} />}
-      {activeTab === 'seeding' && <SeedingManagement />}
+      {activeTab === 'seeding' && <SeedingManagement linksOnly={isSeedingCtv} />}
       {activeTab === 'onboarding-test' && <OnboardingTestManagement currentEmployeeId={employee.id} />}
       {activeTab === 'products' && employee.role === 'admin' && <ProductManagement onDataChanged={onDataChanged} />}
       {activeTab === 'settings' && employee.role === 'admin' && <SystemSettings />}

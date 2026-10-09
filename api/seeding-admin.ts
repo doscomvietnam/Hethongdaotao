@@ -1,5 +1,6 @@
 /**
- * Serverless — Seeding (phía ADMIN). service_role, yêu cầu role admin/manager.
+ * Serverless — Seeding (phía ADMIN). service_role, yêu cầu role admin/manager
+ *  hoặc cộng tác viên seeding (employees.can_manage_seeding) — CTV chỉ dùng list/save-link/delete-link/set-status.
  *  POST /api/seeding-admin { token, action, ... }
  *    'list'                                                     → link đang chạy/đã ẩn + đã hoàn thành, số lượt hôm nay/tổng
  *    'save-link'     { id?, group_key, title (= tên sản phẩm, bắt buộc), url, max_people? } → thêm/sửa (CHẶN trùng link cũ, mặc định 10 lượt)
@@ -42,9 +43,13 @@ async function verifyAdmin(s: any, token: string) {
   if (!token) return null;
   const { data, error } = await s.auth.getUser(token);
   if (error || !data?.user) return null;
-  const { data: emp } = await s.from('employees').select('id, role').eq('auth_user_id', data.user.id).maybeSingle();
-  if (!emp || !['admin', 'manager'].includes(emp.role)) return null;
-  return emp;
+  // select('*') để vẫn chạy được khi chưa có cột can_manage_seeding
+  const { data: emp } = await s.from('employees').select('*').eq('auth_user_id', data.user.id).maybeSingle();
+  if (!emp) return null;
+  if (['admin', 'manager'].includes(emp.role)) return { ...emp, linksOnly: false };
+  // Cộng tác viên seeding: nhân viên được cấp quyền gắn link
+  if (emp.can_manage_seeding === true) return { ...emp, linksOnly: true };
+  return null;
 }
 
 // Chuẩn hóa link để so trùng: bỏ http(s), www./m., dấu / cuối, #..., và các tham số theo dõi khi chia sẻ.
@@ -100,6 +105,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!me) return res.status(403).json({ error: 'Chỉ admin/quản lý được dùng' });
 
   const action = req.body?.action;
+  // Cộng tác viên chỉ được thao tác link — không xem ảnh nộp / tiến độ / thu hồi
+  if (me.linksOnly && !['list', 'save-link', 'delete-link', 'set-status'].includes(action))
+    return res.status(403).json({ error: 'Cộng tác viên chỉ được quản lý link seeding' });
   try {
     if (action === 'list') {
       await cleanupOldImages(s);

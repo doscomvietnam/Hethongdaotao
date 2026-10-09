@@ -16,7 +16,8 @@ interface AdminLink {
 
 const GROUP_MAX = 28;
 
-export default function SeedingManagement() {
+/** linksOnly = cộng tác viên seeding: chỉ tab Quản lý link (không xem ảnh nộp / tiến độ) */
+export default function SeedingManagement({ linksOnly = false }: { linksOnly?: boolean }) {
   const [tab, setTab] = React.useState<'links' | 'subs' | 'progress'>('links');
   const [date, setDate] = React.useState(vnToday());
   const [links, setLinks] = React.useState<AdminLink[]>([]);
@@ -53,8 +54,8 @@ export default function SeedingManagement() {
       <div className="flex items-center gap-3 flex-wrap mb-5">
         <div className="flex bg-zinc-900 border border-zinc-800 rounded-xl p-1">
           {tabBtn('links', 'Quản lý link')}
-          {tabBtn('subs', 'Ảnh nộp')}
-          {tabBtn('progress', 'Tiến độ')}
+          {!linksOnly && tabBtn('subs', 'Ảnh nộp')}
+          {!linksOnly && tabBtn('progress', 'Tiến độ')}
         </div>
         {tab !== 'links' && (
           <label className="flex items-center gap-2 text-xs font-bold text-zinc-400">

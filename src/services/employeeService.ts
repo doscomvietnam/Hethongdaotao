@@ -22,6 +22,7 @@ export interface EmployeeInput {
   work_location?: string;
   employment_status?: 'active' | 'inactive';
   must_change_password?: boolean;
+  can_manage_seeding?: boolean;
 }
 
 export async function getAllEmployees(): Promise<Employee[]> {

@@ -46,6 +46,8 @@ export interface Employee {
   must_change_password: boolean;
   onboarding_available_date?: string | null;
   skip_daily_quiz?: boolean;
+  /** Cộng tác viên seeding: nhân viên được thêm/sửa/xóa/ẩn link seeding (cột employees.can_manage_seeding) */
+  can_manage_seeding?: boolean;
   created_at?: string;
   updated_at?: string;
 }

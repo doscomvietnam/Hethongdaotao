@@ -120,6 +120,8 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
       work_location: row.work_location || '',
       employment_status: row.employment_status,
       must_change_password: row.must_change_password,
+      // Chỉ gửi khi cột đã có trong DB (tránh lỗi trước khi chạy SQL)
+      ...('can_manage_seeding' in row ? { can_manage_seeding: !!row.can_manage_seeding } : {}),
     });
     setEditing(row);
     setError(null);
@@ -233,6 +235,9 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
                       row.role === 'manager' ? 'bg-blue-500/10 text-blue-400' :
                       'bg-zinc-900 text-zinc-400'
                     }`}>{ROLES.find(r => r.value === row.role)?.label || row.role}</span>
+                    {row.can_manage_seeding && row.role === 'employee' && (
+                      <span className="ml-1.5 inline-block whitespace-nowrap text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-violet-500/10 text-violet-400" title="Được thêm/sửa/xóa link seeding">CTV</span>
+                    )}
                   </td>
                   <td className="px-4 py-4 text-xs font-bold text-zinc-400 whitespace-nowrap">{row.department || '—'}</td>
                   <td className="px-4 py-4 text-xs font-bold text-zinc-400 max-w-[180px] truncate" title={row.position || ''}>{row.position || '—'}</td>
@@ -326,6 +331,16 @@ export default function EmployeeManagement({ onDataChanged, currentEmployee }: E
                 </button>
               </div>
             </Field>
+          )}
+
+          {isEditMode && form.role === 'employee' && 'can_manage_seeding' in form && (
+            <label className="flex items-start gap-3 p-4 rounded-xl bg-violet-500/5 border border-violet-500/20 cursor-pointer">
+              <input type="checkbox" checked={!!form.can_manage_seeding} onChange={e => setForm({ ...form, can_manage_seeding: e.target.checked })} className="mt-0.5 w-4 h-4 accent-violet-500" />
+              <span className="space-y-1">
+                <span className="block text-[11px] font-black text-violet-400 uppercase tracking-widest">Cộng tác viên — gắn link seeding</span>
+                <span className="block text-[10px] text-zinc-500 font-bold leading-relaxed">Vẫn là nhân viên bình thường, được thêm quyền thêm / sửa / xóa / ẩn link seeding (Quản trị hệ thống → Seeding hằng ngày). Không xem ảnh nộp và tiến độ.</span>
+              </span>
+            </label>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">

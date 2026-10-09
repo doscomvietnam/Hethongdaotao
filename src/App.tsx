@@ -1120,8 +1120,8 @@ function App() {
         );
 
       case ViewType.ADMIN:
-        // Employee không được truy cập trang quản trị
-        if (employee.role === 'employee') {
+        // Employee không được truy cập trang quản trị (trừ cộng tác viên seeding — chỉ thấy mục Seeding)
+        if (employee.role === 'employee' && !employee.can_manage_seeding) {
           return (
             <div className="flex h-full min-h-[60vh] items-center justify-center">
               <div className="text-center space-y-4">
