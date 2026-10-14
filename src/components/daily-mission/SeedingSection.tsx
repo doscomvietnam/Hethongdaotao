@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, Share2, Clock } from 'lucide-react';
+import { ExternalLink, Upload, Check, X, RefreshCw, Users, AlertCircle, Share2, Clock, ClipboardPaste, ImagePlus, Loader2 } from 'lucide-react';
 import {
   getSeedingState, getCachedSeedingState, submitSeeding, releaseSeeding, compressImage,
   getOpenedLinks, markLinkOpened, SEED_WAIT_MS,
@@ -66,21 +66,30 @@ export default function SeedingSection() {
 
   React.useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 3500); return () => clearTimeout(t); } }, [msg]);
 
-  const pick = (linkId: string) => { pendingRef.current = linkId; fileRef.current?.click(); };
+  // Bấm "Nộp ảnh" → mở hộp nộp ảnh cho link đó (dán Ctrl+V / dán từ bộ nhớ tạm / chọn file / kéo thả)
+  const [pickFor, setPickFor] = React.useState<string | null>(null);
+  const pick = (linkId: string) => setPickFor(linkId);
+  const chooseFile = () => { pendingRef.current = pickFor; fileRef.current?.click(); };
 
-  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]; const linkId = pendingRef.current;
-    e.target.value = '';
-    if (!file || !linkId) return;
+  const submitFile = async (file: File, linkId: string) => {
     if (!file.type.startsWith('image/')) { setMsg({ type: 'err', text: 'Vui lòng chọn file ảnh' }); return; }
     setBusy(linkId);
     try {
       const { base64, contentType } = await compressImage(file);
       setData(await submitSeeding(linkId, base64, contentType));
       setMsg({ type: 'ok', text: 'Đã nộp ảnh seeding ✓' });
+      setPickFor(null);
     } catch (e: any) { setMsg({ type: 'err', text: e.message || 'Nộp ảnh thất bại' }); await load(true); }
     finally { setBusy(null); }
   };
+
+  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; const linkId = pendingRef.current;
+    e.target.value = '';
+    if (!file || !linkId) return;
+    await submitFile(file, linkId);
+  };
+  const pickTitle = pickFor ? data?.groups.flatMap((g) => g.links).find((l) => l.id === pickFor)?.title || '' : '';
 
   const release = async (linkId: string) => {
     setBusy(linkId);
@@ -92,6 +101,11 @@ export default function SeedingSection() {
   return (
     <section>
       <input ref={fileRef} type="file" accept="image/*" onChange={onFile} className="hidden" />
+      {pickFor && (
+        <SubmitDialog title={pickTitle} busy={busy === pickFor} onClose={() => busy !== pickFor && setPickFor(null)}
+          onChooseFile={chooseFile} onImage={(f) => submitFile(f, pickFor)}
+          onError={(text) => setMsg({ type: 'err', text })} />
+      )}
 
       {/* Tiêu đề khối */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
@@ -267,6 +281,95 @@ function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen, dayFull }:
               </button>
             )
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Hộp nộp ảnh: dán (Ctrl+V / ⌘V / nhấn giữ → Dán), nút "Dán từ bộ nhớ tạm", chọn file, hoặc kéo thả ảnh. */
+function SubmitDialog({ title, busy, onClose, onChooseFile, onImage, onError }: {
+  title: string; busy: boolean; onClose: () => void; onChooseFile: () => void;
+  onImage: (f: File) => void; onError: (text: string) => void;
+}) {
+  const [drag, setDrag] = React.useState(false);
+  const zoneRef = React.useRef<HTMLDivElement>(null);
+  const canReadClipboard = typeof navigator !== 'undefined' && !!(navigator.clipboard && (navigator.clipboard as any).read);
+
+  const asFile = (blob: Blob) =>
+    blob instanceof File ? blob : new File([blob], `dan-anh.${(blob.type.split('/')[1] || 'png')}`, { type: blob.type || 'image/png' });
+
+  // Dán ở bất kỳ đâu khi hộp đang mở
+  React.useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const items = [...(e.clipboardData?.items || [])];
+      const img = items.find((it) => it.kind === 'file' && it.type.startsWith('image/'));
+      e.preventDefault();
+      if (zoneRef.current) zoneRef.current.textContent = '';
+      if (busy) return;
+      const f = img?.getAsFile();
+      if (f) onImage(asFile(f)); else onError('Bộ nhớ tạm không có ảnh — hãy sao chép (copy) ảnh chụp màn hình rồi dán lại');
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('paste', onPaste);
+    window.addEventListener('keydown', onKey);
+    return () => { window.removeEventListener('paste', onPaste); window.removeEventListener('keydown', onKey); };
+  }, [busy, onImage, onError, onClose]);
+
+  const readClipboard = async () => {
+    try {
+      const items = await (navigator.clipboard as any).read();
+      for (const it of items) {
+        const type = (it.types as string[]).find((t) => t.startsWith('image/'));
+        if (type) { onImage(asFile(await it.getType(type))); return; }
+      }
+      onError('Bộ nhớ tạm không có ảnh — hãy sao chép (copy) ảnh rồi thử lại');
+    } catch {
+      onError('Trình duyệt chưa cho đọc bộ nhớ tạm — hãy nhấn giữ vào ô và chọn "Dán", hoặc bấm Ctrl+V');
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setDrag(false);
+    const f = [...e.dataTransfer.files].find((x) => x.type.startsWith('image/'));
+    if (f && !busy) onImage(f); else if (!f) onError('Vui lòng thả file ảnh');
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-[#0C0C0E] border border-zinc-800 p-5 space-y-4 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-black text-white uppercase tracking-tight">Nộp ảnh seeding</h3>
+            {title && <p className="text-[12px] text-zinc-500 font-bold mt-0.5 truncate">{title}</p>}
+          </div>
+          <button type="button" onClick={onClose} disabled={busy} className="text-zinc-500 hover:text-white" aria-label="Đóng"><X className="w-5 h-5" /></button>
+        </div>
+
+        {/* Ô dán / kéo thả — lớp contentEditable phủ lên để điện thoại hiện menu "Dán" khi nhấn giữ */}
+        <div onDragOver={(e) => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={onDrop}
+          className={`relative rounded-xl border-2 border-dashed transition-colors ${drag ? 'border-sky-400 bg-sky-500/10' : 'border-zinc-700 focus-within:border-sky-500/60 bg-zinc-900/40'}`}>
+          <div className="pointer-events-none flex flex-col items-center gap-1.5 px-4 py-8 text-center">
+            {busy ? <Loader2 className="w-6 h-6 text-sky-400 animate-spin" /> : <ClipboardPaste className="w-6 h-6 text-sky-400" />}
+            <p className="text-[13px] font-black text-zinc-200">{busy ? 'Đang gửi ảnh…' : 'Dán ảnh vào đây'}</p>
+            <p className="text-[11px] text-zinc-500 font-bold">Ctrl+V / ⌘V · điện thoại: nhấn giữ vào ô → Dán · hoặc kéo thả ảnh</p>
+          </div>
+          <div ref={zoneRef} contentEditable={!busy} suppressContentEditableWarning tabIndex={0} role="textbox" aria-label="Dán ảnh vào đây"
+            onInput={(e) => { (e.target as HTMLDivElement).textContent = ''; }}
+            className="absolute inset-0 rounded-xl outline-none caret-transparent text-transparent cursor-text overflow-hidden" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {canReadClipboard && (
+            <button type="button" onClick={readClipboard} disabled={busy}
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-500 text-[11px] font-black uppercase tracking-widest px-3 py-2.5 disabled:opacity-50">
+              <ClipboardPaste className="w-4 h-4" /> Dán từ bộ nhớ tạm
+            </button>
+          )}
+          <button type="button" onClick={onChooseFile} disabled={busy}
+            className={`flex items-center justify-center gap-1.5 rounded-xl bg-zinc-100 hover:bg-white text-zinc-900 text-[11px] font-black uppercase tracking-widest px-3 py-2.5 disabled:opacity-50 ${canReadClipboard ? '' : 'sm:col-span-2'}`}>
+            <ImagePlus className="w-4 h-4" /> Chọn ảnh từ máy
+          </button>
         </div>
       </div>
     </div>
