@@ -37,7 +37,9 @@ export default function SeedingSection() {
   }, [waiting]);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
+  const lastLoadRef = React.useRef(0);
   const load = React.useCallback(async (silent = false) => {
+    lastLoadRef.current = Date.now();
     if (!silent) setLoading(true);
     try { setData(await getSeedingState()); setErr(null); }
     catch (e: any) { if (!silent) setErr(e.message || 'Không tải được nhiệm vụ'); }
@@ -53,8 +55,13 @@ export default function SeedingSection() {
       if (cached) { setData(cached); setLoading(false); load(true); }
       else load();
     });
-    const t = setInterval(() => load(true), 15000); // cập nhật số đếm 15s/lần
-    return () => { alive = false; clearInterval(t); };
+    // Cập nhật số đếm 60s/lần, CHỈ khi tab đang hiển thị (trước đây 15s kể cả tab ẩn → sinh rất nhiều log Supabase).
+    // Quay lại tab sau ≥20s → tải mới ngay. Giới hạn lượt vẫn được máy chủ kiểm lại khi nộp ảnh.
+    const visible = () => document.visibilityState === 'visible';
+    const t = setInterval(() => { if (visible()) load(true); }, 60_000);
+    const onVis = () => { if (visible() && Date.now() - lastLoadRef.current > 20_000) load(true); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
   }, [load]);
 
   React.useEffect(() => { if (msg) { const t = setTimeout(() => setMsg(null), 3500); return () => clearTimeout(t); } }, [msg]);

@@ -45,6 +45,9 @@ import { SEQUENTIAL_PATH_BRANDS } from '../../services/sequentialCourseHelpers';
 // ============================================================
 // NOTIFICATION HELPERS
 // ============================================================
+/** Nhân viên đã chạy checkCourseDeadlines trong phiên này (mỗi lần mở web chỉ 1 lần) */
+let deadlineCheckedFor: string | null = null;
+
 function notifIcon(type: string): { icon: React.ElementType; color: string; bg: string } {
   switch (type) {
     case 'course_new':              return { icon: BookOpen,      color: 'text-emerald-400', bg: 'bg-emerald-500/10' };
@@ -411,8 +414,11 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
 
   const refreshNotifications = React.useCallback(async () => {
     if (!employee?.id) return;
-    // Check deadlines trước khi load notifications (tạo notifications mới nếu cần)
-    try { await checkCourseDeadlines(employee.id, employee.department); } catch { /* ignore */ }
+    // Check deadlines (tạo notifications mới nếu cần) — chỉ 1 lần mỗi phiên mở web để giảm truy vấn/log Supabase
+    if (deadlineCheckedFor !== employee.id) {
+      deadlineCheckedFor = employee.id;
+      try { await checkCourseDeadlines(employee.id, employee.department); } catch { /* ignore */ }
+    }
     setLoadingNotifs(true);
     try {
       const data = await getNotifications(employee.id, 30);
@@ -422,7 +428,7 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
     }
   }, [employee?.id, employee?.department]);
 
-  // Tải lần đầu + reload mỗi 60s khi tab active
+  // Tải lần đầu + tự tải lại mỗi 60s khi tab active (không cần bấm chuông)
   React.useEffect(() => {
     refreshNotifications();
     const t = setInterval(() => {
