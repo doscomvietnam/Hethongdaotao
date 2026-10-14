@@ -12,6 +12,8 @@ export interface SeedingLinkView {
   total: number; totalMax: number;      // tổng lượt / tổng tối đa (10)
   mine: boolean; mineToday: boolean;    // tôi đã seed link này (bất kỳ ngày) / trong hôm nay
   linkFull: boolean; canClaim: boolean;
+  held?: number;                        // số người KHÁC đang giữ chỗ (đã bấm Mở link, chưa nộp)
+  claimedAt?: string | null;            // tôi đang giữ chỗ từ lúc nào (null = chưa giữ)
 }
 export interface SeedingGroupView {
   key: string; label: string;
@@ -24,6 +26,7 @@ export interface SeedingState {
   myTodayTotal: number; dayFull: boolean;                       // số lượt hôm nay / đã đủ tối đa ngày
   requiredPerDay: number; optionalPerDay: number; maxPerDay: number; // 1 bắt buộc + 2 tự nguyện
   points: number; pointsToday: number; pointsPerSeed: number;    // điểm seeding tích lũy / hôm nay
+  openClaims?: number;                                          // số link đang giữ chỗ (đã mở, chưa nộp)
 }
 
 async function token(): Promise<string> {
@@ -71,6 +74,14 @@ export async function getOpenedLinks(): Promise<Record<string, number>> {
     return v && typeof v === 'object' ? (v as Record<string, number>) : {};
   } catch { return {}; }
 }
+export async function unmarkLinkOpened(linkId: string): Promise<void> {
+  const map = await getOpenedLinks();
+  delete map[linkId];
+  try {
+    const key = await openedKey();
+    if (key) localStorage.setItem(key, JSON.stringify(map));
+  } catch { /* bỏ qua */ }
+}
 export async function markLinkOpened(linkId: string): Promise<Record<string, number>> {
   const map = await getOpenedLinks();
   if (map[linkId] === undefined) map[linkId] = Date.now(); // giữ thời điểm mở lần đầu
@@ -104,6 +115,8 @@ async function postSeeding(body: any): Promise<SeedingState> {
 export const submitSeeding = (linkId: string, imageBase64: string, contentType: string) =>
   postSeeding({ action: 'submit', link_id: linkId, image_base64: imageBase64, content_type: contentType });
 export const releaseSeeding = (linkId: string) => postSeeding({ action: 'release', link_id: linkId });
+/** Bấm "Mở link" = giữ chỗ trên link (đủ 2 người giữ/nộp → người thứ 3 bị báo đủ ngay). */
+export const claimSeeding = (linkId: string) => postSeeding({ action: 'claim', link_id: linkId });
 
 // ───────── Admin ─────────
 async function postAdmin(body: any): Promise<any> {
