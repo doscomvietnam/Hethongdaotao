@@ -641,14 +641,49 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
     : 0;
   const VIDEO_TOTAL_SECONDS = ADMIN_VIDEO_DURATION || 600;
 
-  // ── Sync video progress to Supabase (debounced) ────────────────────────
+  // ── Sync video progress to Supabase ────────────────────────────────────
+  // Chỉ ghi khi qua MỐC 10% (10, 20 … 100) + ghi nốt phần lẻ khi dừng video / ẩn tab / rời trang.
+  // (Trước đây ghi gần như mỗi 1% → mỗi video ~100 lần ghi + webhook ERP → rất nhiều log Supabase.)
+  // Màn hình + localStorage vẫn cập nhật từng %.
+  const lastSyncedRef = React.useRef(-1);   // % đã ghi lên DB gần nhất (-1 = chưa khởi tạo)
+  const pendingSyncRef = React.useRef(0);   // % mới nhất (có thể chưa ghi)
+  const writeProgress = React.useCallback((p: number) => {
+    if (!employeeId) return;
+    if (supabaseSyncRef.current) { clearTimeout(supabaseSyncRef.current); supabaseSyncRef.current = null; }
+    if (p <= lastSyncedRef.current) return;
+    lastSyncedRef.current = p;
+    upsertVideoProgress(employeeId, course.id, p);
+  }, [employeeId, course.id]);
   const syncToSupabase = React.useCallback((progress: number) => {
     if (!employeeId) return;
-    if (supabaseSyncRef.current) clearTimeout(supabaseSyncRef.current);
-    supabaseSyncRef.current = setTimeout(() => {
-      upsertVideoProgress(employeeId, course.id, progress);
-    }, 2000);
-  }, [employeeId, course.id]);
+    if (lastSyncedRef.current < 0) lastSyncedRef.current = course.videoProgress || 0;   // mốc đang có trên DB
+    pendingSyncRef.current = Math.max(pendingSyncRef.current, progress);
+    if (progress >= 100 || Math.floor(progress / 10) > Math.floor(lastSyncedRef.current / 10)) {
+      if (supabaseSyncRef.current) clearTimeout(supabaseSyncRef.current);
+      supabaseSyncRef.current = setTimeout(() => writeProgress(pendingSyncRef.current), 2000);
+    }
+  }, [employeeId, course.videoProgress, writeProgress]);
+  /** Ghi ngay phần tiến độ chưa lưu (khi dừng video, ẩn tab, rời trang). */
+  const flushProgress = React.useCallback(() => {
+    const dur = durationRef.current;
+    if (dur > 0) {
+      const pct = Math.min(100, Math.round((watchedSecondsRef.current / dur) * 100));
+      pendingSyncRef.current = Math.max(pendingSyncRef.current, pct);
+    }
+    if (lastSyncedRef.current < 0) lastSyncedRef.current = course.videoProgress || 0;
+    if (pendingSyncRef.current > lastSyncedRef.current) writeProgress(pendingSyncRef.current);
+  }, [course.videoProgress, writeProgress]);
+  // Ẩn tab / đóng trang / rời bài học → ghi nốt
+  React.useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushProgress(); };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', flushProgress);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', flushProgress);
+      flushProgress();
+    };
+  }, [flushProgress]);
 
   // ── Khởi tạo watchedSeconds từ saved progress khi biết duration ────────
   const initWatchedSeconds = React.useCallback((duration: number) => {
@@ -701,10 +736,11 @@ export const CourseDetail = ({ course, userId, employeeId, onBack, onStartQuiz, 
         const elapsed = (Date.now() - playStartTimestampRef.current) / 1000;
         watchedSecondsRef.current = playStartSecondsRef.current + elapsed;
         updateProgressFromSeconds();
+        flushProgress();   // dừng video → ghi nốt phần lẻ chưa qua mốc 10%
       }
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
     };
-  }, [isWatching, updateProgressFromSeconds]);
+  }, [isWatching, updateProgressFromSeconds, flushProgress]);
 
   // ── YouTube IFrame API ────────────────────────────────────────────────
   // Chỉ dùng onStateChange để phát hiện play/pause.
