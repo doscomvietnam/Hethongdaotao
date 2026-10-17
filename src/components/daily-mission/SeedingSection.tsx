@@ -160,8 +160,11 @@ export default function SeedingSection() {
         <>
           <DailyProgress st={data!} />
           <div className="grid gap-4 md:grid-cols-3 md:grid-rows-[auto_1fr] md:gap-y-0">
-            {data!.groups.map((g) => <GroupCard key={g.key} g={g} busy={busy} onPick={pick} onRelease={release} opened={opened} now={now} onOpen={onOpen} onOpenLink={openLink} dayFull={data!.dayFull}
-              holdFull={!data!.dayFull && data!.myTodayTotal + (data!.openClaims || 0) >= data!.maxPerDay} />)}
+            {/* KOC + video công ty hiển thị CHUNG 1 ô (luật giới hạn vẫn tính riêng từng nhóm); đối thủ để riêng */}
+            {[data!.groups.filter((g) => MERGED_KEYS.includes(g.key)), ...data!.groups.filter((g) => !MERGED_KEYS.includes(g.key)).map((g) => [g])]
+              .filter((gs) => gs.length > 0)
+              .map((gs) => <GroupCard key={gs.map((g) => g.key).join('+')} gs={gs} busy={busy} onPick={pick} onRelease={release} opened={opened} now={now} onOpen={onOpen} onOpenLink={openLink} dayFull={data!.dayFull}
+                holdFull={!data!.dayFull && data!.myTodayTotal + (data!.openClaims || 0) >= data!.maxPerDay} date={data!.date} />)}
           </div>
         </>
       )}
@@ -208,51 +211,85 @@ function DailyProgress({ st }: { st: SeedingState }) {
   );
 }
 
-function GroupCard({ g, busy, onPick, onRelease, opened, now, onOpen, onOpenLink, dayFull, holdFull }: {
-  g: SeedingGroupView; busy: string | null; onPick: (id: string) => void; onRelease: (id: string) => void;
+/** Nhóm hiển thị chung 1 ô (chỉ gộp giao diện — giới hạn 2 link/nhóm, 28 người/nhóm vẫn tính riêng). */
+const MERGED_KEYS = ['koc', 'company'];
+const SHORT_LABEL: Record<string, string> = { koc: 'KOC', company: 'Video công ty', competitor: 'Đối thủ' };
+
+/** Hạt giống xáo trộn theo máy + ngày: mỗi người 1 thứ tự khác nhau (tản ra các link), giữ cố định trong ngày. */
+function shuffleSeed(date: string): string {
+  const key = `seeding_shuffle:${date}`;
+  try {
+    let v = localStorage.getItem(key);
+    if (!v) { v = Math.random().toString(36).slice(2); localStorage.setItem(key, v); }
+    return v;
+  } catch { return date; }
+}
+function hashStr(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+function GroupCard({ gs, busy, onPick, onRelease, opened, now, onOpen, onOpenLink, dayFull, holdFull, date }: {
+  gs: SeedingGroupView[]; busy: string | null; onPick: (id: string) => void; onRelease: (id: string) => void;
   opened: Record<string, number>; now: number; onOpen: (id: string) => void; onOpenLink: (l: SeedingLinkView) => void; dayFull: boolean;
   holdFull: boolean;   // đang giữ chỗ đủ số lượt còn lại trong ngày → phải nộp ảnh link đang mở trước
+  date?: string;
 }) {
+  const g = gs[0];
+  const merged = gs.length > 1;
   const st = GROUP_STYLE[g.key] || GROUP_STYLE.koc;
-  // Link nộp được / đã nộp hôm nay lên trước, link không làm được xuống cuối
+  const label = merged ? 'Seeding KOC & video công ty' : g.label;
+  // Thứ tự: đã nộp / đang mở → làm được → không làm được; trong từng bậc xếp NGẪU NHIÊN (cố định trong ngày)
+  const seed = shuffleSeed(date || new Date().toISOString().slice(0, 10));
   const rank = (l: SeedingLinkView) => (l.mineToday || l.claimedAt ? 0 : l.canClaim ? 1 : 2);
-  const links = [...g.links].sort((a, b) => rank(a) - rank(b));
+  const links = gs.flatMap((x) => x.links.map((l) => ({ l, groupKey: x.key })))
+    .sort((a, b) => rank(a.l) - rank(b.l) || hashStr(seed + a.l.id) - hashStr(seed + b.l.id));
   return (
-    <div className={`rounded-2xl border-2 ${st.ring} bg-zinc-900/50 overflow-hidden flex flex-col md:grid md:grid-rows-subgrid md:row-span-2`}>
+    <div className={`rounded-2xl border-2 ${st.ring} bg-zinc-900/50 overflow-hidden flex flex-col md:grid md:grid-rows-subgrid md:row-span-2 ${merged ? 'md:col-span-2' : ''}`}>
       <div className={`p-4 border-b border-zinc-800/80 ${st.head}`}>
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2.5 min-w-0">
             <span className={`w-3 h-3 flex-none rounded-full ${st.dot}`} />
-            <span className={`text-lg sm:text-xl font-black uppercase tracking-tight leading-tight ${st.title}`}>{g.label}</span>
+            <span className={`text-lg sm:text-xl font-black uppercase tracking-tight leading-tight ${st.title}`}>{label}</span>
           </div>
-          <span className={`flex items-center gap-1 text-[11px] font-black rounded-full px-2.5 py-1 ${g.groupFull ? 'bg-rose-500/15 text-rose-300' : st.chip}`} title="Số người tham gia nhóm hôm nay">
-            <Users className="w-3 h-3" /> {g.people}/{g.maxPeople}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {gs.map((x) => (
+              <span key={x.key} className={`flex items-center gap-1 text-[11px] font-black rounded-full px-2.5 py-1 ${x.groupFull ? 'bg-rose-500/15 text-rose-300' : st.chip}`} title={`Số người tham gia nhóm ${SHORT_LABEL[x.key] || x.label} hôm nay`}>
+                <Users className="w-3 h-3" /> {merged ? `${SHORT_LABEL[x.key]} ` : ''}{x.people}/{x.maxPeople}
+              </span>
+            ))}
+          </div>
         </div>
         <div className="text-[11px] text-zinc-500 mt-1.5">
-          {g.groupFull
-            ? 'Nhóm đã đủ người hôm nay — chuyển nhóm khác'
-            : `Hôm nay bạn đã seed ${g.myLinksInGroup}/${g.maxLinksPerGroup} link trong nhóm`}
+          {merged
+            ? <>Hôm nay bạn đã seed: {gs.map((x, i) => (
+                <span key={x.key}>{i > 0 && ' · '}{SHORT_LABEL[x.key]} {x.groupFull ? <span className="text-rose-400">(nhóm đủ người)</span> : `${x.myLinksInGroup}/${x.maxLinksPerGroup}`}</span>
+              ))}</>
+            : g.groupFull
+              ? 'Nhóm đã đủ người hôm nay — chuyển nhóm khác'
+              : `Hôm nay bạn đã seed ${g.myLinksInGroup}/${g.maxLinksPerGroup} link trong nhóm`}
         </div>
-        {!g.groupFull && g.maxLinksPerGroup > 2 && (
-          <div className="text-[10.5px] text-emerald-400 mt-1">2 nhóm kia đã đầy → bạn được seed {g.maxLinksPerGroup} link ở nhóm này</div>
-        )}
+        {gs.filter((x) => !x.groupFull && x.maxLinksPerGroup > 2).map((x) => (
+          <div key={x.key} className="text-[10.5px] text-emerald-400 mt-1">2 nhóm kia đã đầy → bạn được seed {x.maxLinksPerGroup} link ở nhóm {SHORT_LABEL[x.key] || x.label}</div>
+        ))}
       </div>
 
-      <div className="p-3 flex flex-col gap-2 flex-1">
+      <div className={`p-3 gap-2 flex-1 content-start ${merged ? 'grid lg:grid-cols-2' : 'flex flex-col'}`}>
         {links.length === 0 ? (
-          <div className="text-center text-[12px] text-zinc-600 py-6">Chưa có link</div>
-        ) : links.map((l) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease}
+          <div className="text-center text-[12px] text-zinc-600 py-6 lg:col-span-2">Chưa có link</div>
+        ) : links.map(({ l }) => <LinkRow key={l.id} l={l} busy={busy === l.id} onPick={onPick} onRelease={onRelease}
             openedAt={opened[l.id] ?? (l.claimedAt ? Date.parse(l.claimedAt) : undefined)} now={now} onOpen={onOpen} onOpenLink={onOpenLink} dayFull={dayFull} holdFull={holdFull} />)}
       </div>
     </div>
   );
 }
 
-function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen, onOpenLink, dayFull, holdFull }: {
+function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen, onOpenLink, dayFull, holdFull, tag }: {
   l: SeedingLinkView; busy: boolean; onPick: (id: string) => void; onRelease: (id: string) => void;
   openedAt: number | undefined; now: number; onOpen: (id: string) => void; onOpenLink: (l: SeedingLinkView) => void; dayFull: boolean;
   holdFull: boolean;
+  tag?: string;   // nhãn nhóm khi hiển thị chung ô (KOC / Video công ty)
 }) {
   // Máy chủ có giữ chỗ (trả về claimedAt) → "đã mở" = đang giữ chỗ; chỗ hết hạn thì phải bấm Mở link lại.
   // Máy chủ chưa hỗ trợ (chưa chạy SQL) → dựa vào lần bấm Mở link trên máy này như cũ.
@@ -266,7 +303,10 @@ function LinkRow({ l, busy, onPick, onRelease, openedAt, now, onOpen, onOpenLink
   return (
     <div className={`rounded-xl border p-3 ${l.mineToday ? 'border-emerald-500/40 bg-emerald-500/5' : dim ? 'border-zinc-800 bg-zinc-900/40 opacity-60' : 'border-zinc-800 bg-zinc-900/40'}`}>
       <div className="flex items-start justify-between gap-2">
-        <div className="text-[13px] font-semibold text-zinc-200 leading-snug min-w-0">{l.title}</div>
+        <div className="text-[13px] font-semibold text-zinc-200 leading-snug min-w-0">
+          {tag && <span className={`inline-block align-middle mr-1.5 text-[9.5px] font-black uppercase tracking-wider rounded px-1.5 py-0.5 ${tag === 'KOC' ? 'bg-violet-500/15 text-violet-400' : 'bg-sky-500/15 text-sky-500'}`}>{tag}</span>}
+          {l.title}
+        </div>
         <div className="flex-none flex flex-col items-end gap-1">
           <span className={`text-[10.5px] font-black rounded-full px-2 py-0.5 ${l.today + held >= l.dailyMax ? 'bg-rose-500/15 text-rose-300' : 'bg-zinc-800 text-zinc-300'}`} title="Lượt seeding hôm nay (đã nộp)">
             Hôm nay {l.today}/{l.dailyMax}
