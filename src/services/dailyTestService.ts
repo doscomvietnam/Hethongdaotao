@@ -154,7 +154,23 @@ async function selectNormsQuestions(count: number, excludeIds: string[]): Promis
 
 // ─── Core: Get or Create ──────────────────────────────────────────────────────
 
-export async function getOrCreateDailyTest(
+// Gộp các lần gọi trùng (mở 2 lần / bấm đúp): trước đây 2 lần tạo bài chạy song song → lần sau dính lỗi trùng
+// khóa, tải lại bài khi lần trước CHƯA lưu xong câu hỏi → bài 0 câu → màn hình trắng.
+const inflightTests = new Map<string, Promise<{ session: DailyTestSession | null; error?: string }>>();
+
+export function getOrCreateDailyTest(
+  employeeId: string,
+  department: string,
+): Promise<{ session: DailyTestSession | null; error?: string }> {
+  const key = `${employeeId}|${getTodayVNDateStr()}`;
+  const running = inflightTests.get(key);
+  if (running) return running;
+  const p = getOrCreateDailyTestInner(employeeId, department).finally(() => inflightTests.delete(key));
+  inflightTests.set(key, p);
+  return p;
+}
+
+async function getOrCreateDailyTestInner(
   employeeId: string,
   department: string,
 ): Promise<{ session: DailyTestSession | null; error?: string }> {
@@ -169,7 +185,13 @@ export async function getOrCreateDailyTest(
     .maybeSingle();
 
   if (existing) {
-    return loadTestSession(existing);
+    const loaded = await loadTestSession(existing);
+    // Tự vá: bài chưa nộp mà KHÔNG có câu hỏi (lỗi mạng giữa lúc tạo bài và lưu câu hỏi) → trước đây
+    // màn hình trắng mỗi lần mở. Giờ tạo bộ câu hỏi mới cho chính bài đó.
+    if (loaded.session && loaded.session.questions.length === 0 && existing.status !== 'submitted') {
+      return createNewTest(employeeId, department, testDate, existing);
+    }
+    return loaded;
   }
 
   // Tạo mới
@@ -225,6 +247,7 @@ async function createNewTest(
   employeeId: string,
   department: string,
   testDate: string,
+  emptyExisting?: any,   // bài đã có nhưng rỗng câu hỏi → chỉ bổ sung câu hỏi, không tạo bài mới
 ): Promise<{ session: DailyTestSession | null; error?: string }> {
   const config = getDeptConfig(department);
 
@@ -250,8 +273,14 @@ async function createNewTest(
       allRows = shuffle(normsRows);
     }
 
-    // Insert bài kiểm tra
-    const { data: testRow, error: testErr } = await supabase
+    if (allRows.length === 0) {
+      return { session: null, error: 'Ngân hàng câu hỏi đang trống — báo admin kiểm tra lại câu hỏi.' };
+    }
+
+    // Insert bài kiểm tra (hoặc dùng lại bài rỗng câu hỏi)
+    const { data: testRow, error: testErr } = emptyExisting
+      ? { data: emptyExisting, error: null as any }
+      : await supabase
       .from('daily_tests')
       .insert({
         employee_id: employeeId,
@@ -294,8 +323,8 @@ async function createNewTest(
 
     const { error: qErr } = await supabase.from('daily_test_questions').insert(qInserts);
     if (qErr) {
-      // Rollback: xóa bài kiểm tra vừa tạo
-      await supabase.from('daily_tests').delete().eq('test_id', testRow.test_id);
+      // Rollback: xóa bài kiểm tra vừa tạo (nếu không xóa được, lần mở sau sẽ tự vá như trên)
+      if (!emptyExisting) await supabase.from('daily_tests').delete().eq('test_id', testRow.test_id);
       return { session: null, error: `Lưu câu hỏi thất bại: ${qErr.message}` };
     }
 

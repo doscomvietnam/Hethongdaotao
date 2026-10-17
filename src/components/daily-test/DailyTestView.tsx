@@ -668,6 +668,10 @@ export default function DailyTestView({ employeeId, department, onBack }: DailyT
   React.useEffect(() => {
     getOrCreateDailyTest(employeeId, department).then(({ session: s, error: e }) => {
       if (e || !s) { setError(e || 'Lỗi không xác định.'); }
+      else if (s.status !== 'submitted' && s.questions.length === 0) {
+        // Chặn màn hình trắng khi bài chưa có câu hỏi
+        setError('Bài kiểm tra chưa tải được câu hỏi — vui lòng tải lại trang (⟳) để thử lại.');
+      }
       else { setSession(s); }
       setLoading(false);
     });
