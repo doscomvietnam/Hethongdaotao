@@ -52,7 +52,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const [{ data: links }, { data: subs }] = await Promise.all([
       s.from('seeding_links').select('id, status, created_at'),
-      fetchAll(() => s.from('seeding_submissions').select('link_id, employee_id, task_date, submitted_at').eq('status', 'active'), 'id'),
+      // Chỉ đọc bài nộp từ ngày đầu khoảng cần xem trở đi (không đọc cả lịch sử). Link đã hoàn thành trước
+      // khoảng này sẽ không có lượt cuối trong dữ liệu → đúng là "không còn chạy" trong khoảng.
+      fetchAll(() => s.from('seeding_submissions').select('link_id, employee_id, task_date, submitted_at')
+        .eq('status', 'active').gte('task_date', start), 'id'),
     ]);
 
     // Ngày hoàn thành (lượt cuối) của link đã đủ lượt

@@ -79,12 +79,15 @@ export function ManagerDashboardView({ department, data, loading }: ManagerDashb
   const [curM, curY] = currentYM.split('-');
 
   const [quizStatsMap, setQuizStatsMap] = React.useState<Map<string, MonthlyQuizStat>>(new Map());
+  // Chỉ tải lại khi DANH SÁCH nhân viên / tháng đổi — trước đây phụ thuộc cả object `data` nên mỗi lần
+  // "Hoạt động gần đây" tự làm mới (60s) lại chạy lại ~6 truy vấn thống kê → thừa rất nhiều log Supabase.
+  const memberKey = data?.teamMembers?.map(m => m.employeeId).join(',') || '';
   React.useEffect(() => {
-    if (!data?.teamMembers?.length) return;
-    getEmployeesMonthlyQuizStats(data.teamMembers.map(m => ({ id: m.employeeId })), currentYM)
+    if (!memberKey) return;
+    getEmployeesMonthlyQuizStats(memberKey.split(',').map(id => ({ id })), currentYM)
       .then(setQuizStatsMap)
       .catch(e => console.error('Manager quiz stats error:', e));
-  }, [data, currentYM]);
+  }, [memberKey, currentYM]);
 
   if (loading || !data) {
     return (

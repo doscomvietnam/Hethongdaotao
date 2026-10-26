@@ -16,6 +16,28 @@ export interface NotificationItem {
   created_at: string;
 }
 
+/**
+ * Nhận thông báo MỚI của 1 nhân viên qua Supabase Realtime (Supabase tự đẩy xuống ngay khi có, không cần hỏi lại).
+ * Cần bảng notifications nằm trong publication supabase_realtime (sql/notifications_realtime.sql).
+ * `onStatus(ok)` báo kết nối được hay không — không được thì nơi gọi tự tải lại định kỳ.
+ */
+export function subscribeNotifications(
+  employeeId: string,
+  onInsert: (n: NotificationItem) => void,
+  onStatus: (ok: boolean) => void,
+): () => void {
+  const channel = supabase
+    .channel(`notif-${employeeId}`)
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'notifications', filter: `employee_id=eq.${employeeId}` },
+      (payload: any) => onInsert(payload.new as NotificationItem))
+    .subscribe((status) => {
+      if (status === 'SUBSCRIBED') onStatus(true);
+      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') onStatus(false);
+    });
+  return () => { supabase.removeChannel(channel); };
+}
+
 export async function getNotifications(employeeId: string, limit = 30): Promise<NotificationItem[]> {
   const { data, error } = await supabase
     .from('notifications')

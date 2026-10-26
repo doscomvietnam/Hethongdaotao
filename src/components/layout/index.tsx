@@ -37,6 +37,7 @@ import {
   markAsRead,
   markAllAsRead,
   checkCourseDeadlines,
+  subscribeNotifications,
   type NotificationItem,
 } from '../../services/notificationService';
 import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
@@ -428,14 +429,32 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
     }
   }, [employee?.id, employee?.department]);
 
-  // Tải lần đầu + tự tải lại mỗi 60s khi tab active (không cần bấm chuông)
+  // Tải lần đầu, sau đó thông báo MỚI do Supabase tự đẩy xuống (Realtime) → hiện ngay, không hỏi lại mỗi phút.
+  // Realtime không kết nối được → quay về tự tải lại 60s/lần (khi tab đang mở) như trước.
   React.useEffect(() => {
+    if (!employee?.id) return;
     refreshNotifications();
-    const t = setInterval(() => {
-      if (document.visibilityState === 'visible') refreshNotifications();
-    }, 60_000);
-    return () => clearInterval(t);
-  }, [refreshNotifications]);
+    let poll: ReturnType<typeof setInterval> | null = null;
+    let disposed = false;   // đã rời trang / đổi tài khoản → bỏ qua báo "CLOSED" của kênh cũ (tránh bật poll ngầm)
+    const startPoll = () => {
+      if (disposed) return;
+      if (!poll) poll = setInterval(() => { if (document.visibilityState === 'visible') refreshNotifications(); }, 60_000);
+    };
+    const stopPoll = () => { if (poll) { clearInterval(poll); poll = null; } };
+    const unsubscribe = subscribeNotifications(
+      employee.id,
+      (n) => setNotifications(prev => (prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 30))),
+      (ok) => (ok ? stopPoll() : startPoll()),
+    );
+    // Máy ngủ / tab ẩn lâu có thể rớt kết nối → quay lại sau ≥5 phút thì tải lại 1 lần cho chắc
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 5 * 60_000) refreshNotifications();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { disposed = true; stopPoll(); unsubscribe(); document.removeEventListener('visibilitychange', onVis); };
+  }, [employee?.id, refreshNotifications]);
 
   // Refresh khi mở panel
   React.useEffect(() => {

@@ -17,9 +17,23 @@ export interface SeedingDays {
 
 const EMPTY: SeedingDays = { requiredDays: new Set(), done: new Map() };
 
+// Gộp các lần hỏi trùng tham số trong 60s (nhiều khối trên cùng trang hỏi cùng 1 khoảng ngày → chỉ gọi 1 lần)
+const cache = new Map<string, { at: number; p: Promise<SeedingDays> }>();
+const CACHE_MS = 60_000;
+
 /** Lấy dữ liệu seeding theo ngày. Lỗi / ngoài phạm vi áp dụng → coi như không bắt buộc (không đánh X oan). */
-export async function getSeedingDays(from: string, to: string, employeeIds?: string[]): Promise<SeedingDays> {
-  if (to < SEEDING_REQUIRED_FROM) return EMPTY;
+export function getSeedingDays(from: string, to: string, employeeIds?: string[]): Promise<SeedingDays> {
+  if (to < SEEDING_REQUIRED_FROM) return Promise.resolve(EMPTY);
+  const key = `${from}|${to}|${employeeIds ? [...employeeIds].sort().join(',') : '*'}`;
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_MS) return hit.p;
+  const p = fetchSeedingDays(from, to, employeeIds);
+  cache.set(key, { at: Date.now(), p });
+  p.then((r) => { if (r === EMPTY) cache.delete(key); });   // lỗi → không giữ kết quả rỗng
+  return p;
+}
+
+async function fetchSeedingDays(from: string, to: string, employeeIds?: string[]): Promise<SeedingDays> {
   try {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;

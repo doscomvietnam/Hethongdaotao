@@ -123,7 +123,7 @@ export default function PointsPage(_: { employee: Employee }) {
               const medal = r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : null;
               return (
                 <button key={r.employee_id} onClick={() => setSelected(r.employee_id)}
-                  className={`w-full text-left px-5 py-2.5 flex items-center gap-3 border-b border-zinc-800 last:border-b-0 transition-colors ${active ? 'bg-amber-500/10' : 'hover:bg-zinc-900'}`}>
+                  className={`w-full text-left px-5 py-2.5 flex items-center gap-3 border-b border-zinc-800 last:border-b-0 transition-colors ${active ? 'bg-amber-500/10' : 'hover:bg-amber-500/5'}`}>
                   <span className="w-8 text-center text-sm font-black text-zinc-500 tabular-nums flex-none">{medal || (r.rank ? `#${r.rank}` : '–')}</span>
                   <div className="min-w-0 flex-1">
                     <div className={`text-sm font-bold truncate ${active ? 'text-amber-500' : r.points ? 'text-zinc-200' : 'text-zinc-500'}`}>{r.full_name}</div>
