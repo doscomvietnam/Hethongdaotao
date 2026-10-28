@@ -14,7 +14,6 @@ interface AdminLink {
   completedAt: string | null; imagesDeleteAt: string | null;
 }
 
-const GROUP_MAX = 28;
 
 /** linksOnly = cộng tác viên seeding: chỉ tab Quản lý link (không xem ảnh nộp / tiến độ) */
 export default function SeedingManagement({ linksOnly = false }: { linksOnly?: boolean }) {
@@ -120,7 +119,7 @@ function GroupLinks({ group, minLinks, links, people, onChanged }: {
       <div className="p-4 border-b border-zinc-800">
         <div className="flex items-center justify-between">
           <span className="text-sm font-black text-zinc-100">{group.label}</span>
-          <span className="flex items-center gap-1 text-[11px] font-black bg-zinc-800 text-zinc-300 rounded-full px-2.5 py-1" title="Số người tham gia nhóm hôm nay"><Users className="w-3 h-3" />{people}/{GROUP_MAX}</span>
+          <span className="flex items-center gap-1 text-[11px] font-black bg-zinc-800 text-zinc-300 rounded-full px-2.5 py-1" title="Số người tham gia nhóm hôm nay"><Users className="w-3 h-3" />{people} người</span>
         </div>
         <div className={`flex items-center gap-1.5 mt-1.5 text-[11px] font-bold ${enough ? 'text-emerald-400' : 'text-amber-400'}`}>
           {!enough && <AlertTriangle className="w-3.5 h-3.5" />}

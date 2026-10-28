@@ -9,8 +9,8 @@
  * Luật (chốt 06/10/2026):
  *  - Link chạy nhiều ngày; mỗi link tổng LINK_TOTAL lượt (seeding_links.max_people), tối đa LINK_DAILY lượt/ngày.
  *    Đủ tổng lượt → link 'completed' (ẩn khỏi nhân viên); ảnh giữ thêm 7 ngày rồi tự xóa (xem seeding-admin).
- *  - Mỗi nhóm tối đa GROUP_MAX người/ngày. Mỗi người tối đa MAX_PER_GROUP link/nhóm/ngày; nếu ≥2 nhóm đã đầy
- *    với người đó thì được MAX_PER_GROUP_EXCEPTION link trong nhóm còn lại.
+ *  - (28/10/2026) BỎ giới hạn số người/nhóm/ngày (trước 28 người → người vào muộn bị chặn cả nhóm dù link còn trống).
+ *    Mỗi người tối đa MAX_PER_GROUP link/nhóm/ngày.
  *  - Mỗi ngày: REQUIRED_PER_DAY lượt bắt buộc + OPTIONAL_PER_DAY lượt tự nguyện → tối đa MAX_PER_DAY lượt.
  *  - Mỗi lượt seeding = POINTS_PER_SEED điểm (lưu ở stars_awarded); ảnh bị thu hồi thì không tính điểm.
  *  - Mỗi người seed 1 link tối đa 1 lần (unique link_id + employee_id).
@@ -35,7 +35,7 @@ async function fetchAll(build: () => any, orderBy: string): Promise<{ data: any[
 }
 
 const BUCKET = 'seeding-proofs';
-const GROUP_MAX = 28;
+const GROUP_MAX = 0;          // 0 = không giới hạn số người mỗi nhóm/ngày (bỏ từ 28/10/2026)
 const LINK_DAILY = 2;
 const MAX_PER_GROUP = 2;
 const REQUIRED_PER_DAY = 1;   // bắt buộc mỗi ngày
@@ -107,7 +107,7 @@ function limitsFor(meId: string, todaySubs: any[]) {
     (people[r.group_key] ||= new Set()).add(r.employee_id);
     if (r.employee_id === meId) mine[r.group_key] = (mine[r.group_key] || 0) + 1;
   }
-  const fullForMe = (g: string) => (people[g]?.size || 0) >= GROUP_MAX && !people[g]?.has(meId);
+  const fullForMe = (g: string) => GROUP_MAX > 0 && (people[g]?.size || 0) >= GROUP_MAX && !people[g]?.has(meId);
   const unavailable = GROUPS.filter((g) => fullForMe(g.key)).length;
   const perGroupMax = unavailable >= 2 ? MAX_PER_GROUP_EXCEPTION : MAX_PER_GROUP;
   return { people, mine, fullForMe, perGroupMax };

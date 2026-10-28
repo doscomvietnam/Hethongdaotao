@@ -256,7 +256,7 @@ function GroupCard({ gs, busy, onPick, onRelease, opened, now, onOpen, onOpenLin
           <div className="flex items-center gap-1.5 flex-wrap">
             {gs.map((x) => (
               <span key={x.key} className={`flex items-center gap-1 text-[11px] font-black rounded-full px-2.5 py-1 ${x.groupFull ? 'bg-rose-500/15 text-rose-300' : st.chip}`} title={`Số người tham gia nhóm ${SHORT_LABEL[x.key] || x.label} hôm nay`}>
-                <Users className="w-3 h-3" /> {merged ? `${SHORT_LABEL[x.key]} ` : ''}{x.people}/{x.maxPeople}
+                <Users className="w-3 h-3" /> {merged ? `${SHORT_LABEL[x.key]} ` : ''}{x.maxPeople ? `${x.people}/${x.maxPeople}` : `${x.people} người`}
               </span>
             ))}
           </div>
