@@ -116,6 +116,12 @@ export default function PointsPage(_: { employee: Employee }) {
               <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm tên / phòng ban" className="bg-transparent text-xs text-zinc-200 outline-none w-full" />
             </label>
           </div>
+          <div className="px-5 py-2 border-b border-zinc-800 flex items-center gap-3 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+            <span className="w-8 flex-none" />
+            <span className="flex-1">Nhân viên</span>
+            <span className="w-14 text-right flex-none">Tháng {Number(month.slice(5))}</span>
+            <span className="w-24 text-right flex-none whitespace-nowrap" title="Tổng điểm kiếm được từ trước tới nay (seeding + điểm thưởng). Dòng nhỏ = còn lại sau khi trừ điểm đã đổi quà">Tổng tích lũy</span>
+          </div>
           <div className="max-h-[520px] overflow-y-auto">
             {data && shown.length === 0 && <div className="px-5 py-10 text-center text-sm text-zinc-600">Không có nhân viên phù hợp</div>}
             {shown.map(r => {
@@ -129,7 +135,13 @@ export default function PointsPage(_: { employee: Employee }) {
                     <div className={`text-sm font-bold truncate ${active ? 'text-amber-500' : r.points ? 'text-zinc-200' : 'text-zinc-500'}`}>{r.full_name}</div>
                     {r.department && <div className="text-[11px] text-zinc-600 truncate">{r.department}</div>}
                   </div>
-                  <span className={`text-sm font-black tabular-nums flex-none ${r.points ? 'text-amber-500' : 'text-zinc-600'}`}>{r.points}</span>
+                  <span className={`w-14 text-right text-sm font-black tabular-nums flex-none ${r.points ? 'text-amber-500' : 'text-zinc-600'}`}>{r.points}</span>
+                  <span className="w-24 text-right flex-none leading-tight">
+                    <span className={`block text-sm font-black tabular-nums ${r.allTime ? 'text-zinc-200' : 'text-zinc-600'}`}>{r.allTime ?? '–'}</span>
+                    {r.allTime !== undefined && r.available !== undefined && r.available !== r.allTime && (
+                      <span className="block text-[10px] font-bold text-emerald-500 tabular-nums" title="Còn lại sau khi trừ điểm đã đổi quà">còn {r.available}</span>
+                    )}
+                  </span>
                 </button>
               );
             })}

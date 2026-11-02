@@ -1,6 +1,10 @@
 import { supabase } from './supabaseClient';
 
-export interface PointsRow { employee_id: string; full_name: string; department: string | null; points: number; rank: number | null }
+export interface PointsRow {
+  employee_id: string; full_name: string; department: string | null; points: number; rank: number | null;
+  allTime?: number;     // tổng điểm kiếm được từ trước tới nay (seeding + thưởng)
+  available?: number;   // còn lại sau khi trừ điểm đã đổi quà
+}
 export interface PointsItem { employee_id: string; date: string; at: string; points: number; source: string; title: string; group_key: string }
 export interface PointsData {
   month: string;

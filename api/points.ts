@@ -3,6 +3,7 @@
  *  GET /api/points?token=<jwt>&self=1[&month=YYYY-MM] → MỌI nhân viên: điểm của CHÍNH MÌNH { total, month, today, monthKey }
  *  CHỈ ADMIN.  GET /api/points?token=<jwt>&month=YYYY-MM   (bỏ month → tháng hiện tại, giờ VN)
  *   → { month, summary: { total, withPoints, employees }, sources, leaderboard: [...], items: [...mọi lượt, kèm employee_id] }
+ *     leaderboard[i].allTime = tổng điểm kiếm được từ trước tới nay (seeding + thưởng); available = allTime − đã đổi quà
  *
  * Hiện chỉ có 1 nguồn điểm: seeding (Σ stars_awarded của ảnh còn hợp lệ, theo task_date).
  * Sau này thêm nguồn điểm khác / đổi quà thì cộng vào `sources` và trừ điểm đã đổi ở đây.
@@ -75,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { from, to } = monthBounds(month);
 
   try {
-    const [{ data: subs }, { data: emps }, { data: bonuses }] = await Promise.all([
+    const [{ data: subs }, { data: emps }, { data: bonuses }, { data: allSeed }, { data: allBonus }, { data: spentRows }] = await Promise.all([
       fetchAll(() => s.from('seeding_submissions')
         .select('id, employee_id, link_id, task_date, submitted_at, stars_awarded')
         .eq('status', 'active').gte('task_date', from).lte('task_date', to), 'id'),
@@ -83,18 +84,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       fetchAll(() => s.from('point_bonuses')
         .select('id, employee_id, points, reason, award_date, created_at')
         .gte('award_date', from).lte('award_date', to), 'id'),   // chưa có bảng → rỗng
+      // Tích lũy từ trước tới nay (để admin đối chiếu khi duyệt đổi quà)
+      fetchAll(() => s.from('seeding_submissions').select('employee_id, stars_awarded').eq('status', 'active'), 'id'),
+      fetchAll(() => s.from('point_bonuses').select('employee_id, points'), 'id'),
+      fetchAll(() => s.from('point_redemptions').select('employee_id, points_spent').eq('status', 'approved'), 'id'),
     ]);
+    const allTime: Record<string, number> = {};
+    const spent: Record<string, number> = {};
+    for (const r of allSeed || []) allTime[r.employee_id] = (allTime[r.employee_id] || 0) + (r.stars_awarded || 0);
+    for (const b of allBonus || []) allTime[b.employee_id] = (allTime[b.employee_id] || 0) + (b.points || 0);
+    for (const r of spentRows || []) spent[r.employee_id] = (spent[r.employee_id] || 0) + (r.points_spent || 0);
 
     // Bảng xếp hạng tháng
     const pts: Record<string, number> = {};
     for (const r of subs) pts[r.employee_id] = (pts[r.employee_id] || 0) + (r.stars_awarded || 0);
     for (const b of bonuses || []) pts[b.employee_id] = (pts[b.employee_id] || 0) + (b.points || 0);
     const leaderboard = (emps || [])
-      .map((e: any): any => ({ employee_id: e.id, full_name: e.full_name, department: e.department, points: pts[e.id] || 0, rank: null }))
-      .sort((a: any, b: any) => b.points - a.points || a.full_name.localeCompare(b.full_name, 'vi'));
-    // Hạng đồng điểm: cùng điểm → cùng hạng
-    let rank = 0, prev = -1;
-    leaderboard.forEach((r: any, i: number) => { if (r.points !== prev) { rank = i + 1; prev = r.points; } r.rank = r.points > 0 ? rank : null; });
+      .map((e: any): any => ({
+        employee_id: e.id, full_name: e.full_name, department: e.department, points: pts[e.id] || 0, rank: null,
+        allTime: allTime[e.id] || 0, available: (allTime[e.id] || 0) - (spent[e.id] || 0),
+      }))
+      // Điểm tháng bằng nhau → ai tổng tích lũy cao hơn xếp trên
+      .sort((a: any, b: any) => b.points - a.points || b.allTime - a.allTime || a.full_name.localeCompare(b.full_name, 'vi'));
+    // Đồng hạng chỉ khi bằng cả điểm tháng lẫn tổng tích lũy
+    let rank = 0, prev = '';
+    leaderboard.forEach((r: any, i: number) => {
+      const k = `${r.points}|${r.allTime}`;
+      if (k !== prev) { rank = i + 1; prev = k; }
+      r.rank = r.points > 0 ? rank : null;
+    });
 
     // Chi tiết từng lượt (mọi nhân viên) — trang admin lọc theo người được chọn
     const linkIds = [...new Set(subs.map((r: any) => r.link_id))];
