@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Gift, ExternalLink, Loader2, Check, X, RefreshCw } from 'lucide-react';
 import {
-  adminListRedeem, approveRedeem, rejectRedeem, REDEEM_STATUS_LABEL,
+  adminListRedeem, approveRedeem, rejectRedeem, REDEEM_STATUS_LABEL, notifyRedeemPendingChanged,
   type AdminRedeemRequest, type RedeemStatus,
 } from '../../services/redeemService';
 import { STATUS_CHIP, fmtDate } from './RedeemCard';
@@ -46,7 +46,7 @@ export function RedeemAdmin({ onChanged }: { onChanged?: () => void }) {
       {err && <div className="px-5 py-3 text-sm text-red-400">{err}</div>}
       {rows && rows.length === 0 && !err && <div className="px-5 py-10 text-center text-sm text-zinc-600">Không có yêu cầu nào</div>}
       <div>
-        {rows?.map(r => <Row key={r.id} r={r} onDone={() => { load(); onChanged?.(); }} />)}
+        {rows?.map(r => <Row key={r.id} r={r} onDone={() => { load(); onChanged?.(); notifyRedeemPendingChanged(); }} />)}
       </div>
     </section>
   );

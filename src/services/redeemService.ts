@@ -32,6 +32,11 @@ export const getMyRedeem = () => call<{ balance: RedeemBalance; requests: Redeem
 export const createRedeem = (gift_name: string, gift_link?: string) => call<{ ok: true }>('create', { gift_name, gift_link });
 export const cancelRedeem = (id: string) => call<{ ok: true }>('cancel', { id });
 
+export const getPendingRedeemCount = () => call<{ pending: number }>('pending-count');
+/** Phát khi số yêu cầu chờ duyệt có thể đã đổi → menu Hệ thống điểm tải lại số đỏ */
+export const REDEEM_PENDING_EVENT = 'redeem-pending-changed';
+export const notifyRedeemPendingChanged = () => window.dispatchEvent(new Event(REDEEM_PENDING_EVENT));
+
 export const adminListRedeem = (status: RedeemStatus | 'all') =>
   call<{ pending: number; requests: AdminRedeemRequest[] }>('admin-list', { status });
 export const approveRedeem = (id: string, points: number) => call<{ ok: true }>('approve', { id, points });

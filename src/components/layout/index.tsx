@@ -40,6 +40,7 @@ import {
   subscribeNotifications,
   type NotificationItem,
 } from '../../services/notificationService';
+import { getPendingRedeemCount, REDEEM_PENDING_EVENT, notifyRedeemPendingChanged } from '../../services/redeemService';
 import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
 import { SEQUENTIAL_PATH_BRANDS } from '../../services/sequentialCourseHelpers';
 
@@ -125,6 +126,20 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
   // Cộng tác viên seeding (nhân viên có can_manage_seeding) thấy menu Quản trị (chỉ có mục Seeding)
   const isSeedingCtv = employee.role === 'employee' && !!employee.can_manage_seeding;
   const menuItems = allMenuItems.filter(item => (item.roles.includes(employee.role) || (isSeedingCtv && item.id === ViewType.ADMIN)) && item.show);
+
+  // Số yêu cầu đổi quà chờ duyệt → số đỏ cạnh "Hệ thống điểm" (chỉ admin). Tải khi mở web, khi có yêu cầu mới
+  // (thông báo realtime), khi admin duyệt/từ chối và khi quay lại tab — không poll định kỳ để đỡ log Supabase.
+  const [redeemPending, setRedeemPending] = React.useState(0);
+  React.useEffect(() => {
+    if (employee.role !== 'admin') return;
+    let alive = true;
+    const load = () => { getPendingRedeemCount().then(r => { if (alive) setRedeemPending(r.pending); }).catch(() => {}); };
+    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    load();
+    window.addEventListener(REDEEM_PENDING_EVENT, load);
+    document.addEventListener('visibilitychange', onVis);
+    return () => { alive = false; window.removeEventListener(REDEEM_PENDING_EVENT, load); document.removeEventListener('visibilitychange', onVis); };
+  }, [employee.id, employee.role]);
 
   const isCourseView = currentView === ViewType.COURSE_CATALOG || currentView === ViewType.COURSE_DETAIL || currentView === ViewType.QUIZ;
   const [courseMenuOpen, setCourseMenuOpen] = React.useState(isCourseView);
@@ -277,6 +292,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
           const isActive = seg === 'product'
             ? (currentView === item.id || (item.id === ViewType.PRODUCT_LIBRARY && currentView === ViewType.PRODUCT_DETAIL))
             : currentView.startsWith(seg);
+          const badge = item.id === ViewType.POINTS ? redeemPending : 0;
           return (
             <div key={item.id} className="relative group">
               <button
@@ -298,8 +314,14 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
                 {!collapsed && (
                   <>
                     <span className="uppercase tracking-widest">{item.label}</span>
-                    {isActive && <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-50" />}
+                    {badge > 0 && (
+                      <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-black leading-5 text-center tracking-normal">{badge}</span>
+                    )}
+                    {isActive && <ChevronRight className={cn('w-3.5 h-3.5 opacity-50', badge > 0 ? 'ml-1' : 'ml-auto')} />}
                   </>
+                )}
+                {collapsed && badge > 0 && (
+                  <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] font-black leading-4 text-center">{badge}</span>
                 )}
               </button>
               {/* Tooltip khi collapsed */}
@@ -443,7 +465,10 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
     const stopPoll = () => { if (poll) { clearInterval(poll); poll = null; } };
     const unsubscribe = subscribeNotifications(
       employee.id,
-      (n) => setNotifications(prev => (prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 30))),
+      (n) => {
+        setNotifications(prev => (prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 30)));
+        if (n.type === 'reward') notifyRedeemPendingChanged();   // có yêu cầu đổi quà mới → cập nhật số đỏ ở menu
+      },
       (ok) => (ok ? stopPoll() : startPoll()),
     );
     // Máy ngủ / tab ẩn lâu có thể rớt kết nối → quay lại sau ≥5 phút thì tải lại 1 lần cho chắc

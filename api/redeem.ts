@@ -6,6 +6,7 @@
  *    'create'  { gift_name, gift_link? } → gửi yêu cầu (trạng thái pending)
  *    'cancel'  { id }                → tự hủy yêu cầu còn đang chờ
  *   Admin:
+ *    'pending-count'                 → số yêu cầu đang chờ duyệt (số đỏ cạnh menu Hệ thống điểm)
  *    'admin-list' { status? }        → mọi yêu cầu + tên NV + điểm hiện có của NV
  *    'approve' { id, points }        → duyệt, trừ `points` điểm (≤ điểm hiện có)
  *    'reject'  { id, reason }        → từ chối, bắt buộc lý do
@@ -132,6 +133,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     // ================= ADMIN =================
     if (!isAdmin) return res.status(403).json({ error: 'Chỉ admin được duyệt đổi quà' });
+
+    if (action === 'pending-count') {
+      const { count, error } = await s.from('point_redemptions').select('id', { count: 'exact', head: true }).eq('status', 'pending');
+      if (error) throw error;
+      return res.status(200).json({ pending: count || 0 });
+    }
 
     if (action === 'admin-list') {
       let q = s.from('point_redemptions')
