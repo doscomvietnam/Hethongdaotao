@@ -15,7 +15,7 @@ export const REDEEM_STATUS_LABEL: Record<RedeemStatus, string> = {
   pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối', cancelled: 'Đã hủy',
 };
 
-async function call<T>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
+export async function call<T>(action: string, extra: Record<string, unknown> = {}): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error('Phiên đăng nhập đã hết, vui lòng đăng nhập lại');
@@ -32,10 +32,11 @@ export const getMyRedeem = () => call<{ balance: RedeemBalance; requests: Redeem
 export const createRedeem = (gift_name: string, gift_link?: string) => call<{ ok: true }>('create', { gift_name, gift_link });
 export const cancelRedeem = (id: string) => call<{ ok: true }>('cancel', { id });
 
-export const getPendingRedeemCount = () => call<{ pending: number }>('pending-count');
-/** Phát khi số yêu cầu chờ duyệt có thể đã đổi → menu Hệ thống điểm tải lại số đỏ */
-export const REDEEM_PENDING_EVENT = 'redeem-pending-changed';
-export const notifyRedeemPendingChanged = () => window.dispatchEvent(new Event(REDEEM_PENDING_EVENT));
+/** Admin: số việc chờ xử lý → số đỏ cạnh menu (pending = đổi quà chờ duyệt, proposals = đề xuất đang xem xét) */
+export const getPendingCounts = () => call<{ pending: number; proposals: number }>('pending-count');
+/** Phát khi số việc chờ xử lý có thể đã đổi → menu tải lại số đỏ */
+export const PENDING_COUNTS_EVENT = 'admin-pending-changed';
+export const notifyPendingCountsChanged = () => window.dispatchEvent(new Event(PENDING_COUNTS_EVENT));
 
 export const adminListRedeem = (status: RedeemStatus | 'all') =>
   call<{ pending: number; requests: AdminRedeemRequest[] }>('admin-list', { status });

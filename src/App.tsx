@@ -13,6 +13,7 @@ import CertificateModal from "./components/gamification/CertificateModal";
 import { getCertificateForCourse } from "./services/gamificationService";
 import PracticePage from "./components/practice/PracticePage";
 import PointsPage from "./components/points/PointsPage";
+import ProposalsPage from "./components/proposals/ProposalsPage";
 import LearningPathPage from "./components/learning-path/LearningPathPage";
 import QuizView from "./components/course/QuizView";
 import AdminPage from "./components/admin/AdminPage";
@@ -106,6 +107,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   [ViewType.PRACTICE]: '/practice',
   [ViewType.LEARNING_PATH]: '/learning-path',
   [ViewType.POINTS]: '/points',
+  [ViewType.PROPOSALS]: '/proposals',
 };
 
 function parseUrlToState(): { view: ViewType; productId?: string; courseId?: string; authView?: AuthView } {
@@ -156,6 +158,8 @@ function parseUrlToState(): { view: ViewType; productId?: string; courseId?: str
       return { view: ViewType.PRACTICE };
     case 'points':
       return { view: ViewType.POINTS };
+    case 'proposals':
+      return { view: ViewType.PROPOSALS };
     case 'learning-path':
       return { view: ViewType.LEARNING_PATH };
     case 'dashboard':
@@ -645,6 +649,9 @@ function App() {
       case "points":
         setCurrentView(ViewType.POINTS);
         break;
+      case "proposals":
+        setCurrentView(ViewType.PROPOSALS);
+        break;
       case "learning-path":
         setCurrentView(ViewType.LEARNING_PATH);
         initData(true);
@@ -979,6 +986,9 @@ function App() {
         // Chỉ admin xem Hệ thống điểm
         if (employee.role !== 'admin') return <EmployeeDashboardView courses={courses} onCourseClick={(course: Course) => handleOpenCourse(course.id)} employeeId={employee.id} employeeName={employee.full_name} department={employee.department || ''} />;
         return <PointsPage employee={employee} />;
+
+      case ViewType.PROPOSALS:
+        return <ProposalsPage employee={employee} />;
 
       case ViewType.LEARNING_PATH:
         return (

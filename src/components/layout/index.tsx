@@ -29,6 +29,7 @@ import {
   Dumbbell,
   Route,
   FileText,
+  Lightbulb,
 } from 'lucide-react';
 import { ViewType, Employee, Course, Product } from '../../types';
 import { cn } from '../../lib/utils';
@@ -40,7 +41,7 @@ import {
   subscribeNotifications,
   type NotificationItem,
 } from '../../services/notificationService';
-import { getPendingRedeemCount, REDEEM_PENDING_EVENT, notifyRedeemPendingChanged } from '../../services/redeemService';
+import { getPendingCounts, PENDING_COUNTS_EVENT, notifyPendingCountsChanged } from '../../services/redeemService';
 import { convertGoogleDriveToDirectUrl } from '../../services/mediaHelpers';
 import { SEQUENTIAL_PATH_BRANDS } from '../../services/sequentialCourseHelpers';
 
@@ -59,6 +60,7 @@ function notifIcon(type: string): { icon: React.ElementType; color: string; bg: 
     case 'quiz_result':             return { icon: CheckCircle2,  color: 'text-blue-400',    bg: 'bg-blue-500/10' };
     case 'system':                  return { icon: Megaphone,     color: 'text-purple-400',  bg: 'bg-purple-500/10' };
     case 'reward':                  return { icon: Gift,          color: 'text-rose-400',    bg: 'bg-rose-500/10' };
+    case 'proposal':                return { icon: Lightbulb,     color: 'text-yellow-400',  bg: 'bg-yellow-500/10' };
     default:                        return { icon: Bell,          color: 'text-zinc-400',    bg: 'bg-zinc-500/10' };
   }
 }
@@ -117,6 +119,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
     { id: ViewType.EXAM_HUB, icon: Sparkles, label: 'Kiểm tra', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.PRACTICE, icon: Dumbbell, label: 'Luyện tập', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.POINTS, icon: Star, label: 'Hệ thống điểm', roles: ['admin'], show: true },
+    { id: ViewType.PROPOSALS, icon: Lightbulb, label: 'Đề xuất cải tiến', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.BADGES, icon: Award, label: 'Huy hiệu', roles: ['admin', 'manager', 'employee'], show: true },
     { id: ViewType.ONBOARDING_TEST, icon: ClipboardCheck, label: 'Test Onboarding', roles: ['admin', 'manager', 'employee'], show: hasOnboarding },
     { id: ViewType.ATTENDANCE, icon: CalendarDays, label: 'Điểm danh', roles: ['admin'], show: true },
@@ -127,18 +130,19 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
   const isSeedingCtv = employee.role === 'employee' && !!employee.can_manage_seeding;
   const menuItems = allMenuItems.filter(item => (item.roles.includes(employee.role) || (isSeedingCtv && item.id === ViewType.ADMIN)) && item.show);
 
-  // Số yêu cầu đổi quà chờ duyệt → số đỏ cạnh "Hệ thống điểm" (chỉ admin). Tải khi mở web, khi có yêu cầu mới
-  // (thông báo realtime), khi admin duyệt/từ chối và khi quay lại tab — không poll định kỳ để đỡ log Supabase.
-  const [redeemPending, setRedeemPending] = React.useState(0);
+  // Số đỏ cạnh menu (chỉ admin): "Hệ thống điểm" = đổi quà chờ duyệt, "Đề xuất cải tiến" = đề xuất đang xem xét.
+  // Tải khi mở web, khi có yêu cầu/đề xuất mới (thông báo realtime), khi admin xử lý và khi quay lại tab
+  // — không poll định kỳ để đỡ log Supabase.
+  const [pendingCounts, setPendingCounts] = React.useState({ pending: 0, proposals: 0 });
   React.useEffect(() => {
     if (employee.role !== 'admin') return;
     let alive = true;
-    const load = () => { getPendingRedeemCount().then(r => { if (alive) setRedeemPending(r.pending); }).catch(() => {}); };
+    const load = () => { getPendingCounts().then(r => { if (alive) setPendingCounts(r); }).catch(() => {}); };
     const onVis = () => { if (document.visibilityState === 'visible') load(); };
     load();
-    window.addEventListener(REDEEM_PENDING_EVENT, load);
+    window.addEventListener(PENDING_COUNTS_EVENT, load);
     document.addEventListener('visibilitychange', onVis);
-    return () => { alive = false; window.removeEventListener(REDEEM_PENDING_EVENT, load); document.removeEventListener('visibilitychange', onVis); };
+    return () => { alive = false; window.removeEventListener(PENDING_COUNTS_EVENT, load); document.removeEventListener('visibilitychange', onVis); };
   }, [employee.id, employee.role]);
 
   const isCourseView = currentView === ViewType.COURSE_CATALOG || currentView === ViewType.COURSE_DETAIL || currentView === ViewType.QUIZ;
@@ -292,7 +296,7 @@ export const Sidebar = ({ currentView, setView, employee, courses, collapsed, on
           const isActive = seg === 'product'
             ? (currentView === item.id || (item.id === ViewType.PRODUCT_LIBRARY && currentView === ViewType.PRODUCT_DETAIL))
             : currentView.startsWith(seg);
-          const badge = item.id === ViewType.POINTS ? redeemPending : 0;
+          const badge = item.id === ViewType.POINTS ? pendingCounts.pending : item.id === ViewType.PROPOSALS && employee.role === 'admin' ? pendingCounts.proposals : 0;
           return (
             <div key={item.id} className="relative group">
               <button
@@ -467,7 +471,7 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
       employee.id,
       (n) => {
         setNotifications(prev => (prev.some(x => x.id === n.id) ? prev : [n, ...prev].slice(0, 30)));
-        if (n.type === 'reward') notifyRedeemPendingChanged();   // có yêu cầu đổi quà mới → cập nhật số đỏ ở menu
+        if (n.type === 'reward' || n.type === 'proposal') notifyPendingCountsChanged();   // có yêu cầu/đề xuất mới → cập nhật số đỏ ở menu
       },
       (ok) => (ok ? stopPoll() : startPoll()),
     );
@@ -566,7 +570,7 @@ export const Navbar = ({ employee, courses, products, onCourseClick, onProductCl
     if (n.link_view === 'course-detail' && n.link_id && onNotificationCourseClick) {
       onNotificationCourseClick(n.link_id);
       setShowNotifications(false);
-    } else if ((n.link_view === 'points' || n.link_view === 'dashboard') && onNotificationNavigate) {
+    } else if ((n.link_view === 'points' || n.link_view === 'dashboard' || n.link_view === 'proposals') && onNotificationNavigate) {
       onNotificationNavigate(n.link_view);
       setShowNotifications(false);
     }
@@ -872,6 +876,7 @@ export default function Layout({ currentView, onNavigate, employee, courses, pro
       [ViewType.BADGES]: 'badges',
       [ViewType.PRACTICE]: 'practice',
       [ViewType.POINTS]: 'points',
+      [ViewType.PROPOSALS]: 'proposals',
       [ViewType.LEARNING_PATH]: 'learning-path',
     };
     onNavigate(viewMap[view] || 'dashboard');

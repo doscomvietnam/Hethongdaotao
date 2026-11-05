@@ -6,14 +6,20 @@
  *    'create'  { gift_name, gift_link? } → gửi yêu cầu (trạng thái pending)
  *    'cancel'  { id }                → tự hủy yêu cầu còn đang chờ
  *   Admin:
- *    'pending-count'                 → số yêu cầu đang chờ duyệt (số đỏ cạnh menu Hệ thống điểm)
+ *    'pending-count'                 → { pending: đổi quà chờ duyệt, proposals: đề xuất đang xem xét } (số đỏ ở menu)
  *    'admin-list' { status? }        → mọi yêu cầu + tên NV + điểm hiện có của NV
  *    'approve' { id, points }        → duyệt, trừ `points` điểm (≤ điểm hiện có)
  *    'reject'  { id, reason }        → từ chối, bắt buộc lý do
  *    'bonus-list'   { month? }       → điểm thưởng đã cộng trong tháng (YYYY-MM, mặc định tháng này)
  *    'bonus-add'    { employee_id, points, reason } → cộng điểm thưởng (bảng point_bonuses)
  *    'bonus-delete' { id }           → xóa lượt thưởng cộng nhầm
- *  (Gộp điểm thưởng vào file này để không thêm serverless function — gói Vercel Hobby giới hạn 12.)
+ *
+ *  Đề xuất cải tiến (bảng improvement_proposals):
+ *    NV:    'proposal-upload-url' { name, size } → link ký sẵn để tự tải file đính kèm lên bucket 'proposal-files'
+ *           'proposal-create' { category, content, plan?, attachments? } · 'proposal-mine' { month } · 'proposal-withdraw' { id }
+ *    Admin: 'proposal-list' { month, status? }      · 'proposal-review' { id, status, points?, note? }
+ *           Duyệt + điểm > 0 → ghi/sửa 1 dòng point_bonuses (bonus_id); bỏ duyệt → xóa dòng thưởng đó.
+ *  (Gộp điểm thưởng + đề xuất vào file này để không thêm serverless function — gói Vercel Hobby giới hạn 12.)
  *
  * Điểm hiện có = Σ stars_awarded (seeding còn hợp lệ) + Σ điểm thưởng − Σ points_spent (yêu cầu đã duyệt).
  * Nhân viên được báo kết quả qua bảng notifications; admin được báo khi có yêu cầu mới.
@@ -36,6 +42,16 @@ async function fetchAll(build: () => any, orderBy: string): Promise<{ data: any[
 
 const MAX_PENDING = 3;          // tối đa 3 yêu cầu đang chờ / người
 const MAX_BONUS = 1000;         // tối đa 1 lần cộng
+const MAX_PROPOSAL_OPEN = 10;   // tối đa 10 đề xuất đang xem xét / người
+const PROPOSAL_CATS: Record<string, string> = { work: 'Công việc', hr: 'Nhân sự', operation: 'Vận hành', culture: 'Văn hóa' };
+const PROPOSAL_STATUS: Record<string, string> = { reviewing: 'Xem xét', approved: 'Duyệt', rejected: 'Không duyệt' };
+const PROPOSAL_BUCKET = 'proposal-files';
+const MAX_ATTACH = 3, MAX_ATTACH_BYTES = 10 * 1024 * 1024;
+const ATTACH_EXT = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'csv', 'txt', 'png', 'jpg', 'jpeg', 'webp', 'zip'];
+const NO_PROPOSAL_TABLE = 'Chưa tạo bảng đề xuất (improvement_proposals) — cần chạy SQL';
+const validMonth = (m: any) => (/^\d{4}-\d{2}$/.test(m || '') ? m : vnToday().slice(0, 7));
+/** Khoảng thời gian của 1 tháng theo giờ Việt Nam (để lọc created_at) */
+const monthRange = (m: string) => [`${m}-01T00:00:00+07:00`, `${nextMonth(m)}T00:00:00+07:00`];
 const vnToday = () => new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
 const nextMonth = (m: string) => {
   const [y, mo] = m.split('-').map(Number);
@@ -71,6 +87,15 @@ async function balances(s: any, empIds?: string[]) {
   for (const r of bonusQ.data || []) get(r.employee_id).earned += r.points || 0;   // chưa có bảng → bỏ qua
   for (const v of Object.values(m)) v.available = v.earned - v.spent;
   return (id: string) => m[id] || { earned: 0, spent: 0, available: 0 };
+}
+
+/** Gắn link xem tạm (1 giờ) cho file đính kèm của danh sách đề xuất */
+async function signAttachments(s: any, rows: any[]) {
+  const paths = rows.flatMap((r: any) => (r.attachments || []).map((a: any) => a.path));
+  if (!paths.length) return rows;
+  const { data } = await s.storage.from(PROPOSAL_BUCKET).createSignedUrls(paths, 3600);
+  const url = Object.fromEntries((data || []).map((d: any) => [d.path, d.signedUrl]));
+  return rows.map((r: any) => ({ ...r, attachments: (r.attachments || []).map((a: any) => ({ ...a, url: url[a.path] || null })) }));
 }
 
 async function notify(s: any, rows: any[]) {
@@ -131,13 +156,155 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(200).json({ ok: true });
     }
 
+    // ---------- Đề xuất cải tiến (nhân viên) ----------
+    if (action === 'proposal-upload-url') {
+      const name = String(body.name || '').trim();
+      const size = Number(body.size);
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      if (!name || !ATTACH_EXT.includes(ext)) return res.status(400).json({ error: `File "${name}" không hỗ trợ — chỉ nhận ${ATTACH_EXT.join(', ')}` });
+      if (!(size > 0) || size > MAX_ATTACH_BYTES) return res.status(400).json({ error: `File "${name}" vượt quá 10 MB` });
+      const path = `${me.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { data, error } = await s.storage.from(PROPOSAL_BUCKET).createSignedUploadUrl(path);
+      if (error) throw new Error('Chưa tạo kho file đề xuất (proposal-files) — cần chạy SQL');
+      return res.status(200).json({ path: data.path, token: data.token });
+    }
+
+    if (action === 'proposal-create') {
+      const category = String(body.category || '');
+      const content = String(body.content || '').trim();
+      const plan = String(body.plan || '').trim();
+      if (!PROPOSAL_CATS[category]) return res.status(400).json({ error: 'Chọn mục đề xuất' });
+      if (content.length < 10) return res.status(400).json({ error: 'Ý tưởng đề xuất cần ít nhất 10 ký tự' });
+      if (content.length > 3000) return res.status(400).json({ error: 'Ý tưởng đề xuất tối đa 3.000 ký tự' });
+      if (plan.length > 5000) return res.status(400).json({ error: 'Phương án triển khai tối đa 5.000 ký tự' });
+      const attachments = (Array.isArray(body.attachments) ? body.attachments : []).slice(0, MAX_ATTACH)
+        .filter((a: any) => typeof a?.path === 'string' && a.path.startsWith(`${me.id}/`))   // chỉ nhận file do chính mình tải lên
+        .map((a: any) => ({ path: a.path, name: String(a.name || 'file').slice(0, 200), size: Number(a.size) || 0 }));
+      if (!attachments.length) return res.status(400).json({ error: 'Đính kèm file phương án triển khai' });
+      const { count, error: ce } = await s.from('improvement_proposals').select('id', { count: 'exact', head: true })
+        .eq('employee_id', me.id).eq('status', 'reviewing');
+      if (ce) throw new Error(NO_PROPOSAL_TABLE);
+      if ((count || 0) >= MAX_PROPOSAL_OPEN)
+        return res.status(409).json({ error: `Bạn đang có ${count} đề xuất chờ xem xét — đợi admin xử lý bớt rồi gửi tiếp nhé.` });
+      const { error } = await s.from('improvement_proposals')
+        .insert({ employee_id: me.id, category, content, plan: plan || null, attachments, status: 'reviewing' });
+      if (error) throw error;
+      const { data: admins } = await s.from('employees').select('id').eq('role', 'admin').eq('employment_status', 'active');
+      await notify(s, (admins || []).map((a: any) => ({
+        employee_id: a.id, type: 'proposal', title: `Đề xuất cải tiến mới · ${PROPOSAL_CATS[category]}`,
+        message: `${me.full_name}: ${content.slice(0, 140)}${content.length > 140 ? '…' : ''}`, link_view: 'proposals', is_read: false,
+      })));
+      return res.status(200).json({ ok: true });
+    }
+
+    if (action === 'proposal-mine') {
+      const month = validMonth(body.month);
+      const [from, to] = monthRange(month);
+      const { data: rows, error } = await s.from('improvement_proposals')
+        .select('id, category, content, plan, attachments, status, points, admin_note, created_at, reviewed_at')
+        .eq('employee_id', me.id).gte('created_at', from).lt('created_at', to)
+        .order('created_at', { ascending: false }).limit(200);
+      if (error) throw new Error(NO_PROPOSAL_TABLE);
+      return res.status(200).json({ month, proposals: await signAttachments(s, rows || []) });
+    }
+
+    if (action === 'proposal-withdraw') {
+      const { data, error } = await s.from('improvement_proposals').delete()
+        .eq('id', body.id).eq('employee_id', me.id).eq('status', 'reviewing').select('id, attachments');
+      if (error) throw error;
+      if (!data?.length) return res.status(409).json({ error: 'Đề xuất đã được admin xử lý, không rút lại được' });
+      const paths = (data[0].attachments || []).map((a: any) => a.path);
+      if (paths.length) await s.storage.from(PROPOSAL_BUCKET).remove(paths);
+      return res.status(200).json({ ok: true });
+    }
+
     // ================= ADMIN =================
     if (!isAdmin) return res.status(403).json({ error: 'Chỉ admin được duyệt đổi quà' });
 
     if (action === 'pending-count') {
-      const { count, error } = await s.from('point_redemptions').select('id', { count: 'exact', head: true }).eq('status', 'pending');
-      if (error) throw error;
-      return res.status(200).json({ pending: count || 0 });
+      const [r, p] = await Promise.all([
+        s.from('point_redemptions').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        s.from('improvement_proposals').select('id', { count: 'exact', head: true }).eq('status', 'reviewing'),
+      ]);
+      if (r.error) throw r.error;
+      return res.status(200).json({ pending: r.count || 0, proposals: p.error ? 0 : p.count || 0 });   // chưa có bảng đề xuất → 0
+    }
+
+    // ---------- Đề xuất cải tiến (admin) ----------
+    if (action === 'proposal-list') {
+      const month = validMonth(body.month);
+      const [from, to] = monthRange(month);
+      const { data: all, error } = await fetchAll(() => {
+        let q = s.from('improvement_proposals')
+          .select('id, employee_id, category, content, plan, attachments, status, points, admin_note, created_at, reviewed_at, reviewed_by')
+          .gte('created_at', from).lt('created_at', to);
+        if (PROPOSAL_STATUS[body.status]) q = q.eq('status', body.status);
+        return q;
+      }, 'id');
+      if (error) throw new Error(NO_PROPOSAL_TABLE);
+      const rows = await signAttachments(s, all.sort((a: any, b: any) => b.created_at.localeCompare(a.created_at)));
+      const ids = [...new Set((rows || []).flatMap((r: any) => [r.employee_id, r.reviewed_by]).filter(Boolean))] as string[];
+      const { data: emps } = ids.length ? await s.from('employees').select('id, full_name, department').in('id', ids) : { data: [] };
+      const em = Object.fromEntries((emps || []).map((e: any) => [e.id, e]));
+      const { count: reviewing } = await s.from('improvement_proposals').select('id', { count: 'exact', head: true }).eq('status', 'reviewing');
+      return res.status(200).json({
+        month, reviewing: reviewing || 0,
+        proposals: (rows || []).map((r: any) => ({
+          ...r, full_name: em[r.employee_id]?.full_name || '(đã xóa)', department: em[r.employee_id]?.department || null,
+          reviewer: r.reviewed_by ? em[r.reviewed_by]?.full_name || null : null,
+        })),
+      });
+    }
+
+    if (action === 'proposal-review') {
+      const status = String(body.status || '');
+      if (!PROPOSAL_STATUS[status]) return res.status(400).json({ error: 'Trạng thái không hợp lệ' });
+      const points = status === 'approved' ? Number(body.points ?? 0) : 0;
+      if (!Number.isInteger(points) || points < 0) return res.status(400).json({ error: 'Điểm thưởng phải là số nguyên ≥ 0' });
+      if (points > MAX_BONUS) return res.status(400).json({ error: `Mỗi đề xuất thưởng tối đa ${MAX_BONUS} điểm` });
+      const note = String(body.note || '').trim().slice(0, 1000) || null;
+      const { data: row, error: re } = await s.from('improvement_proposals')
+        .select('id, employee_id, category, content, status, points, admin_note, bonus_id').eq('id', body.id).maybeSingle();
+      if (re) throw new Error(NO_PROPOSAL_TABLE);
+      if (!row) return res.status(404).json({ error: 'Không tìm thấy đề xuất' });
+
+      // Đồng bộ điểm thưởng: duyệt + điểm > 0 → có đúng 1 dòng point_bonuses; ngược lại → không có
+      let bonusId: string | null = row.bonus_id;
+      const reason = `Đề xuất cải tiến (${PROPOSAL_CATS[row.category]}): ${row.content.slice(0, 120)}${row.content.length > 120 ? '…' : ''}`;
+      if (points > 0) {
+        if (bonusId) {
+          const { data: upd, error } = await s.from('point_bonuses').update({ points, reason }).eq('id', bonusId).select('id');
+          if (error) throw error;
+          if (!upd?.length) bonusId = null;   // dòng thưởng đã bị xóa tay ở Điểm thưởng → tạo lại
+        }
+        if (!bonusId) {
+          const { data: b, error } = await s.from('point_bonuses')
+            .insert({ employee_id: row.employee_id, points, reason, award_date: vnToday(), created_by: me.id }).select('id').single();
+          if (error) throw error;
+          bonusId = b.id;
+        }
+      } else if (bonusId) {
+        const { error } = await s.from('point_bonuses').delete().eq('id', bonusId);
+        if (error) throw error;
+        bonusId = null;
+      }
+
+      const { error: ue } = await s.from('improvement_proposals').update({
+        status, points, admin_note: note, bonus_id: bonusId,
+        reviewed_at: status === 'reviewing' ? null : new Date().toISOString(), reviewed_by: status === 'reviewing' ? null : me.id,
+      }).eq('id', row.id);
+      if (ue) throw ue;
+
+      if (status !== row.status || points !== row.points || note !== (row.admin_note || null)) {
+        const title = status === 'approved'
+          ? `Đề xuất của bạn đã được duyệt${points > 0 ? ` · +${points} điểm ⭐` : ' 🎉'}`
+          : status === 'rejected' ? 'Đề xuất của bạn không được duyệt'
+          : row.status === 'reviewing' ? 'Đề xuất của bạn đang được xem xét' : 'Đề xuất của bạn đang được xem xét lại';
+        await notify(s, [{ employee_id: row.employee_id, type: 'proposal', title,
+          message: `${PROPOSAL_CATS[row.category]}: ${row.content.slice(0, 100)}${row.content.length > 100 ? '…' : ''}${note ? ` — Phản hồi: ${note}` : ''}`,
+          link_view: 'proposals', is_read: false }]);
+      }
+      return res.status(200).json({ ok: true });
     }
 
     if (action === 'admin-list') {

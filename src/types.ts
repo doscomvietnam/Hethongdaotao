@@ -24,6 +24,7 @@ export enum ViewType {
   PRACTICE = 'practice',
   LEARNING_PATH = 'learning-path',
   POINTS = 'points',
+  PROPOSALS = 'proposals',
 }
 
 export type EmployeeRole = 'admin' | 'manager' | 'employee';
