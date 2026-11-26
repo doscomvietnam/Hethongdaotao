@@ -2,14 +2,14 @@ import * as React from 'react';
 import {
   BookOpen, CheckCircle2, Zap, AlertCircle, Clock,
   Trophy, Star, Award, Flame, ArrowRight, Play, TrendingUp,
-  CalendarCheck, XCircle, ChevronLeft, ChevronRight,
+  CalendarCheck, XCircle, ChevronLeft, ChevronRight, X,
 } from 'lucide-react';
 import { Course } from '../../types';
 import { Card, Badge, Progress } from '../ui';
 import { getYesterdayOverdueForUser, type MissingPart } from '../../services/dailyAttendanceService';
 import { getEmployeeMonthlyQuizCalendar, type MonthlyQuizCalendar } from '../../services/attendanceService';
 import { GamificationWidget } from '../gamification/GamificationWidget';
-import { getMyPoints, type MyPoints } from '../../services/pointsService';
+import { getMyPoints, type MyPoints, type MyPointsItem } from '../../services/pointsService';
 import { RedeemCard } from '../points/RedeemCard';
 
 // ── Helper: level info ──────────────────────────────────────────────────
@@ -132,6 +132,7 @@ function PointsCard({ pts, month, curMonth, onMonth }: {
     onMonth(new Date(Date.UTC(y, mo - 1 + d, 1)).toISOString().slice(0, 7));
   };
   const loading = !pts || pts.monthKey !== month;
+  const [detail, setDetail] = React.useState<'month' | 'today' | null>(null);
   const arrow = 'w-5 h-5 rounded-md flex items-center justify-center text-zinc-500 hover:text-white hover:bg-zinc-800 disabled:opacity-25 disabled:hover:bg-transparent';
   return (
     <Card className="p-5 lg:p-6 bg-[#0C0C0E] border-amber-500/25 rounded-2xl">
@@ -150,21 +151,94 @@ function PointsCard({ pts, month, curMonth, onMonth }: {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:w-72">
-          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-2 py-2">
+          <div role="button" tabIndex={0} onClick={() => !loading && setDetail('month')}
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !loading) { e.preventDefault(); setDetail('month'); } }}
+            title="Xem chi tiết điểm tháng"
+            className="rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-amber-500/50 px-2 py-2 cursor-pointer transition-colors">
             <div className="flex items-center justify-between gap-1">
-              <button type="button" onClick={() => shift(-1)} className={arrow} aria-label="Tháng trước"><ChevronLeft className="w-3.5 h-3.5" /></button>
+              <button type="button" onClick={e => { e.stopPropagation(); shift(-1); }} className={arrow} aria-label="Tháng trước"><ChevronLeft className="w-3.5 h-3.5" /></button>
               <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest leading-none whitespace-nowrap">T{Number(month.slice(5))}/{month.slice(0, 4)}</p>
-              <button type="button" onClick={() => shift(1)} disabled={month >= curMonth} className={arrow} aria-label="Tháng sau"><ChevronRight className="w-3.5 h-3.5" /></button>
+              <button type="button" onClick={e => { e.stopPropagation(); shift(1); }} disabled={month >= curMonth} className={arrow} aria-label="Tháng sau"><ChevronRight className="w-3.5 h-3.5" /></button>
             </div>
             <p className={`text-xl font-black text-white tabular-nums leading-none mt-1.5 text-center ${loading ? 'opacity-40' : ''}`}>{pts ? pts.month : '—'}</p>
           </div>
-          <div className="rounded-xl bg-zinc-900/60 border border-zinc-800 px-3 py-2.5">
+          <button type="button" onClick={() => pts && setDetail('today')} title="Xem chi tiết điểm hôm nay"
+            className="rounded-xl bg-zinc-900/60 border border-zinc-800 hover:border-amber-500/50 px-3 py-2.5 transition-colors">
             <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest leading-none pt-1.5 text-center">Hôm nay</p>
             <p className="text-xl font-black text-emerald-500 tabular-nums leading-none mt-2.5 text-center">{pts ? `+${pts.today}` : '—'}</p>
-          </div>
+          </button>
         </div>
       </div>
+      {detail && pts && <PointsDetailModal pts={pts} mode={detail} onClose={() => setDetail(null)} />}
     </Card>
+  );
+}
+
+const SEED_GROUP: Record<string, string> = { koc: 'Seeding KOC', company: 'Seeding video công ty', competitor: 'Seeding đối thủ' };
+const ddmm = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
+const hhmm = (iso: string) => (iso ? new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '');
+
+/** Chi tiết từng lượt cộng điểm của tháng đang xem hoặc hôm nay */
+function PointsDetailModal({ pts, mode, onClose }: { pts: MyPoints; mode: 'month' | 'today'; onClose: () => void }) {
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const today = pts.todayKey || new Date(Date.now() + 7 * 3600 * 1000).toISOString().slice(0, 10);
+  const items: MyPointsItem[] = (pts.items || []).filter(i => (mode === 'today' ? i.date === today : i.date.startsWith(pts.monthKey)));
+  const total = mode === 'today' ? pts.today : pts.month;
+  const seed = items.filter(i => i.source === 'seeding').reduce((a, i) => a + i.points, 0);
+  const bonus = items.filter(i => i.source === 'bonus').reduce((a, i) => a + i.points, 0);
+  const byDay = new Map<string, MyPointsItem[]>();
+  for (const i of items) byDay.set(i.date, [...(byDay.get(i.date) || []), i]);
+  const days = [...byDay.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60" onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} className="w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl bg-[#0C0C0E] border border-zinc-800 shadow-2xl">
+        <div className="px-6 pt-5 pb-4 border-b border-zinc-800 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">Chi tiết điểm</p>
+            <h3 className="text-lg font-black text-white uppercase tracking-tight mt-1">
+              {mode === 'today' ? `Hôm nay · ${ddmm(today)}` : `Tháng ${Number(pts.monthKey.slice(5))}/${pts.monthKey.slice(0, 4)}`}
+            </h3>
+            <p className="text-[11px] font-bold text-zinc-500 mt-1">
+              Tổng <span className="text-amber-500">+{total} điểm</span> · Seeding {seed} · Điểm thưởng {bonus}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-zinc-500 hover:text-white" aria-label="Đóng"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="overflow-y-auto px-6 py-4 space-y-4">
+          {days.length === 0 && <p className="py-8 text-center text-sm text-zinc-600">{mode === 'today' ? 'Hôm nay bạn chưa có điểm nào' : 'Tháng này chưa có điểm nào'}</p>}
+          {days.map(([d, list]) => (
+            <div key={d}>
+              {mode === 'month' && (
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Ngày {ddmm(d)}{d === today ? ' · hôm nay' : ''}</p>
+                  <p className="text-[11px] font-black text-amber-500 tabular-nums">+{list.reduce((a, i) => a + i.points, 0)}</p>
+                </div>
+              )}
+              <div className="rounded-xl border border-zinc-800 divide-y divide-zinc-800">
+                {list.map((i, k) => (
+                  <div key={k} className="flex items-center gap-3 px-3.5 py-2.5">
+                    <span className={`text-[9.5px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md flex-shrink-0 ${i.source === 'bonus' ? 'bg-rose-500/10 text-rose-400' : 'bg-sky-500/10 text-sky-400'}`}>
+                      {i.source === 'bonus' ? 'Thưởng' : 'Seeding'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[13px] font-bold text-zinc-200 truncate" title={i.title}>{i.title || (i.source === 'bonus' ? 'Điểm thưởng' : 'Lượt seeding')}</p>
+                      <p className="text-[10.5px] text-zinc-500">{i.source === 'seeding' ? `${SEED_GROUP[i.group_key] || 'Seeding'} · ` : ''}{hhmm(i.at)}</p>
+                    </div>
+                    <span className="text-sm font-black text-amber-500 tabular-nums flex-shrink-0">+{i.points}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 

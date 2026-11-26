@@ -15,7 +15,11 @@ export interface PointsData {
 }
 
 /** total = điểm còn lại (đã trừ đổi quà); earned = tổng kiếm được; spent = đã đổi quà; month/today = kiếm được trong tháng/hôm nay */
-export interface MyPoints { total: number; earned: number; spent: number; month: number; today: number; monthKey: string }
+export interface MyPointsItem { date: string; at: string; points: number; source: 'seeding' | 'bonus'; title: string; group_key: string }
+export interface MyPoints {
+  total: number; earned: number; spent: number; month: number; today: number; monthKey: string;
+  todayKey?: string; items?: MyPointsItem[];   // từng lượt cộng điểm của tháng đang xem + hôm nay
+}
 
 /** Điểm tích lũy của chính mình (mọi nhân viên). */
 export async function getMyPoints(month?: string): Promise<MyPoints> {

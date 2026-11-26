@@ -1,6 +1,7 @@
 /**
  * Serverless — HỆ THỐNG ĐIỂM (tính theo tháng).
- *  GET /api/points?token=<jwt>&self=1[&month=YYYY-MM] → MỌI nhân viên: điểm của CHÍNH MÌNH { total, month, today, monthKey }
+ *  GET /api/points?token=<jwt>&self=1[&month=YYYY-MM] → MỌI nhân viên: điểm của CHÍNH MÌNH { total, month, today, monthKey, items }
+ *      items = từng lượt cộng điểm (seeding + điểm thưởng) của tháng được chọn và hôm nay — để xem chi tiết
  *  CHỈ ADMIN.  GET /api/points?token=<jwt>&month=YYYY-MM   (bỏ month → tháng hiện tại, giờ VN)
  *   → { month, summary: { total, withPoints, employees }, sources, leaderboard: [...], items: [...mọi lượt, kèm employee_id] }
  *     leaderboard[i].allTime = tổng điểm kiếm được từ trước tới nay (seeding + thưởng); available = allTime − đã đổi quà
@@ -47,13 +48,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.query.self === '1' || req.query.self === 'true') {
     const today = vnToday();
     const monthKey = /^\d{4}-\d{2}$/.test((req.query.month as string) || '') ? (req.query.month as string) : today.slice(0, 7);
-    const { data: rows, error } = await fetchAll(() => s.from('seeding_submissions')
-      .select('stars_awarded, task_date').eq('employee_id', me.id).eq('status', 'active'), 'id');
+    const { data: subs, error } = await fetchAll(() => s.from('seeding_submissions')
+      .select('stars_awarded, task_date, submitted_at, link_id').eq('employee_id', me.id).eq('status', 'active'), 'id');
     if (error) return res.status(500).json({ error: error.message });
     // Điểm thưởng admin cộng (tính theo award_date) — chưa có bảng thì bỏ qua
     const { data: bonusRows } = await fetchAll(() => s.from('point_bonuses')
-      .select('points, award_date').eq('employee_id', me.id), 'id');
+      .select('points, award_date, reason, created_at').eq('employee_id', me.id), 'id');
+    const rows: any[] = [...subs];
     for (const b of bonusRows || []) rows.push({ stars_awarded: b.points, task_date: b.award_date });
+
+    // Chi tiết từng lượt của tháng được chọn + hôm nay
+    const inView = (d: string) => (d || '').startsWith(monthKey) || d === today;
+    const viewSubs = subs.filter((r: any) => inView(r.task_date));
+    const linkIds = [...new Set(viewSubs.map((r: any) => r.link_id).filter(Boolean))];
+    const { data: links } = linkIds.length
+      ? await s.from('seeding_links').select('id, title, group_key').in('id', linkIds)
+      : { data: [] as any[] };
+    const linkMap = Object.fromEntries((links || []).map((l: any) => [l.id, l]));
+    const items = [
+      ...viewSubs.map((r: any) => ({
+        date: r.task_date, at: r.submitted_at, points: r.stars_awarded || 0, source: 'seeding',
+        title: linkMap[r.link_id]?.title || '', group_key: linkMap[r.link_id]?.group_key || '',
+      })),
+      ...(bonusRows || []).filter((b: any) => inView(b.award_date)).map((b: any) => ({
+        date: b.award_date, at: b.created_at, points: b.points || 0, source: 'bonus', title: b.reason || '', group_key: '',
+      })),
+    ].sort((a: any, b: any) => (b.at || '').localeCompare(a.at || ''));
     const sum = (f: (r: any) => boolean) => rows.filter(f).reduce((a: number, r: any) => a + (r.stars_awarded || 0), 0);
     // Điểm đã dùng đổi quà (yêu cầu đã duyệt) — lỗi/chưa có bảng thì coi như 0
     const { data: spentRows } = await fetchAll(() => s.from('point_redemptions')
@@ -66,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       earned, spent,                                            // tổng kiếm được / đã đổi quà
       month: sum(r => (r.task_date || '').startsWith(monthKey)), // tháng được chọn (mặc định tháng này)
       today: sum(r => r.task_date === today),
-      monthKey,
+      monthKey, todayKey: today, items,
     });
   }
 
